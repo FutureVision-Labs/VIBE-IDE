@@ -3719,14 +3719,14 @@ function insertCodeContext() {
     }
 }
 
-// Insert quick message template
-function insertQuickMessage(message) {
+// Insert quick message template (exposed globally for onclick handlers)
+window.insertQuickMessage = function(message) {
     const chatInput = document.getElementById('chatInput');
     if (chatInput) {
         chatInput.value = message;
         chatInput.focus();
     }
-}
+};
 
 function sendChatMessage() {
     const chatInput = document.getElementById('chatInput');
