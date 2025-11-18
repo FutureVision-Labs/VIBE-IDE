@@ -1030,7 +1030,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setupMenuHandlers();
     
     // Demo: Load sample file tree (remove in Phase 4 when real file system is implemented)
-    loadDemoFileTree();
+    // Don't auto-load demo - show welcome screen instead
+    // loadDemoFileTree();
 });
 
 // Demo File Tree (Phase 2 - will be replaced with real file system in Phase 4)
