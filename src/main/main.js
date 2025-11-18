@@ -727,9 +727,9 @@ ipcMain.handle('project:loadConfig', async (event, projectPath) => {
 
 ipcMain.handle('project:saveConfig', async (event, projectPath, config) => {
   try {
-    const gameforgeDir = path.join(projectPath, '.gameforge');
-    if (!fs.existsSync(gameforgeDir)) {
-      fs.mkdirSync(gameforgeDir, { recursive: true });
+    const vibeideDir = path.join(projectPath, '.vibeide');
+    if (!fs.existsSync(vibeideDir)) {
+      fs.mkdirSync(vibeideDir, { recursive: true });
     }
     const configPath = path.join(vibeideDir, 'config.json');
     config.lastModified = new Date().toISOString();
@@ -742,9 +742,9 @@ ipcMain.handle('project:saveConfig', async (event, projectPath, config) => {
 
 ipcMain.handle('genre:loadRule', async (event, genreName, options = {}) => {
   try {
-    // Try user folder first (~/.gameforge/genre-rules/)
+    // Try user folder first (~/.vibeide/genre-rules/)
     const os = require('os');
-    const userRulesPath = path.join(os.homedir(), '.gameforge', 'genre-rules', `${genreName}.json`);
+    const userRulesPath = path.join(os.homedir(), '.vibeide', 'genre-rules', `${genreName}.json`);
     
     // Try bundled rules (app/templates/genre-rules/)
     const appPath = app.getAppPath();
@@ -853,7 +853,7 @@ ipcMain.handle('genre:saveRule', async (event, genreName, ruleData) => {
 ipcMain.handle('genre:deleteRule', async (event, genreName) => {
   try {
     const os = require('os');
-    const userRulesPath = path.join(os.homedir(), '.gameforge', 'genre-rules', `${genreName}.json`);
+    const userRulesPath = path.join(os.homedir(), '.vibeide', 'genre-rules', `${genreName}.json`);
     if (fs.existsSync(userRulesPath)) {
       fs.unlinkSync(userRulesPath);
       return { success: true };
