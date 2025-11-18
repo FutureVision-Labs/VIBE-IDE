@@ -3534,14 +3534,24 @@ function updateChatWelcomeMessage() {
         if (state.currentProject && state.currentProject.genre) {
             const genreName = state.currentProject.genre.charAt(0).toUpperCase() + state.currentProject.genre.slice(1);
             welcomeDiv.innerHTML = `
-                <p>👋 Hey! I'm your AI coding buddy!</p>
-                <p>🎮 <strong>Active Genre:</strong> ${genreName}</p>
-                <p>Ask me anything about Phaser.js ${genreName} games, get code suggestions, or just vibe code together! 😊</p>
+                <p>👋 Hey! I'm <strong>Cursy</strong>, your AI coding buddy!</p>
+                <p>🎮 <strong>Active Project Type:</strong> ${genreName}</p>
+                <p>I'm currently in <strong>offline mode</strong> - but I can still help with code explanations, debugging, and learning the basics! 😊</p>
+                <p style="font-size: 0.9em; opacity: 0.7; margin-top: 10px;">💡 Full AI chat coming soon when API credits are configured!</p>
             `;
         } else {
+            // Default welcome message (already set in HTML, but update if needed)
             welcomeDiv.innerHTML = `
-                <p>👋 Hey! I'm your AI coding buddy!</p>
-                <p>Ask me anything about Phaser.js, get code suggestions, or just vibe code together! 😊</p>
+                <p>👋 Hey! I'm <strong>Cursy</strong>, your AI coding buddy!</p>
+                <p>I'm currently in <strong>offline mode</strong> - but I can still help with:</p>
+                <ul style="text-align: left; margin: 10px 0; padding-left: 20px;">
+                    <li>Code explanations (functions, variables, loops, arrays)</li>
+                    <li>Debugging tips</li>
+                    <li>Getting started with projects</li>
+                    <li>Learning the basics</li>
+                </ul>
+                <p>Try asking: <em>"How do I create a function?"</em> or <em>"What is a variable?"</em> 😊</p>
+                <p style="font-size: 0.9em; opacity: 0.7; margin-top: 10px;">💡 Full AI chat coming soon when API credits are configured!</p>
             `;
         }
     }
