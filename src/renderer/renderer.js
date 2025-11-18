@@ -57,6 +57,12 @@ function showOpenProject() {
     handleOpenProject();
 }
 
+function showAboutDialog() {
+    // This will be handled by the Electron menu, but we can also show it here
+    // The actual dialog is shown via IPC from the menu
+    console.log('About dialog requested');
+}
+
 // File Operations (Phase 4)
 async function handleNewFile() {
     console.log('handleNewFile called');
@@ -827,9 +833,14 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('VIBE IDE UI Ready!');
     
     // Ensure welcome screen is shown on startup
+    state.activeTab = null;
+    state.openTabs = []; // Clear any tabs
     document.getElementById('welcomeScreen').style.display = 'block';
     document.getElementById('monacoEditor').style.display = 'none';
-    state.activeTab = null;
+    
+    // Render tabs to show Welcome tab
+    renderTabs();
+    switchToTab('welcome');
     
     // Load recent projects
     loadRecentProjects();

@@ -12,10 +12,49 @@
         <div class="menu-bar">
             <div class="menu-title">VIBE IDE</div>
             <div class="menu-items">
-                <span class="menu-item">File</span>
-                <span class="menu-item">Edit</span>
-                <span class="menu-item">View</span>
-                <span class="menu-item">Help</span>
+                <div class="menu-item-wrapper">
+                    <span class="menu-item" id="menuFile">File</span>
+                    <div class="menu-dropdown" id="dropdownFile">
+                        <div class="menu-dropdown-item" onclick="handleNewProject()">New Project</div>
+                        <div class="menu-dropdown-item" onclick="handleOpenProject()">Open Project</div>
+                        <div class="menu-dropdown-separator"></div>
+                        <div class="menu-dropdown-item" onclick="handleNewFile()">New File</div>
+                        <div class="menu-dropdown-item" onclick="handleOpenFile()">Open File</div>
+                        <div class="menu-dropdown-item" onclick="handleSaveFile()">Save</div>
+                        <div class="menu-dropdown-item" onclick="handleSaveFileAs()">Save As</div>
+                        <div class="menu-dropdown-separator"></div>
+                        <div class="menu-dropdown-item" onclick="window.electronAPI.closeWindow()">Exit</div>
+                    </div>
+                </div>
+                <div class="menu-item-wrapper">
+                    <span class="menu-item" id="menuEdit">Edit</span>
+                    <div class="menu-dropdown" id="dropdownEdit">
+                        <div class="menu-dropdown-item" onclick="document.execCommand('undo')">Undo</div>
+                        <div class="menu-dropdown-item" onclick="document.execCommand('redo')">Redo</div>
+                        <div class="menu-dropdown-separator"></div>
+                        <div class="menu-dropdown-item" onclick="document.execCommand('cut')">Cut</div>
+                        <div class="menu-dropdown-item" onclick="document.execCommand('copy')">Copy</div>
+                        <div class="menu-dropdown-item" onclick="document.execCommand('paste')">Paste</div>
+                    </div>
+                </div>
+                <div class="menu-item-wrapper">
+                    <span class="menu-item" id="menuView">View</span>
+                    <div class="menu-dropdown" id="dropdownView">
+                        <div class="menu-dropdown-item" onclick="location.reload()">Reload</div>
+                        <div class="menu-dropdown-item" onclick="location.reload(true)">Force Reload</div>
+                        <div class="menu-dropdown-item" onclick="window.electronAPI && window.electronAPI.toggleDevTools && window.electronAPI.toggleDevTools()">Toggle Developer Tools</div>
+                        <div class="menu-dropdown-separator"></div>
+                        <div class="menu-dropdown-item" onclick="toggleLeftSidebar()">Toggle Left Sidebar</div>
+                        <div class="menu-dropdown-item" onclick="toggleRightSidebar()">Toggle Right Sidebar</div>
+                        <div class="menu-dropdown-item" onclick="togglePreview()">Toggle Preview</div>
+                    </div>
+                </div>
+                <div class="menu-item-wrapper">
+                    <span class="menu-item" id="menuHelp">Help</span>
+                    <div class="menu-dropdown" id="dropdownHelp">
+                        <div class="menu-dropdown-item" onclick="if(window.electronAPI && window.electronAPI.showAbout) window.electronAPI.showAbout(); else alert('About VIBE IDE\n\nVersion 0.1.0\n\nBuilt with ❤️ by FutureVision Labs');">About VIBE IDE</div>
+                    </div>
+                </div>
             </div>
             <div class="menu-right">
                 <button class="theme-toggle" id="themeToggle" title="Toggle Theme">
