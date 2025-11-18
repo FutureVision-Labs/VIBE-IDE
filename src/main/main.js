@@ -570,7 +570,7 @@ ipcMain.handle('project:create', async (event, template, projectPath, genre = nu
     const packageJson = {
       name: path.basename(projectPath),
       version: '1.0.0',
-      description: 'Phaser.js game created with GameForge IDE',
+      description: 'Project created with VIBE IDE',
       main: 'game.js',
       scripts: {
         start: 'npx http-server -p 8080'
@@ -595,10 +595,10 @@ ipcMain.handle('project:create', async (event, template, projectPath, genre = nu
 
     fs.writeFileSync(pkgPath, JSON.stringify(packageJson, null, 2), 'utf-8');
 
-    // Create .gameforge directory and config.json
-    const gameforgeDir = path.join(projectPath, '.gameforge');
-    if (!fs.existsSync(gameforgeDir)) {
-      fs.mkdirSync(gameforgeDir, { recursive: true });
+    // Create .vibeide directory and config.json
+    const vibeideDir = path.join(projectPath, '.vibeide');
+    if (!fs.existsSync(vibeideDir)) {
+      fs.mkdirSync(vibeideDir, { recursive: true });
     }
     
     const configJson = {
@@ -610,9 +610,9 @@ ipcMain.handle('project:create', async (event, template, projectPath, genre = nu
       lastModified: new Date().toISOString()
     };
     
-    const configPath = path.join(gameforgeDir, 'config.json');
+    const configPath = path.join(vibeideDir, 'config.json');
     fs.writeFileSync(configPath, JSON.stringify(configJson, null, 2), 'utf-8');
-    console.log('✅ Created .gameforge/config.json with genre:', selectedGenre);
+    console.log('✅ Created .vibeide/config.json with genre:', selectedGenre);
 
     return { success: true, path: projectPath };
   } catch (error) {
@@ -714,7 +714,7 @@ ipcMain.handle('run:npmScript', async (event, { script, outDir }) => {
 // Genre Rules and Project Config IPC Handlers
 ipcMain.handle('project:loadConfig', async (event, projectPath) => {
   try {
-    const configPath = path.join(projectPath, '.gameforge', 'config.json');
+    const configPath = path.join(projectPath, '.vibeide', 'config.json');
     if (fs.existsSync(configPath)) {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
       return { success: true, config };
@@ -731,7 +731,7 @@ ipcMain.handle('project:saveConfig', async (event, projectPath, config) => {
     if (!fs.existsSync(gameforgeDir)) {
       fs.mkdirSync(gameforgeDir, { recursive: true });
     }
-    const configPath = path.join(gameforgeDir, 'config.json');
+    const configPath = path.join(vibeideDir, 'config.json');
     config.lastModified = new Date().toISOString();
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
     return { success: true };
@@ -781,7 +781,7 @@ ipcMain.handle('genre:listAvailable', async () => {
     const os = require('os');
     const appPath = app.getAppPath();
     const bundledRulesPath = path.join(appPath, 'templates', 'genre-rules');
-    const userRulesPath = path.join(os.homedir(), '.gameforge', 'genre-rules');
+    const userRulesPath = path.join(os.homedir(), '.vibeide', 'genre-rules');
     
     const genreMap = new Map();
     
@@ -826,7 +826,7 @@ ipcMain.handle('genre:listAvailable', async () => {
 ipcMain.handle('genre:saveRule', async (event, genreName, ruleData) => {
   try {
     const os = require('os');
-    const userRulesDir = path.join(os.homedir(), '.gameforge', 'genre-rules');
+    const userRulesDir = path.join(os.homedir(), '.vibeide', 'genre-rules');
     if (!fs.existsSync(userRulesDir)) {
       fs.mkdirSync(userRulesDir, { recursive: true });
     }

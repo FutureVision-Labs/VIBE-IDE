@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GameForge Preview</title>
+    <title>VIBE IDE Preview</title>
     <style>
         * {
             margin: 0;
@@ -57,7 +57,7 @@
     <!-- Game Code Injection Point -->
     <script id="game-code">
         // Game code will be injected here
-        console.log('GameForge Preview - Waiting for game code...');
+        console.log('VIBE IDE Preview - Waiting for game code...');
     </script>
     
     <script>
@@ -265,7 +265,7 @@
             if (errorContainer) {
                 errorContainer.innerHTML = `<div class="error-message">Error: ${error.message}\n\n${error.stack || 'No stack trace available'}</div>`;
             }
-            console.error('GameForge Preview Error:', error);
+            console.error('VIBE IDE Preview Error:', error);
         }
         
         // Expose reload function globally

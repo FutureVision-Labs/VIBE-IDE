@@ -44,5 +44,5 @@ window.electronAPI = {
   appVersion: process.env.npm_package_version || '1.0.0'
 };
 
-console.log('GameForge IDE Preload Script Loaded');
+console.log('VIBE IDE Preload Script Loaded');
 

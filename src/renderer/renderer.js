@@ -1,7 +1,7 @@
 // Renderer process script
 // Handles UI interactions and communicates with main process
 
-console.log('GameForge IDE Renderer Process Loaded');
+console.log('VIBE IDE Renderer Process Loaded');
 
 // Platform detection
 if (window.electronAPI) {
@@ -21,13 +21,13 @@ const state = {
     autoReload: true,
     previewRunning: false,
     autoBundle: true, // prefer bundling for real projects
-    theme: localStorage.getItem('gameforge-theme') || 'dark',
-    leftSidebarWidth: parseInt(localStorage.getItem('gameforge-left-sidebar-width') || '260', 10),
-    rightSidebarWidth: parseInt(localStorage.getItem('gameforge-right-sidebar-width') || '320', 10),
-    previewHeight: parseInt(localStorage.getItem('gameforge-preview-height') || '250', 10),
-    leftSidebarCollapsed: localStorage.getItem('gameforge-left-sidebar-collapsed') === 'true',
-    rightSidebarCollapsed: localStorage.getItem('gameforge-right-sidebar-collapsed') === 'true',
-    previewCollapsed: localStorage.getItem('gameforge-preview-collapsed') === 'true',
+    theme: localStorage.getItem('vibe-ide-theme') || 'dark',
+    leftSidebarWidth: parseInt(localStorage.getItem('vibe-ide-left-sidebar-width') || '260', 10),
+    rightSidebarWidth: parseInt(localStorage.getItem('vibe-ide-right-sidebar-width') || '320', 10),
+    previewHeight: parseInt(localStorage.getItem('vibe-ide-preview-height') || '250', 10),
+    leftSidebarCollapsed: localStorage.getItem('vibe-ide-left-sidebar-collapsed') === 'true',
+    rightSidebarCollapsed: localStorage.getItem('vibe-ide-right-sidebar-collapsed') === 'true',
+    previewCollapsed: localStorage.getItem('vibe-ide-preview-collapsed') === 'true',
     genreEditor: {
         overlay: null,
         jsonEditor: null,
@@ -437,7 +437,7 @@ async function handleOpenProject() {
 
 async function loadProject(projectPath) {
     state.currentProject = { path: projectPath };
-    localStorage.setItem('gameforge-last-project', projectPath);
+    localStorage.setItem('vibe-ide-last-project', projectPath);
     
     // Load project config and genre rules
     try {
@@ -614,7 +614,7 @@ function setupMenuHandlers() {
 function toggleTheme() {
     state.theme = state.theme === 'dark' ? 'light' : 'dark';
     document.body.className = state.theme === 'light' ? 'light-theme' : '';
-    localStorage.setItem('gameforge-theme', state.theme);
+    localStorage.setItem('vibe-ide-theme', state.theme);
     
     const themeToggle = document.getElementById('themeToggle');
     themeToggle.textContent = state.theme === 'dark' ? '🌙' : '☀️';
@@ -656,7 +656,7 @@ function initResizers() {
         if (leftResizing) {
             leftResizing = false;
             leftResizer.classList.remove('dragging');
-            localStorage.setItem('gameforge-left-sidebar-width', state.leftSidebarWidth.toString());
+            localStorage.setItem('vibe-ide-left-sidebar-width', state.leftSidebarWidth.toString());
         }
     });
 
@@ -682,7 +682,7 @@ function initResizers() {
         if (rightResizing) {
             rightResizing = false;
             rightResizer.classList.remove('dragging');
-            localStorage.setItem('gameforge-right-sidebar-width', state.rightSidebarWidth.toString());
+            localStorage.setItem('vibe-ide-right-sidebar-width', state.rightSidebarWidth.toString());
         }
     });
 
@@ -708,7 +708,7 @@ function initResizers() {
         if (previewResizing) {
             previewResizing = false;
             previewResizer.classList.remove('dragging');
-            localStorage.setItem('gameforge-preview-height', state.previewHeight.toString());
+            localStorage.setItem('vibe-ide-preview-height', state.previewHeight.toString());
         }
     });
 }
@@ -728,7 +728,7 @@ function toggleLeftSidebar() {
         toggle.textContent = '◀';
     }
     
-    localStorage.setItem('gameforge-left-sidebar-collapsed', state.leftSidebarCollapsed.toString());
+    localStorage.setItem('vibe-ide-left-sidebar-collapsed', state.leftSidebarCollapsed.toString());
 }
 
 function toggleRightSidebar() {
@@ -748,7 +748,7 @@ function toggleRightSidebar() {
         if (floatToggle) floatToggle.style.display = 'none'; // Hide floating button
     }
     
-    localStorage.setItem('gameforge-right-sidebar-collapsed', state.rightSidebarCollapsed.toString());
+    localStorage.setItem('vibe-ide-right-sidebar-collapsed', state.rightSidebarCollapsed.toString());
 }
 
 function togglePreview() {
@@ -765,12 +765,12 @@ function togglePreview() {
         toggle.textContent = '▼';
     }
     
-    localStorage.setItem('gameforge-preview-collapsed', state.previewCollapsed.toString());
+    localStorage.setItem('vibe-ide-preview-collapsed', state.previewCollapsed.toString());
 }
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('GameForge IDE UI Ready!');
+    console.log('VIBE IDE UI Ready!');
     
     // Apply saved theme
     if (state.theme === 'light') {
@@ -968,7 +968,7 @@ function create() {
     var playerSprite = this.add.sprite(400, 300, 'player');
     
     // Add some text
-    this.add.text(400, 50, 'GameForge IDE Preview', {
+    this.add.text(400, 50, 'VIBE IDE Preview', {
         fontSize: '32px',
         fill: '#ffffff',
         fontFamily: 'Arial'
@@ -1020,7 +1020,7 @@ function initMonacoEditor() {
         
         // Create Monaco Editor instance
         state.monacoEditor = monaco.editor.create(editorContainer, {
-            value: '// Welcome to GameForge IDE!\n// Start coding your Phaser.js game here...\n\nconsole.log("Hello, GameForge!");',
+            value: '// Welcome to VIBE IDE!\n// Start coding your project here...\n\nconsole.log("Hello, VIBE IDE!");',
             language: 'javascript',
             theme: state.theme === 'dark' ? 'vs-dark' : 'vs',
             fontSize: 14,
@@ -1513,10 +1513,10 @@ async function updatePreview() {
                 // Wrap if it's a simple template OR has lifecycle functions but no config
                 let wrappedCode = codeToWrap;
                 if (isSimpleTemplate || ((hasPreload || hasCreate || hasUpdate) && !hasConfig)) {
-                    wrappedCode = `// GameForge IDE - Phaser.js Game${isSimpleTemplate ? ' (Simple Template)' : ' (Bundled)'}
+                    wrappedCode = `// VIBE IDE - Phaser.js Game${isSimpleTemplate ? ' (Simple Template)' : ' (Bundled)'}
 // Auto-wrapped code
 
-console.log('📦 [GameForge] Executing code wrapper...');
+console.log('📦 [VIBE IDE] Executing code wrapper...');
 
 // Phaser configuration (functions will be hoisted)
 var config = {
@@ -1539,12 +1539,12 @@ var config = {
     }
 };
 
-console.log('📦 [GameForge] Config created, executing code...');
+console.log('📦 [VIBE IDE] Config created, executing code...');
 
 // Execute code (defines preload, create, update functions)
 ${codeToWrap}
 
-console.log('📦 [GameForge] Code executed, checking functions:', {
+console.log('📦 [VIBE IDE] Code executed, checking functions:', {
     preload: typeof preload,
     create: typeof create,
     update: typeof update,
@@ -1552,9 +1552,9 @@ console.log('📦 [GameForge] Code executed, checking functions:', {
 });
 
 // Start the game
-console.log('📦 [GameForge] Creating Phaser.Game instance...');
+console.log('📦 [VIBE IDE] Creating Phaser.Game instance...');
 window.gameInstance = new Phaser.Game(config);
-console.log('📦 [GameForge] Phaser.Game instance created:', !!window.gameInstance);
+console.log('📦 [VIBE IDE] Phaser.Game instance created:', !!window.gameInstance);
 `;
                     console.log('📦 Wrapped code in Phaser config' + (isSimpleTemplate ? ' (simple template)' : ''));
                 }
@@ -1665,7 +1665,7 @@ function generateGameCode(files) {
     const hasUpdate = /function\s+update\s*\(/i.test(userCode) || /update\s*:\s*function/i.test(userCode);
     const hasConfig = /var\s+config\s*=|const\s+config\s*=|let\s+config\s*=/i.test(userCode);
     
-    let code = `// GameForge IDE - Phaser.js Game
+    let code = `// VIBE IDE - Phaser.js Game
 // Auto-generated from your code files
 
 `;
@@ -1720,7 +1720,7 @@ var player;
     player.setCollideWorldBounds(true);
     
     // Add text
-    this.add.text(400, 50, 'GameForge IDE Preview', {
+    this.add.text(400, 50, 'VIBE IDE Preview', {
         fontSize: '32px',
         fill: '#ffffff',
         fontFamily: 'Arial'
@@ -1979,7 +1979,7 @@ function buildExternalPreviewHtml(bundledCode, baseUrl) {
 <html><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>GameForge Preview</title>
+<title>VIBE IDE Preview</title>
 <style>html,body{height:100%;margin:0;background:#000}#game-container{width:100%;height:100%}</style>
 <script>window.GF_BASE_URL = ${JSON.stringify(baseUrl || '')};</script>
 <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
