@@ -41,7 +41,13 @@ window.electronAPI = {
   platform: process.platform,
   
   // Version info
-  appVersion: process.env.npm_package_version || '1.0.0'
+  appVersion: process.env.npm_package_version || '1.0.0',
+  
+  // Window controls
+  minimizeWindow: () => ipcRenderer.invoke('window:minimize'),
+  maximizeWindow: () => ipcRenderer.invoke('window:maximize'),
+  closeWindow: () => ipcRenderer.invoke('window:close'),
+  isWindowMaximized: () => ipcRenderer.invoke('window:isMaximized')
 };
 
 console.log('VIBE IDE Preload Script Loaded');

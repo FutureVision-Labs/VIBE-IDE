@@ -113,12 +113,14 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     show: false, // Don't show until ready (splash will close first)
+    frame: false, // Remove Windows chrome - custom window controls
+    titleBarStyle: 'hidden', // For macOS
+    titleBarOverlay: false,
     webPreferences: {
       nodeIntegration: true, // Needed for Monaco Editor's AMD loader
       contextIsolation: false, // Temporarily disabled for Monaco compatibility
       preload: path.join(__dirname, 'preload.js')
     },
-    titleBarStyle: 'default',
     backgroundColor: '#1e1e1e'
   });
 
@@ -900,6 +902,36 @@ ipcMain.on('splash:close', () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.show();
   }
+});
+
+// Window control IPC handlers
+ipcMain.handle('window:minimize', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.minimize();
+  }
+});
+
+ipcMain.handle('window:maximize', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow.maximize();
+    }
+  }
+});
+
+ipcMain.handle('window:close', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.close();
+  }
+});
+
+ipcMain.handle('window:isMaximized', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    return mainWindow.isMaximized();
+  }
+  return false;
 });
 
 // Register protocol to serve static files from node_modules

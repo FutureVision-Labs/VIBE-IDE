@@ -826,6 +826,11 @@ function saveToRecentProjects(projectPath) {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('VIBE IDE UI Ready!');
     
+    // Ensure welcome screen is shown on startup
+    document.getElementById('welcomeScreen').style.display = 'block';
+    document.getElementById('monacoEditor').style.display = 'none';
+    state.activeTab = null;
+    
     // Load recent projects
     loadRecentProjects();
     
@@ -871,6 +876,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     document.getElementById('togglePreview').addEventListener('click', togglePreview);
+    
+    // Window controls
+    if (window.electronAPI) {
+        document.getElementById('windowMinimize').addEventListener('click', () => {
+            window.electronAPI.minimizeWindow();
+        });
+        
+        document.getElementById('windowMaximize').addEventListener('click', () => {
+            window.electronAPI.maximizeWindow();
+            // Update button text based on maximized state
+            setTimeout(() => {
+                window.electronAPI.isWindowMaximized().then(maximized => {
+                    const btn = document.getElementById('windowMaximize');
+                    btn.textContent = maximized ? '❐' : '□';
+                });
+            }, 100);
+        });
+        
+        document.getElementById('windowClose').addEventListener('click', () => {
+            window.electronAPI.closeWindow();
+        });
+        
+        // Update maximize button on window state change
+        if (window.electronAPI.isWindowMaximized) {
+            window.electronAPI.isWindowMaximized().then(maximized => {
+                const btn = document.getElementById('windowMaximize');
+                if (btn) btn.textContent = maximized ? '❐' : '□';
+            });
+        }
+    }
 
     // Journal buttons
     const buildBtn = document.getElementById('btnBuildJournal');

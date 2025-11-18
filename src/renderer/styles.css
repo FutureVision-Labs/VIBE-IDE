@@ -37,6 +37,7 @@ body {
     padding: 0 10px;
     border-bottom: 1px solid #3e3e42;
     -webkit-app-region: drag;
+    position: relative;
 }
 
 .menu-title {
@@ -56,6 +57,66 @@ body {
     cursor: pointer;
     padding: 5px 10px;
     -webkit-app-region: no-drag;
+}
+
+/* Window Controls */
+.window-controls {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-left: auto;
+    -webkit-app-region: no-drag;
+}
+
+.window-control {
+    width: 46px;
+    height: 30px;
+    border: none;
+    background: transparent;
+    color: #cccccc;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s ease;
+    padding: 0;
+    line-height: 1;
+}
+
+.window-control:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.window-control.minimize:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.window-control.maximize:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.window-control.close:hover {
+    background: #e81123;
+    color: #ffffff;
+}
+
+.window-control.close {
+    font-size: 18px;
+}
+
+body.light-theme .window-control {
+    color: #4a5568;
+}
+
+body.light-theme .window-control:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+body.light-theme .window-control.close:hover {
+    background: #e81123;
+    color: #ffffff;
 }
 
 .menu-item:hover {
