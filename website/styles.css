@@ -284,6 +284,50 @@ body {
     line-height: 1.6;
 }
 
+/* Why Choose Section */
+.why-choose {
+    padding: 6rem 0;
+    background: rgba(139, 92, 246, 0.05);
+}
+
+.why-choose-content {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.why-choose-item {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-left: 4px solid var(--primary-purple);
+    border-radius: 12px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    transition: all 0.3s ease;
+}
+
+.why-choose-item:hover {
+    transform: translateX(5px);
+    border-left-color: var(--primary-cyan);
+    box-shadow: 0 8px 25px rgba(139, 92, 246, 0.2);
+}
+
+.why-choose-item h3 {
+    font-size: 1.8rem;
+    color: var(--primary-cyan);
+    margin-bottom: 1rem;
+}
+
+.why-choose-item p {
+    font-size: 1.1rem;
+    color: var(--muted-text);
+    line-height: 1.8;
+}
+
+.why-choose-item strong {
+    color: var(--primary-pink);
+    font-weight: 600;
+}
+
 /* About Section */
 .about {
     padding: 6rem 0;
