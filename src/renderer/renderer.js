@@ -1117,8 +1117,8 @@ function initMonacoEditor() {
     }
     
     try {
-        // Ensure container is visible and has dimensions
-        editorContainer.style.display = 'block';
+        // Don't show editor container - it will be shown when a tab is opened
+        // editorContainer.style.display = 'block'; // Only show when tab is active
         editorContainer.style.width = '100%';
         editorContainer.style.height = '100%';
         
