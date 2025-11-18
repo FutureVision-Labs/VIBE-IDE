@@ -328,6 +328,73 @@ body {
     font-weight: 600;
 }
 
+/* Future Features Section */
+.future-features {
+    padding: 6rem 0;
+    background: rgba(6, 182, 212, 0.05);
+}
+
+.future-features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.future-feature-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-top: 4px solid var(--primary-cyan);
+    border-radius: 12px;
+    padding: 2rem;
+    transition: all 0.3s ease;
+}
+
+.future-feature-card:hover {
+    transform: translateY(-5px);
+    border-top-color: var(--primary-pink);
+    box-shadow: 0 8px 25px rgba(6, 182, 212, 0.2);
+}
+
+.future-feature-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.future-feature-title {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    color: var(--primary-cyan);
+}
+
+.future-feature-description {
+    color: var(--muted-text);
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+}
+
+.future-feature-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.future-feature-list li {
+    color: var(--muted-text);
+    padding: 0.5rem 0;
+    padding-left: 1.5rem;
+    position: relative;
+}
+
+.future-feature-list li::before {
+    content: "→";
+    position: absolute;
+    left: 0;
+    color: var(--primary-purple);
+    font-weight: bold;
+}
+
 /* About Section */
 .about {
     padding: 6rem 0;
