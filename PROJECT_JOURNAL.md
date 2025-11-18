@@ -488,6 +488,17 @@ Instead of just picking a template, beginners fill out a visual form:
 
 **Vision:** Uninterrupted workflow like GitHub Copilot - code on desktop, review on laptop, make quick edits on mobile. All your context, preferences, progress, and Cursy chat history sync seamlessly across devices. Continue your conversation with Cursy on any device.
 
+### Phase 12: Voice Features - Cursy Speaks! (Future)
+- [ ] Text-to-speech integration (Windows SAPI, ElevenLabs, etc.)
+- [ ] Voice selection UI (let users choose Cursy's voice)
+- [ ] Real-time narration of Cursy's responses
+- [ ] Toggle on/off voice feature
+- [ ] Voice settings (rate, volume, voice selection)
+- [ ] Mobile voice support
+- [ ] Accessibility features (screen reader integration)
+
+**Vision:** Give Cursy a voice! Users can hear Cursy's responses spoken aloud, making the AI assistant feel more present and accessible. Perfect for accessibility, multitasking, and making the coding experience more engaging. Based on the Cursy_Speak experiment - where Cursy chose "Rachel" as the voice, revealing a feminine non-binary personality! 🎤✨
+
 ---
 
 ## 🎯 Key Differentiators
