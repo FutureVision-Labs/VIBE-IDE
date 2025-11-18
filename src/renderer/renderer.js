@@ -3688,6 +3688,46 @@ function addMessageToHistory(role, content) {
     saveChatHistory();
 }
 
+// Insert selected code into chat
+function insertCodeContext() {
+    const chatInput = document.getElementById('chatInput');
+    if (!chatInput) return;
+    
+    if (state.monacoEditor) {
+        const selection = state.monacoEditor.getSelection();
+        const selectedText = state.monacoEditor.getModel().getValueInRange(selection);
+        
+        if (selectedText.trim()) {
+            // Insert code block into chat
+            const codeBlock = `\`\`\`javascript\n${selectedText}\n\`\`\`\n\nCan you explain this code?`;
+            insertTextAtCursor(chatInput, codeBlock);
+            chatInput.focus();
+        } else {
+            // No selection - get current line or all code
+            const position = state.monacoEditor.getPosition();
+            const line = state.monacoEditor.getModel().getLineContent(position.lineNumber);
+            if (line.trim()) {
+                const codeBlock = `\`\`\`javascript\n${line}\n\`\`\`\n\nCan you explain this code?`;
+                insertTextAtCursor(chatInput, codeBlock);
+                chatInput.focus();
+            } else {
+                alert('No code selected. Select some code in the editor first!');
+            }
+        }
+    } else {
+        alert('Editor not available. Open a file first!');
+    }
+}
+
+// Insert quick message template
+function insertQuickMessage(message) {
+    const chatInput = document.getElementById('chatInput');
+    if (chatInput) {
+        chatInput.value = message;
+        chatInput.focus();
+    }
+}
+
 function sendChatMessage() {
     const chatInput = document.getElementById('chatInput');
     const chatMessages = document.getElementById('chatMessages');

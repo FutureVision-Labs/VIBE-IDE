@@ -222,7 +222,16 @@
                         
                         <!-- Send Button -->
                         <div class="chat-actions">
+                            <button class="btn btn-secondary btn-small" id="insertCodeContextBtn" title="Insert Selected Code">📋 Code</button>
                             <button class="btn btn-primary" id="chatSendBtn" title="Send (Enter)">Send</button>
+                        </div>
+                        
+                        <!-- Quick Actions -->
+                        <div class="chat-quick-actions">
+                            <button class="quick-action-btn" onclick="insertQuickMessage('How do I create a function?')">💡 Functions</button>
+                            <button class="quick-action-btn" onclick="insertQuickMessage('What is a variable?')">📝 Variables</button>
+                            <button class="quick-action-btn" onclick="insertQuickMessage('How do I use a loop?')">🔄 Loops</button>
+                            <button class="quick-action-btn" onclick="insertQuickMessage('Explain arrays')">📦 Arrays</button>
                         </div>
                     </div>
                 </div>
