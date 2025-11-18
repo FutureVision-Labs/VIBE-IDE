@@ -438,6 +438,7 @@ async function handleOpenProject() {
 async function loadProject(projectPath) {
     state.currentProject = { path: projectPath };
     localStorage.setItem('vibe-ide-last-project', projectPath);
+    saveToRecentProjects(projectPath);
     
     // Load project config and genre rules
     try {
@@ -768,9 +769,65 @@ function togglePreview() {
     localStorage.setItem('vibe-ide-preview-collapsed', state.previewCollapsed.toString());
 }
 
+// Load and display recent projects
+function loadRecentProjects() {
+    const recentProjects = JSON.parse(localStorage.getItem('vibe-ide-recent-projects') || '[]');
+    const recentProjectsDiv = document.getElementById('recentProjects');
+    const recentProjectsList = document.getElementById('recentProjectsList');
+    
+    if (recentProjects.length === 0) {
+        recentProjectsDiv.style.display = 'none';
+        return;
+    }
+    
+    recentProjectsDiv.style.display = 'block';
+    recentProjectsList.innerHTML = '';
+    
+    // Show last 5 projects
+    const projectsToShow = recentProjects.slice(0, 5);
+    
+    projectsToShow.forEach(projectPath => {
+        const projectItem = document.createElement('div');
+        projectItem.className = 'recent-project-item';
+        projectItem.onclick = () => loadProject(projectPath);
+        
+        const projectName = document.createElement('div');
+        projectName.className = 'project-name';
+        projectName.textContent = projectPath.split(/[/\\]/).pop() || projectPath;
+        
+        const projectPathEl = document.createElement('div');
+        projectPathEl.className = 'project-path';
+        projectPathEl.textContent = projectPath;
+        
+        projectItem.appendChild(projectName);
+        projectItem.appendChild(projectPathEl);
+        recentProjectsList.appendChild(projectItem);
+    });
+}
+
+// Save project to recent projects list
+function saveToRecentProjects(projectPath) {
+    let recentProjects = JSON.parse(localStorage.getItem('vibe-ide-recent-projects') || '[]');
+    
+    // Remove if already exists
+    recentProjects = recentProjects.filter(p => p !== projectPath);
+    
+    // Add to beginning
+    recentProjects.unshift(projectPath);
+    
+    // Keep only last 10
+    recentProjects = recentProjects.slice(0, 10);
+    
+    localStorage.setItem('vibe-ide-recent-projects', JSON.stringify(recentProjects));
+    loadRecentProjects();
+}
+
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
     console.log('VIBE IDE UI Ready!');
+    
+    // Load recent projects
+    loadRecentProjects();
     
     // Apply saved theme
     if (state.theme === 'light') {

@@ -269,8 +269,7 @@ function createMenu() {
         {
           label: 'About VIBE IDE',
           click: () => {
-            // TODO: Show about dialog
-            console.log('About VIBE IDE');
+            showAboutDialog();
           }
         }
       ]
@@ -281,6 +280,27 @@ function createMenu() {
   Menu.setApplicationMenu(menu);
   
   console.log('✅ Application menu created and set');
+}
+
+// Show About Dialog
+function showAboutDialog() {
+  const packageJson = require('../../package.json');
+  dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    title: 'About VIBE IDE',
+    message: 'VIBE IDE',
+    detail: `Version ${packageJson.version}\n\n` +
+            `${packageJson.description}\n\n` +
+            `Built with ❤️ by FutureVision Labs\n\n` +
+            `Part of the Forge Family\n\n` +
+            `Visit us:\n` +
+            `• itch.io: futurevisionlabs.itch.io/vibe-ide\n` +
+            `• GitHub: github.com/FutureVision-Labs/VIBE-IDE\n` +
+            `• Medium: medium.com/@caynesd\n\n` +
+            `© 2025 FutureVision Labs`,
+    buttons: ['OK'],
+    defaultId: 0
+  });
 }
 
 // IPC Handlers for File Operations (Phase 4)

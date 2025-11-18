@@ -611,6 +611,80 @@ body {
     margin-right: 8px;
 }
 
+/* Recent Projects */
+.recent-projects {
+    text-align: left;
+    background: rgba(0, 162, 255, 0.1);
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+    margin-top: 20px;
+}
+
+.recent-projects h3 {
+    color: #00a2ff;
+    margin-bottom: 15px;
+    font-size: 1.2em;
+}
+
+.recent-projects-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.recent-project-item {
+    padding: 10px 15px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.recent-project-item:hover {
+    background: rgba(0, 162, 255, 0.2);
+    transform: translateX(5px);
+}
+
+.recent-project-item .project-name {
+    color: #cccccc;
+    font-weight: 500;
+}
+
+.recent-project-item .project-path {
+    color: #858585;
+    font-size: 0.9em;
+    font-family: 'Courier New', monospace;
+}
+
+body.light-theme .recent-projects {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+    border-left: 4px solid #6366f1;
+}
+
+body.light-theme .recent-projects h3 {
+    color: #6366f1;
+}
+
+body.light-theme .recent-project-item {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+body.light-theme .recent-project-item:hover {
+    background: rgba(99, 102, 241, 0.15);
+}
+
+body.light-theme .recent-project-item .project-name {
+    color: #2d2d2d;
+}
+
+body.light-theme .recent-project-item .project-path {
+    color: #6b7280;
+}
+
 .phase-info {
     text-align: left;
     background: rgba(0, 162, 255, 0.1);
