@@ -51,11 +51,12 @@ Most IDEs are desktop-only. If you want to code on multiple devices, you're stuc
 **What Gets Synced:**
 1. **PROJECT_JOURNAL** - Your project context and history
 2. **Agent Persona** - Your AI assistant preferences
-3. **Project Settings** - Templates, preferences, configurations
-4. **Recent Projects** - Quick access across devices
-5. **User Preferences** - Themes, editor settings, UI preferences
-6. **Learning Progress** - Achievements, streaks, tutorial progress
-7. **Extension Settings** - Installed extensions, configurations
+3. **Cursy Chat Sessions** - Your entire conversation history with Cursy
+4. **Project Settings** - Templates, preferences, configurations
+5. **Recent Projects** - Quick access across devices
+6. **User Preferences** - Themes, editor settings, UI preferences
+7. **Learning Progress** - Achievements, streaks, tutorial progress
+8. **Extension Settings** - Installed extensions, configurations
 
 **Security:**
 - End-to-end encryption for sensitive data
@@ -72,7 +73,7 @@ Most IDEs are desktop-only. If you want to code on multiple devices, you're stuc
 - **PROJECT_JOURNAL Viewer/Editor** - Review and update your project context
 - **Quick Code Snippets** - Make small edits on the go
 - **Project Browsing** - View your projects, read code
-- **AI Chat** - Chat with Cursy on mobile
+- **Full Cursy Chat** - Complete AI chat experience on mobile, with full conversation history synced
 - **Learning Progress** - Check achievements, continue tutorials
 
 **Design Philosophy:**
@@ -171,11 +172,12 @@ Most IDEs are desktop-only. If you want to code on multiple devices, you're stuc
 5. Continue coding seamlessly
 
 ### Desktop → Mobile
-1. Code on desktop
+1. Code on desktop, chat with Cursy
 2. Review PROJECT_JOURNAL on mobile
-3. Make quick edit on mobile
-4. Back on desktop - changes are there
-5. Uninterrupted workflow
+3. Continue chatting with Cursy on mobile (full conversation history)
+4. Make quick edit on mobile
+5. Back on desktop - changes and chat history are there
+6. Uninterrupted workflow
 
 ### Mobile → Desktop
 1. Quick edit on mobile
@@ -192,12 +194,15 @@ Most IDEs are desktop-only. If you want to code on multiple devices, you're stuc
 - User authentication
 - Basic sync service
 - PROJECT_JOURNAL sync
+- Cursy chat session sync
 - Preferences sync
 
 ### Phase 2: Mobile App MVP
 - React Native/Flutter setup
 - PROJECT_JOURNAL viewer/editor
 - Basic code viewing
+- Full Cursy chat interface
+- Chat session sync
 - Sync integration
 
 ### Phase 3: Advanced Features

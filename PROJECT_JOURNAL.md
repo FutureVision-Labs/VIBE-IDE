@@ -478,13 +478,15 @@ Instead of just picking a template, beginners fill out a visual form:
 - [ ] Encrypted data storage
 - [ ] PROJECT_JOURNAL sync across devices
 - [ ] Agent Persona sync
+- [ ] Cursy chat session sync (full conversation history)
 - [ ] Project settings sync
 - [ ] Mobile app (iOS/Android) - React Native or Flutter
 - [ ] Lightweight mobile editor
+- [ ] Full Cursy chat on mobile (with synced conversation history)
 - [ ] Cross-platform seamless workflow
 - [ ] Offline support with sync on reconnect
 
-**Vision:** Uninterrupted workflow like GitHub Copilot - code on desktop, review on laptop, make quick edits on mobile. All your context, preferences, and progress sync seamlessly across devices.
+**Vision:** Uninterrupted workflow like GitHub Copilot - code on desktop, review on laptop, make quick edits on mobile. All your context, preferences, progress, and Cursy chat history sync seamlessly across devices. Continue your conversation with Cursy on any device.
 
 ---
 
