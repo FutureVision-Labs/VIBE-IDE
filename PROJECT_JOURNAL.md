@@ -108,6 +108,14 @@ VIBE IDE + Vibe Coding Academy (Full Platform)
 **Features:**
 - Web preview for HTML/CSS/JavaScript projects
 - Python execution preview (for simple scripts)
+- **Localhost server (XAMPP-style)** for PHP/web apps
+  - Built-in PHP server (no external XAMPP needed!)
+  - MySQL/SQLite database support
+  - Server-side language support (PHP, Node.js, Python)
+  - Beginner-friendly server management UI
+  - Auto-start/stop server with project
+  - Port management (avoid conflicts)
+  - Database management interface (phpMyAdmin-style, simplified)
 - Hot reload on file save
 - Debug console output visible
 - Resizable preview pane
@@ -118,6 +126,8 @@ VIBE IDE + Vibe Coding Academy (Full Platform)
 - "Why isn't this working?" button - AI explains errors
 - Step-by-step execution visualization (future)
 - Variable watcher (see values change in real-time)
+- Server status indicators (is server running? what port?)
+- Database connection helpers (beginner-friendly setup)
 
 ---
 
@@ -435,6 +445,14 @@ Instead of just picking a template, beginners fill out a visual form:
 - [ ] Web preview for HTML/CSS/JavaScript
 - [ ] Python execution preview
 - [ ] Error explanations
+- [ ] Localhost server (XAMPP-style) for PHP/web apps
+  - [ ] Built-in PHP server
+  - [ ] MySQL/SQLite database support
+  - [ ] Server-side language support (PHP, Node.js, Python)
+  - [ ] Beginner-friendly server management UI
+  - [ ] Auto-start/stop server
+  - [ ] Port management
+  - [ ] Database management interface
 
 ### Phase 4: Project Management (Weeks 7-8)
 - [ ] Form-based project creation
