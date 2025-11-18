@@ -1166,6 +1166,7 @@ function switchToTab(tabId) {
     if (tabId === 'welcome') {
         state.activeTab = null;
         document.getElementById('welcomeScreen').style.display = 'block';
+        loadRecentProjects(); // Refresh recent projects when showing welcome screen
         document.getElementById('monacoEditor').style.display = 'none';
         renderTabs();
         return;
