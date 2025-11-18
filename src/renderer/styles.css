@@ -240,6 +240,28 @@ body.light-theme .window-control.close:hover {
     font-weight: 600;
 }
 
+.sidebar-header-actions {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+
+.btn-icon {
+    background: transparent;
+    border: none;
+    color: #858585;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.btn-icon:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #cccccc;
+}
+
 .sidebar-toggle {
     background: transparent;
     border: none;
@@ -516,6 +538,20 @@ body.light-theme .window-control.close:hover {
     background: #2a2d2e;
     color: #cccccc;
     margin-right: auto;
+}
+
+.chat-message.typing {
+    opacity: 0.7;
+    font-style: italic;
+}
+
+.chat-message.typing p {
+    animation: typingPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes typingPulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
 }
 
 .chat-message code {

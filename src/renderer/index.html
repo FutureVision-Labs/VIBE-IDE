@@ -147,14 +147,25 @@
             <div class="sidebar right-sidebar" id="rightSidebar">
                 <div class="sidebar-header">
                     <h3>🤖 AI Assistant</h3>
-                    <button class="sidebar-toggle" id="toggleRightSidebar" title="Toggle Sidebar">▶</button>
+                    <div class="sidebar-header-actions">
+                        <button class="btn-icon" id="clearChatBtn" title="Clear Chat History">🗑️</button>
+                        <button class="sidebar-toggle" id="toggleRightSidebar" title="Toggle Sidebar">▶</button>
+                    </div>
                 </div>
                 <div class="sidebar-content">
                     <!-- Chat Messages Area -->
                     <div class="chat-messages" id="chatMessages">
                         <div class="chat-welcome">
-                            <p>👋 Hey! I'm your AI coding buddy!</p>
-                            <p>Ask me anything about Phaser.js, get code suggestions, or just vibe code together! 😊</p>
+                            <p>👋 Hey! I'm <strong>Cursy</strong>, your AI coding buddy!</p>
+                            <p>I'm currently in <strong>offline mode</strong> - but I can still help with:</p>
+                            <ul style="text-align: left; margin: 10px 0; padding-left: 20px;">
+                                <li>Code explanations (functions, variables, loops, arrays)</li>
+                                <li>Debugging tips</li>
+                                <li>Getting started with projects</li>
+                                <li>Learning the basics</li>
+                            </ul>
+                            <p>Try asking: <em>"How do I create a function?"</em> or <em>"What is a variable?"</em> 😊</p>
+                            <p style="font-size: 0.9em; opacity: 0.7; margin-top: 10px;">💡 Full AI chat coming soon when API credits are configured!</p>
                         </div>
                     </div>
                     

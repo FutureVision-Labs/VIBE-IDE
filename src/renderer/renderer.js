@@ -45,7 +45,8 @@ const state = {
         codeExamples: [],
         commonBugs: [],
         performanceTips: []
-    }
+    },
+    chatHistory: [] // Store chat messages for persistence
 };
 
 // Welcome screen functions
@@ -955,6 +956,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize chat interface
     initChatInterface();
+    
+    // Load chat history
+    loadChatHistory();
     
     // Auto-bundle toggle
     const autoToggle = document.getElementById('autoBundleToggle');
@@ -3404,6 +3408,18 @@ function initChatInterface() {
         // Send button
         chatSendBtn.addEventListener('click', sendChatMessage);
         
+        // Clear chat button
+        const clearChatBtn = document.getElementById('clearChatBtn');
+        if (clearChatBtn) {
+            clearChatBtn.addEventListener('click', () => {
+                if (confirm('Clear all chat history? This cannot be undone.')) {
+                    state.chatHistory = [];
+                    saveChatHistory();
+                    renderChatHistory();
+                }
+            });
+        }
+        
         // Update welcome message with genre context if available
         updateChatWelcomeMessage();
         
@@ -3531,6 +3547,147 @@ function updateChatWelcomeMessage() {
     }
 }
 
+// Mock AI Response System (Offline Mode)
+function getMockResponse(message) {
+    const lowerMessage = message.toLowerCase();
+    
+    // Greetings
+    if (lowerMessage.match(/\b(hi|hello|hey|howdy|greetings)\b/)) {
+        return {
+            text: "👋 Hey there! I'm Cursy, your AI coding buddy! I'm here to help you learn and code. What would you like to work on today?",
+            emoji: "👋"
+        };
+    }
+    
+    // Help requests
+    if (lowerMessage.match(/\b(help|how do i|how to|can you help|what is|what's)\b/)) {
+        if (lowerMessage.match(/\b(function|create function|make function|write function)\b/)) {
+            return {
+                text: "💡 **Creating Functions:**\n\nIn JavaScript, you can create functions like this:\n\n```javascript\nfunction myFunction() {\n    // Your code here\n    console.log('Hello!');\n}\n\n// Or as an arrow function:\nconst myFunction = () => {\n    console.log('Hello!');\n};\n```\n\nFunctions are reusable blocks of code! Want to see more examples?",
+                emoji: "💡"
+            };
+        }
+        if (lowerMessage.match(/\b(variable|var|let|const|declare)\b/)) {
+            return {
+                text: "📝 **Variables:**\n\nVariables store data:\n\n```javascript\nlet name = 'VIBE IDE';  // Can be changed\nconst version = '0.1.0'; // Cannot be changed\nvar oldWay = 'avoid this'; // Old style\n```\n\nUse `let` for values that change, `const` for values that don't!",
+                emoji: "📝"
+            };
+        }
+        if (lowerMessage.match(/\b(loop|for|while|iterate)\b/)) {
+            return {
+                text: "🔄 **Loops:**\n\nLoops repeat code:\n\n```javascript\n// For loop\nfor (let i = 0; i < 10; i++) {\n    console.log(i);\n}\n\n// While loop\nlet i = 0;\nwhile (i < 10) {\n    console.log(i);\n    i++;\n}\n```\n\nLoops are great for repeating actions!",
+                emoji: "🔄"
+            };
+        }
+        if (lowerMessage.match(/\b(array|list|collection)\b/)) {
+            return {
+                text: "📦 **Arrays:**\n\nArrays store multiple values:\n\n```javascript\nconst fruits = ['apple', 'banana', 'orange'];\n\n// Access items\nconsole.log(fruits[0]); // 'apple'\n\n// Add items\nfruits.push('grape');\n\n// Loop through\nfruits.forEach(fruit => {\n    console.log(fruit);\n});\n```\n\nArrays are super useful for lists of data!",
+                emoji: "📦"
+            };
+        }
+        return {
+            text: "🤔 I'd love to help! Could you be more specific? Try asking:\n\n• \"How do I create a function?\"\n• \"What is a variable?\"\n• \"How do I use a loop?\"\n• \"Explain arrays\"\n\nOr just describe what you're trying to build! 😊",
+            emoji: "🤔"
+        };
+    }
+    
+    // Error/debugging
+    if (lowerMessage.match(/\b(error|bug|broken|not working|doesn't work|why|fix)\b/)) {
+        return {
+            text: "🐛 **Debugging Tips:**\n\n1. **Check the console** - Press F12 to see error messages\n2. **Read the error** - It usually tells you what's wrong!\n3. **Check your syntax** - Missing brackets, quotes, or semicolons?\n4. **Use console.log()** - Add `console.log('here!')` to see where your code runs\n\nPaste your error message here and I can help more! 🔍",
+            emoji: "🐛"
+        };
+    }
+    
+    // Code explanation
+    if (lowerMessage.match(/\b(explain|what does|mean|understand|confused)\b/)) {
+        return {
+            text: "📚 I'd be happy to explain! Try:\n\n• Select some code in the editor\n• Click \"Explain this code\"\n• Or paste the code here and ask me to explain it\n\nI can break down functions, loops, variables, and more! 😊",
+            emoji: "📚"
+        };
+    }
+    
+    // Project/template questions
+    if (lowerMessage.match(/\b(project|template|start|begin|new project|create)\b/)) {
+        return {
+            text: "🚀 **Starting a Project:**\n\n1. Click **\"New Project\"** on the welcome screen\n2. Choose a template:\n   • **Web App** - HTML/CSS/JavaScript\n   • **Python Beginner** - Simple Python scripts\n   • **Game (Phaser.js)** - Make games!\n   • **Data Analysis** - Python data science\n3. Pick a folder and start coding!\n\nNeed help with a specific template? Just ask! 😊",
+            emoji: "🚀"
+        };
+    }
+    
+    // Thank you
+    if (lowerMessage.match(/\b(thanks|thank you|ty|appreciate|cheers)\b/)) {
+        return {
+            text: "😊 You're welcome! Happy to help! Keep coding and learning - you're doing great! 💪\n\nNeed anything else? Just ask!",
+            emoji: "😊"
+        };
+    }
+    
+    // Default response
+    return {
+        text: `🤖 I'm Cursy, your AI coding assistant! I'm currently in **offline mode** (AI integration coming soon!).\n\nI can help with:\n• **Code explanations** - Ask "what does this do?"\n• **Learning basics** - Functions, variables, loops, arrays\n• **Debugging** - Share errors and I'll help!\n• **Getting started** - Project templates and setup\n\nTry asking: "How do I create a function?" or "What is a variable?"\n\n*Note: Full AI chat will be available when API credits are configured!* 🚀`,
+        emoji: "🤖"
+    };
+}
+
+function saveChatHistory() {
+    try {
+        localStorage.setItem('vibe-ide-chat-history', JSON.stringify(state.chatHistory));
+    } catch (e) {
+        console.warn('Failed to save chat history:', e);
+    }
+}
+
+function loadChatHistory() {
+    try {
+        const saved = localStorage.getItem('vibe-ide-chat-history');
+        if (saved) {
+            state.chatHistory = JSON.parse(saved);
+            renderChatHistory();
+        }
+    } catch (e) {
+        console.warn('Failed to load chat history:', e);
+        state.chatHistory = [];
+    }
+}
+
+function renderChatHistory() {
+    const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) return;
+    
+    // Clear existing messages (except welcome)
+    const welcome = chatMessages.querySelector('.chat-welcome');
+    chatMessages.innerHTML = '';
+    if (welcome) {
+        chatMessages.appendChild(welcome);
+    }
+    
+    // Render saved messages
+    state.chatHistory.forEach(msg => {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `chat-message ${msg.role}`;
+        messageDiv.innerHTML = parseSimpleMarkdown(msg.content);
+        chatMessages.appendChild(messageDiv);
+    });
+    
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function addMessageToHistory(role, content) {
+    state.chatHistory.push({
+        role: role,
+        content: content,
+        timestamp: new Date().toISOString()
+    });
+    
+    // Keep only last 100 messages
+    if (state.chatHistory.length > 100) {
+        state.chatHistory = state.chatHistory.slice(-100);
+    }
+    
+    saveChatHistory();
+}
+
 function sendChatMessage() {
     const chatInput = document.getElementById('chatInput');
     const chatMessages = document.getElementById('chatMessages');
@@ -3552,8 +3709,11 @@ function sendChatMessage() {
     // Create user message element
     const messageDiv = document.createElement('div');
     messageDiv.className = 'chat-message user';
-    messageDiv.innerHTML = messageHtml; // Use innerHTML to render markdown
+    messageDiv.innerHTML = messageHtml;
     chatMessages.appendChild(messageDiv);
+    
+    // Add to history
+    addMessageToHistory('user', message);
     
     // Clear input
     chatInput.value = '';
@@ -3561,16 +3721,34 @@ function sendChatMessage() {
     // Scroll to bottom
     chatMessages.scrollTop = chatMessages.scrollHeight;
     
-    // TODO: Send to AI API when implemented
-    console.log('Message to send:', message);
+    // Get mock response
+    const mockResponse = getMockResponse(message);
     
-    // For now, show a placeholder response
+    // Show typing indicator
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'chat-message assistant typing';
+    typingDiv.innerHTML = '<p>🤖 Cursy is typing...</p>';
+    chatMessages.appendChild(typingDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Simulate AI thinking time (300-800ms)
+    const delay = 300 + Math.random() * 500;
+    
     setTimeout(() => {
+        // Remove typing indicator
+        typingDiv.remove();
+        
+        // Create assistant response
         const responseDiv = document.createElement('div');
         responseDiv.className = 'chat-message assistant';
-        responseDiv.innerHTML = '<p>🤖 AI chat integration coming soon! Your message was:</p><div style="background:rgba(0,0,0,0.3);padding:8px;border-radius:4px;margin-top:8px;">' + messageHtml + '</div>';
+        responseDiv.innerHTML = parseSimpleMarkdown(mockResponse.text);
         chatMessages.appendChild(responseDiv);
+        
+        // Add to history
+        addMessageToHistory('assistant', mockResponse.text);
+        
+        // Scroll to bottom
         chatMessages.scrollTop = chatMessages.scrollHeight;
-    }, 500);
+    }, delay);
 }
 
