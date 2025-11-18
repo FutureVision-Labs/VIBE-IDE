@@ -174,6 +174,9 @@ VIBE IDE + Vibe Coding Academy (Full Platform)
 - Chat history
 - Context-aware suggestions
 - Emoji reactions to code (🎉 when it works, 🤔 when confused)
+- **GIF support** - Giphy integration for visual expression
+- GIF search and sharing in chat
+- Emoji + GIF reactions
 - Code formatting toolbar
 
 ---
@@ -463,6 +466,11 @@ Instead of just picking a template, beginners fill out a visual form:
 - [ ] AI observations and suggestions
 - [ ] Proactive help system
 - [ ] Educational explanations
+- [ ] GIF support in Cursy chat (Giphy integration)
+  - [ ] GIF search and sharing
+  - [ ] Emoji + GIF reactions
+  - [ ] Visual expression in chat
+  - [ ] Beginner-friendly GIF suggestions
 
 ### Phase 6: Educational Features (Weeks 11-12)
 - [ ] Tutorials system
