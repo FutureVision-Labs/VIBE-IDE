@@ -1,0 +1,91 @@
+{
+  "genre": "runner",
+  "version": "1.0.0",
+  "phaserVersion": "3.x",
+  "description": "Endless runner game patterns and best practices for Phaser.js",
+  "author": "GameForge Team",
+  "isBundled": true,
+  "commonPatterns": {
+    "player": {
+      "movement": "forward scrolling + jump/duck",
+      "physics": {
+        "gravity": 1000,
+        "jumpSpeed": -600,
+        "forwardSpeed": 300
+      },
+      "collisionLayers": ["obstacles", "collectibles", "ground"],
+      "codeSnippet": "// Runner player\ncreate() {\n    this.player = this.physics.add.sprite(100, 400, 'player');\n    this.player.setCollideWorldBounds(true);\n    this.player.setGravityY(1000);\n    \n    // Jump\n    this.input.keyboard.on('keydown-SPACE', () => {\n        if (this.player.body.touching.down) {\n            this.player.setVelocityY(-600);\n        }\n    });\n}"
+    },
+    "scrolling": {
+      "direction": "horizontal or vertical",
+      "speed": "increasing",
+      "codeSnippet": "// Scrolling background\ncreate() {\n    this.speed = 300;\n    \n    // Create repeating background\n    this.bg1 = this.add.tileSprite(0, 0, 800, 600, 'background');\n    this.bg2 = this.add.tileSprite(800, 0, 800, 600, 'background');\n}\n\nupdate() {\n    // Scroll background\n    this.bg1.x -= this.speed * this.game.loop.delta / 1000;\n    this.bg2.x -= this.speed * this.game.loop.delta / 1000;\n    \n    // Reset position when off-screen\n    if (this.bg1.x <= -800) this.bg1.x = 800;\n    if (this.bg2.x <= -800) this.bg2.x = 800;\n    \n    // Increase speed over time\n    this.speed += 0.1;\n}"
+    },
+    "obstacles": {
+      "spawning": "procedural",
+      "types": ["static", "moving", "gaps"],
+      "codeSnippet": "// Obstacle spawning\nspawnObstacle() {\n    let obstacle = this.obstacles.create(900, Phaser.Math.Between(200, 500), 'obstacle');\n    obstacle.setVelocityX(-this.speed);\n    \n    // Remove when off-screen\n    obstacle.setTint(0xff0000);\n}"
+    },
+    "proceduralGeneration": {
+      "pattern": "chunk-based or continuous",
+      "codeSnippet": "// Procedural generation\ngenerateChunk() {\n    let chunkType = Phaser.Math.Between(0, 2);\n    switch(chunkType) {\n        case 0: // Easy\n            this.spawnObstacle(900, 400);\n            break;\n        case 1: // Medium\n            this.spawnObstacle(900, 300);\n            this.spawnObstacle(1100, 500);\n            break;\n        case 2: // Hard\n            this.createGap(900, 200);\n            break;\n    }\n}"
+    },
+    "score": {
+      "calculation": "distance or time based",
+      "multipliers": "combo or power-up",
+      "codeSnippet": "// Score system\nupdate() {\n    this.score += this.speed * this.game.loop.delta / 1000;\n    this.scoreText.setText('Score: ' + Math.floor(this.score));\n}"
+    }
+  },
+  "aiSuggestions": {
+    "context": "You are helping create an endless runner game in Phaser.js. Common patterns include: forward scrolling (camera or background), jump/duck mechanics, procedural obstacle spawning, increasing difficulty over time, score based on distance/time, collectibles, power-ups. Use tile sprites for scrolling backgrounds. Spawn obstacles ahead and destroy them when off-screen. Increase speed gradually.",
+    "codeExamples": [
+      {
+        "title": "Scrolling Background with TileSprite",
+        "description": "Smooth infinite scrolling background",
+        "code": "create() {\n    this.bg = this.add.tileSprite(0, 0, 800, 600, 'background');\n    this.scrollSpeed = 300;\n}\n\nupdate() {\n    this.bg.tilePositionX += this.scrollSpeed * this.game.loop.delta / 1000;\n}",
+        "docLink": "https://phaser.io/docs/3.80.0/Phaser.GameObjects.TileSprite.html"
+      },
+      {
+        "title": "Procedural Obstacle Spawning",
+        "description": "Spawn obstacles at intervals",
+        "code": "create() {\n    this.obstacles = this.physics.add.group();\n    this.spawnTimer = this.time.addEvent({\n        delay: 2000,\n        callback: this.spawnObstacle,\n        callbackScope: this,\n        loop: true\n    });\n}\n\nspawnObstacle() {\n    let x = 900;\n    let y = Phaser.Math.Between(200, 500);\n    let obstacle = this.obstacles.create(x, y, 'obstacle');\n    obstacle.setVelocityX(-this.scrollSpeed);\n}",
+        "docLink": "https://phaser.io/docs/3.80.0/Phaser.Time.TimerEvent.html"
+      },
+      {
+        "title": "Increasing Difficulty",
+        "description": "Gradually increase speed and spawn rate",
+        "code": "update() {\n    // Increase speed over time\n    this.scrollSpeed += 0.1;\n    \n    // Increase spawn rate\n    if (this.time.now > this.lastSpawnIncrease + 10000) {\n        this.spawnTimer.delay = Math.max(500, this.spawnTimer.delay - 100);\n        this.lastSpawnIncrease = this.time.now;\n    }\n}",
+        "docLink": "https://phaser.io/docs/3.80.0/Phaser.Time.Clock.html#now"
+      }
+    ],
+    "commonBugs": [
+      "Background not scrolling smoothly - Use tilePositionX/Y with delta time",
+      "Obstacles spawning too close - Increase spawn delay or check distance",
+      "Player falling through ground - Ensure collision with world bounds",
+      "Speed increasing too fast - Reduce increment or cap maximum speed",
+      "Memory leaks - Destroy obstacles when off-screen"
+    ],
+    "performanceTips": [
+      "Use object pooling for obstacles",
+      "Use TileSprite for backgrounds",
+      "Destroy off-screen objects",
+      "Limit number of active obstacles",
+      "Use sprite sheets for animations"
+    ]
+  },
+  "validationRules": {
+    "requiredComponents": ["player", "scrolling", "obstacles", "collision"],
+    "recommendedPatterns": ["procedural generation", "increasing difficulty", "score system", "collectibles"],
+    "commonAssets": {
+      "playerSprite": "64x64",
+      "obstacleSprite": "32x64 or 64x64",
+      "backgroundTile": "800x600 or tileable",
+      "collectibleSprite": "16x16 or 32x32"
+    },
+    "physicsSettings": {
+      "gravity": "1000-1500 for runner",
+      "worldBounds": "Match screen size"
+    }
+  }
+}
+

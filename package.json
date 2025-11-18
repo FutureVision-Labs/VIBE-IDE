@@ -1,0 +1,39 @@
+{
+  "name": "vibe-ide",
+  "version": "0.1.0",
+  "description": "VIBE IDE - Beginner-friendly coding environment with proactive AI assistance and educational features",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "webpack --mode production",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "journal:html": "node scripts/mk-journal-html.js",
+    "journal:pdf": "node export-journal-to-pdf.js",
+    "journal:all": "npm run journal:html && npm run journal:pdf"
+  },
+  "keywords": [
+    "ide",
+    "coding",
+    "education",
+    "beginner-friendly",
+    "ai-assistant",
+    "electron",
+    "monaco-editor",
+    "learn-to-code"
+  ],
+  "author": "Damian (Remix Steward, Civic Banhammer Wielder)",
+  "license": "ISC",
+  "dependencies": {
+    "electron": "^28.0.0",
+    "monaco-editor": "^0.54.0",
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12",
+    "marked": "^16.4.1",
+    "puppeteer": "^24.29.0",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4"
+  }
+}

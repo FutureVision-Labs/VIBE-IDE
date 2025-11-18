@@ -1,0 +1,81 @@
+{
+  "genre": "puzzle",
+  "version": "1.0.0",
+  "phaserVersion": "3.x",
+  "description": "Puzzle game patterns and best practices for Phaser.js",
+  "author": "GameForge Team",
+  "isBundled": true,
+  "commonPatterns": {
+    "grid": {
+      "types": ["tilemap", "sprite-based", "custom"],
+      "sizes": ["8x8", "10x10", "12x12"],
+      "codeSnippet": "// Grid-based puzzle\ncreate() {\n    this.gridWidth = 10;\n    this.gridHeight = 10;\n    this.tileSize = 64;\n    \n    // Create grid\n    for (let y = 0; y < this.gridHeight; y++) {\n        for (let x = 0; x < this.gridWidth; x++) {\n            let tile = this.add.rectangle(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize, 0xffffff);\n            tile.setInteractive();\n            tile.on('pointerdown', () => this.handleTileClick(x, y));\n        }\n    }\n}"
+    },
+    "matching": {
+      "types": ["match-3", "swap", "connect", "pair"],
+      "codeSnippet": "// Match detection\ncheckMatches() {\n    let matches = [];\n    // Check horizontal matches\n    for (let y = 0; y < this.gridHeight; y++) {\n        let count = 1;\n        for (let x = 1; x < this.gridWidth; x++) {\n            if (this.grid[y][x] === this.grid[y][x-1]) {\n                count++;\n            } else {\n                if (count >= 3) matches.push({row: y, col: x-count, length: count});\n                count = 1;\n            }\n        }\n    }\n    return matches;\n}"
+    },
+    "swapping": {
+      "pattern": "drag and drop or click to swap",
+      "codeSnippet": "// Swap tiles\nswapTiles(tile1, tile2) {\n    let temp = tile1.data.get('type');\n    tile1.data.set('type', tile2.data.get('type'));\n    tile2.data.set('type', temp);\n    \n    // Animate swap\n    this.tweens.add({\n        targets: [tile1, tile2],\n        x: {from: tile1.x, to: tile2.x},\n        y: {from: tile1.y, to: tile2.y},\n        duration: 200\n    });\n}"
+    },
+    "winCondition": {
+      "types": ["clear all", "reach score", "match pattern", "solve puzzle"],
+      "codeSnippet": "// Win condition check\ncheckWin() {\n    if (this.score >= this.targetScore) {\n        this.scene.start('WinScene');\n    }\n}"
+    },
+    "hints": {
+      "system": "show possible moves or highlight matches",
+      "codeSnippet": "// Hint system\nshowHint() {\n    let possibleMove = this.findPossibleMove();\n    if (possibleMove) {\n        this.tweens.add({\n            targets: possibleMove.tile,\n            scaleX: 1.2,\n            scaleY: 1.2,\n            yoyo: true,\n            duration: 500\n        });\n    }\n}"
+    }
+  },
+  "aiSuggestions": {
+    "context": "You are helping create a puzzle game in Phaser.js. Common patterns include: grid-based layouts, tile matching/swapping mechanics, win condition checking, hint systems, level progression, score calculation, animation for tile movements. Use interactive sprites or tilemaps for the grid. Implement drag-and-drop or click-to-swap mechanics. Check for matches after each move.",
+    "codeExamples": [
+      {
+        "title": "Grid-Based Tile System",
+        "description": "Create interactive grid of tiles",
+        "code": "create() {\n    this.grid = [];\n    for (let y = 0; y < 10; y++) {\n        this.grid[y] = [];\n        for (let x = 0; x < 10; x++) {\n            let tile = this.add.sprite(x * 64, y * 64, 'tile');\n            tile.setInteractive();\n            tile.on('pointerdown', () => this.selectTile(x, y));\n            this.grid[y][x] = tile;\n        }\n    }\n}",
+        "docLink": "https://phaser.io/docs/3.80.0/Phaser.GameObjects.Sprite.html#setInteractive"
+      },
+      {
+        "title": "Match Detection Algorithm",
+        "description": "Find matching sequences in grid",
+        "code": "findMatches() {\n    let matches = [];\n    // Check rows\n    for (let y = 0; y < this.gridHeight; y++) {\n        let sequence = [];\n        for (let x = 0; x < this.gridWidth; x++) {\n            if (sequence.length === 0 || this.grid[y][x].type === sequence[0].type) {\n                sequence.push(this.grid[y][x]);\n            } else {\n                if (sequence.length >= 3) matches.push(...sequence);\n                sequence = [this.grid[y][x]];\n            }\n        }\n    }\n    return matches;\n}",
+        "docLink": "https://phaser.io/examples/v3/view/games/match-3/match-3"
+      },
+      {
+        "title": "Tile Swap Animation",
+        "description": "Smooth animation when swapping tiles",
+        "code": "swapTiles(tile1, tile2) {\n    let x1 = tile1.x, y1 = tile1.y;\n    let x2 = tile2.x, y2 = tile2.y;\n    \n    this.tweens.add({\n        targets: tile1,\n        x: x2,\n        y: y2,\n        duration: 200\n    });\n    \n    this.tweens.add({\n        targets: tile2,\n        x: x1,\n        y: y1,\n        duration: 200\n    });\n}",
+        "docLink": "https://phaser.io/docs/3.80.0/Phaser.Tweens.TweenManager.html#add"
+      }
+    ],
+    "commonBugs": [
+      "Tiles not swapping - Check interactive setup and event handlers",
+      "Matches not detected - Verify algorithm logic and grid state",
+      "Animation glitches - Ensure tweens complete before next action",
+      "Grid out of bounds - Validate array indices",
+      "Win condition not triggering - Check condition logic"
+    ],
+    "performanceTips": [
+      "Use object pooling for tiles",
+      "Batch tile updates",
+      "Use sprite sheets for tile graphics",
+      "Limit animation complexity",
+      "Cache grid state calculations"
+    ]
+  },
+  "validationRules": {
+    "requiredComponents": ["grid", "tile interaction", "match detection"],
+    "recommendedPatterns": ["animation", "hint system", "level progression", "score system"],
+    "commonAssets": {
+      "tileSprite": "64x64 or 128x128",
+      "background": "Match grid size",
+      "uiElements": "Score, moves, timer displays"
+    },
+    "physicsSettings": {
+      "physics": "Usually not needed, use tweens for movement"
+    }
+  }
+}
+

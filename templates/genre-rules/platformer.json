@@ -1,0 +1,95 @@
+{
+  "genre": "platformer",
+  "version": "1.0.0",
+  "phaserVersion": "3.x",
+  "description": "Platformer game patterns and best practices for Phaser.js",
+  "author": "GameForge Team",
+  "isBundled": true,
+  "commonPatterns": {
+    "player": {
+      "movement": "horizontal + jump",
+      "physics": {
+        "gravity": 800,
+        "jumpSpeed": -600,
+        "maxSpeed": 200,
+        "friction": 0.8,
+        "bounce": 0
+      },
+      "collisionLayers": ["platforms", "enemies", "pickups", "checkpoints"],
+      "codeSnippet": "// Player setup\nthis.player = this.physics.add.sprite(100, 300, 'player');\nthis.player.setCollideWorldBounds(true);\nthis.player.setBounce(0);\nthis.player.setGravityY(800);\n\n// Controls\nthis.cursors = this.input.keyboard.createCursorKeys();\n\n// In update():\nif (this.cursors.left.isDown) {\n    this.player.setVelocityX(-200);\n} else if (this.cursors.right.isDown) {\n    this.player.setVelocityX(200);\n} else {\n    this.player.setVelocityX(0);\n}\n\nif (this.cursors.up.isDown && this.player.body.touching.down) {\n    this.player.setVelocityY(-600);\n}"
+    },
+    "enemies": {
+      "types": ["patrol", "chase", "static", "flying"],
+      "spawnPatterns": ["onPlatform", "random", "fixed"],
+      "codeSnippet": "// Enemy patrol pattern\nupdate() {\n    if (this.enemy.body.blocked.left || this.enemy.body.blocked.right) {\n        this.enemy.setVelocityX(-this.enemy.body.velocity.x);\n    }\n}"
+    },
+    "platforms": {
+      "types": ["static", "moving", "falling", "crumbling"],
+      "collision": "tilemap or static sprites",
+      "codeSnippet": "// Platform collision\nthis.physics.add.collider(this.player, this.platforms);"
+    },
+    "camera": {
+      "follow": "player",
+      "bounds": "levelBounds",
+      "deadzone": 50,
+      "codeSnippet": "// Camera follow with deadzone\nthis.cameras.main.setBounds(0, 0, levelWidth, levelHeight);\nthis.cameras.main.startFollow(this.player, true, 0.1, 0.1, 0, 50);"
+    },
+    "collectibles": {
+      "types": ["coins", "powerups", "keys", "health"],
+      "collectionPattern": "overlap detection",
+      "codeSnippet": "// Collectible overlap\nthis.physics.add.overlap(this.player, this.collectibles, (player, collectible) => {\n    collectible.destroy();\n    // Add score, play sound, etc.\n});"
+    }
+  },
+  "aiSuggestions": {
+    "context": "You are helping create a platformer game in Phaser.js. Common patterns include: horizontal movement with arrow keys, space/jump key, platform collision detection, enemy collision, collectibles, camera following player, scene transitions. The player typically has gravity (800), jump speed (-600), and max horizontal speed (200). Always check player.body.touching.down before allowing jump to prevent double-jumping.",
+    "codeExamples": [
+      {
+        "title": "Basic Jump Mechanics",
+        "description": "Proper jump detection prevents double-jumping",
+        "code": "if (this.cursors.up.isDown && this.player.body.touching.down) {\n    this.player.setVelocityY(-600);\n}",
+        "docLink": "https://phaser.io/examples/v3/view/physics/arcade/body-touching"
+      },
+      {
+        "title": "Camera Follow with Deadzone",
+        "description": "Smooth camera following with deadzone prevents jitter",
+        "code": "this.cameras.main.startFollow(this.player, true, 0.1, 0.1, 0, 50);",
+        "docLink": "https://phaser.io/docs/3.80.0/Phaser.Cameras.Scene2D.Camera.html#startFollow"
+      },
+      {
+        "title": "Enemy Patrol Pattern",
+        "description": "Simple left-right patrol for ground enemies",
+        "code": "update() {\n    if (this.enemy.body.blocked.left || this.enemy.body.blocked.right) {\n        this.enemy.setVelocityX(-this.enemy.body.velocity.x);\n    }\n}",
+        "docLink": "https://phaser.io/docs/3.80.0/Phaser.Physics.Arcade.Body.html#blocked"
+      }
+    ],
+    "commonBugs": [
+      "Double jump issues - Always check touching.down before allowing jump",
+      "Camera jitter - Use deadzone parameter in startFollow()",
+      "Player falling through platforms - Ensure collision is set up correctly",
+      "Enemy getting stuck - Check collision boundaries and velocity",
+      "Jump feels unresponsive - Reduce gravity or increase jump speed"
+    ],
+    "performanceTips": [
+      "Use object pooling for enemies and projectiles",
+      "Limit particle effects and use sprite sheets",
+      "Use tilemaps for platforms instead of individual sprites",
+      "Disable physics on off-screen objects",
+      "Use groups for efficient collision detection"
+    ]
+  },
+  "validationRules": {
+    "requiredComponents": ["player", "platforms", "collision"],
+    "recommendedPatterns": ["scene transitions", "audio feedback", "collectibles", "camera follow"],
+    "commonAssets": {
+      "playerSprite": "64x64 or 32x32",
+      "platformTile": "32x32",
+      "enemySprite": "32x32 or 64x64",
+      "collectibleSprite": "16x16 or 32x32"
+    },
+    "physicsSettings": {
+      "gravity": "800-1000 recommended",
+      "worldBounds": "Should match level size"
+    }
+  }
+}
+

@@ -1,0 +1,92 @@
+{
+  "genre": "shooter",
+  "version": "1.0.0",
+  "phaserVersion": "3.x",
+  "description": "Top-down shooter game patterns and best practices for Phaser.js",
+  "author": "GameForge Team",
+  "isBundled": true,
+  "commonPatterns": {
+    "player": {
+      "movement": "8-directional or 4-directional",
+      "physics": {
+        "maxSpeed": 300,
+        "acceleration": 200,
+        "drag": 100
+      },
+      "collisionLayers": ["enemies", "powerups", "walls"],
+      "codeSnippet": "// Player movement\nthis.cursors = this.input.keyboard.createCursorKeys();\n\nupdate() {\n    let speed = 300;\n    if (this.cursors.left.isDown) {\n        this.player.setVelocityX(-speed);\n    } else if (this.cursors.right.isDown) {\n        this.player.setVelocityX(speed);\n    } else {\n        this.player.setVelocityX(0);\n    }\n    \n    if (this.cursors.up.isDown) {\n        this.player.setVelocityY(-speed);\n    } else if (this.cursors.down.isDown) {\n        this.player.setVelocityY(speed);\n    } else {\n        this.player.setVelocityY(0);\n    }\n}"
+    },
+    "shooting": {
+      "types": ["single", "spread", "auto", "burst"],
+      "bulletPatterns": ["straight", "homing", "spread", "spiral"],
+      "codeSnippet": "// Shooting mechanics\nshoot() {\n    let bullet = this.bullets.create(this.player.x, this.player.y, 'bullet');\n    bullet.setVelocityY(-400);\n    \n    // Auto-fire\n    this.time.addEvent({\n        delay: 200,\n        callback: this.shoot,\n        callbackScope: this,\n        loop: true\n    });\n}"
+    },
+    "enemies": {
+      "spawnPatterns": ["wave", "random", "formation", "boss"],
+      "movementPatterns": ["straight", "zigzag", "circle", "charge"],
+      "codeSnippet": "// Enemy spawning\nspawnEnemy() {\n    let x = Phaser.Math.Between(50, 750);\n    let enemy = this.enemies.create(x, -50, 'enemy');\n    enemy.setVelocityY(100);\n}"
+    },
+    "health": {
+      "system": "numeric or hearts",
+      "damage": "collision or overlap",
+      "codeSnippet": "// Health system\nthis.health = 100;\n\n// Take damage\nthis.physics.add.overlap(this.player, this.enemies, (player, enemy) => {\n    this.health -= 10;\n    if (this.health <= 0) {\n        this.scene.start('GameOver');\n    }\n});"
+    },
+    "powerups": {
+      "types": ["weapon", "health", "speed", "shield"],
+      "spawnPattern": "random or fixed",
+      "codeSnippet": "// Power-up collection\nthis.physics.add.overlap(this.player, this.powerups, (player, powerup) => {\n    powerup.destroy();\n    // Apply power-up effect\n});"
+    }
+  },
+  "aiSuggestions": {
+    "context": "You are helping create a top-down shooter game in Phaser.js. Common patterns include: 8-directional player movement, shooting mechanics with bullets/projectiles, enemy spawning in waves, health system, power-ups, score system, weapon upgrades. Use object pooling for bullets and enemies. Implement auto-fire with time events. Use overlap detection for collisions.",
+    "codeExamples": [
+      {
+        "title": "Object Pooling for Bullets",
+        "description": "Efficient bullet management prevents memory leaks",
+        "code": "create() {\n    this.bullets = this.physics.add.group();\n}\n\nshoot() {\n    let bullet = this.bullets.get(this.player.x, this.player.y);\n    if (bullet) {\n        bullet.setActive(true).setVisible(true);\n        bullet.setVelocityY(-400);\n    }\n}",
+        "docLink": "https://phaser.io/docs/3.80.0/Phaser.GameObjects.Group.html#get"
+      },
+      {
+        "title": "Enemy Wave Spawning",
+        "description": "Spawn enemies in waves with delays",
+        "code": "spawnWave() {\n    for (let i = 0; i < 5; i++) {\n        this.time.delayedCall(i * 500, () => {\n            this.spawnEnemy();\n        });\n    }\n}",
+        "docLink": "https://phaser.io/docs/3.80.0/Phaser.Time.TimerEvent.html"
+      },
+      {
+        "title": "Auto-Fire System",
+        "description": "Continuous shooting with configurable rate",
+        "code": "create() {\n    this.shootTimer = this.time.addEvent({\n        delay: 200,\n        callback: this.shoot,\n        callbackScope: this,\n        loop: true\n    });\n}",
+        "docLink": "https://phaser.io/docs/3.80.0/Phaser.Time.TimerEvent.html"
+      }
+    ],
+    "commonBugs": [
+      "Bullets not destroying - Set active/visible false and reuse",
+      "Enemies spawning off-screen - Check spawn boundaries",
+      "Player moving too fast - Reduce maxSpeed or add drag",
+      "Collision not detecting - Use overlap instead of collide for projectiles",
+      "Memory leaks - Use object pooling for bullets and enemies"
+    ],
+    "performanceTips": [
+      "Use object pooling for bullets and enemies",
+      "Limit number of active enemies on screen",
+      "Use groups for efficient collision detection",
+      "Destroy off-screen objects",
+      "Use sprite sheets for animations"
+    ]
+  },
+  "validationRules": {
+    "requiredComponents": ["player", "shooting", "enemies", "collision"],
+    "recommendedPatterns": ["object pooling", "wave spawning", "health system", "score system", "power-ups"],
+    "commonAssets": {
+      "playerSprite": "32x32 or 64x64",
+      "enemySprite": "32x32 or 64x64",
+      "bulletSprite": "8x8 or 16x16",
+      "powerupSprite": "16x16 or 32x32"
+    },
+    "physicsSettings": {
+      "worldBounds": "Match screen size",
+      "collision": "Use overlap for bullets, collide for player"
+    }
+  }
+}
+

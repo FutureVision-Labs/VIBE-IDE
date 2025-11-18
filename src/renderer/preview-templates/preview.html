@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameForge Preview</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #000000;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000000;
+            position: relative;
+        }
+        #game-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+        }
+        canvas {
+            display: block;
+        }
+        .error-message {
+            color: #f48771;
+            padding: 20px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            background: #1e1e1e;
+            border: 1px solid #f48771;
+            margin: 20px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container"></div>
+    <div id="error-container"></div>
+    <div id="perf-overlay" style="position:fixed; right:8px; top:6px; background:rgba(0,0,0,0.55); color:#9fe0ff; font:12px monospace; padding:4px 6px; border:1px solid rgba(159,224,255,0.2); border-radius:4px; z-index:99999;">FPS: -- | Mem: --</div>
+    
+    <!-- Phaser.js Library - Will be injected by renderer.js -->
+    <!-- Phaser code injected here -->
+    
+    <!-- Game Code Injection Point -->
+    <script id="game-code">
+        // Game code will be injected here
+        console.log('GameForge Preview - Waiting for game code...');
+    </script>
+    
+    <script>
+        // Preview initialization
+        window.addEventListener('message', function(event) {
+            if (event.data.type === 'reload-game') {
+                reloadGame(event.data.code); // Pass code if available, otherwise will read from script element
+            } else if (event.data.type === 'update-code') {
+                updateGameCode(event.data.code);
+            } else if (event.data.type === 'update-html') {
+                updateHTML(event.data.html);
+            } else if (event.data.type === 'set-base-url') {
+                try {
+                    window.GF_BASE_URL = event.data.baseUrl;
+                    console.log('GF_BASE_URL set to:', window.GF_BASE_URL);
+                } catch (e) {}
+            }
+        });
+        
+        function updateHTML(htmlContent) {
+            try {
+                console.log('updateHTML called, content length:', htmlContent.length);
+                console.log('HTML content preview (first 500 chars):', htmlContent.substring(0, 500));
+                console.log('HTML content preview (last 200 chars):', htmlContent.substring(Math.max(0, htmlContent.length - 200)));
+                
+                // Check if HTML is complete
+                if (!htmlContent.includes('</html>') && !htmlContent.includes('</body>')) {
+                    console.warn('⚠️ HTML content appears incomplete - missing closing tags');
+                }
+                
+                // Clear previous game instance if exists
+                if (window.gameInstance && typeof window.gameInstance.destroy === 'function') {
+                    try {
+                        window.gameInstance.destroy(true);
+                    } catch (e) {
+                        console.warn('Error destroying previous game:', e);
+                    }
+                }
+                window.gameInstance = null;
+                
+                // Clear error container
+                const errorContainer = document.getElementById('error-container');
+                if (errorContainer) {
+                    errorContainer.innerHTML = '';
+                }
+                
+                // Instead of creating a nested iframe, directly replace THIS document's content
+                // Since we're already inside an iframe (preview.html loaded in previewFrame),
+                // we should replace the entire document with the user's HTML
+                try {
+                    // Write the new HTML directly to the document
+                    document.open();
+                    document.write(htmlContent);
+                    document.close();
+                    
+                    console.log('✅ HTML preview document replaced');
+                    console.log('New document body:', document.body ? document.body.innerHTML.substring(0, 500) : 'null');
+                    
+                    // Wait a moment for content to render, then check
+                    setTimeout(() => {
+                        try {
+                            const body = document.body;
+                            const html = document.documentElement;
+                            
+                            if (body) {
+                                console.log('Document body content:', body.innerHTML.substring(0, 500));
+                                console.log('Document body has children:', body.children.length);
+                                console.log('Document body first child:', body.firstElementChild ? body.firstElementChild.tagName + ' ' + (body.firstElementChild.id || '') : 'none');
+                                
+                                // Check if body is empty
+                                if (body.innerHTML.trim() === '' || (body.children.length === 0 && body.textContent.trim() === '')) {
+                                    console.warn('⚠️ Document body appears empty!');
+                                }
+                            } else {
+                                console.warn('Document body is null');
+                            }
+                            
+                            if (html) {
+                                console.log('Document HTML outerHTML preview:', html.outerHTML.substring(0, 300));
+                            }
+                        } catch (e) {
+                            console.error('Error checking document content:', e);
+                        }
+                    }, 200);
+                } catch (e) {
+                    console.error('Error replacing document:', e);
+                    // Fallback: Create iframe inside game-container
+                    const gameContainer = document.getElementById('game-container');
+                    if (gameContainer) {
+                        gameContainer.innerHTML = '';
+                        const iframe = document.createElement('iframe');
+                        iframe.style.cssText = 'width: 100%; height: 100%; border: none; background: transparent;';
+                        iframe.srcdoc = htmlContent;
+                        gameContainer.appendChild(iframe);
+                        console.log('✅ Fallback: HTML preview iframe created');
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Error updating HTML preview:', error);
+                showError(error);
+            }
+        }
+        
+        function updateGameCode(code) {
+            // Store code in a persistent script element for reference
+            let gameScript = document.getElementById('game-code');
+            if (!gameScript) {
+                gameScript = document.createElement('script');
+                gameScript.id = 'game-code';
+                gameScript.style.display = 'none'; // Hide it
+                document.body.appendChild(gameScript);
+            }
+            gameScript.textContent = code;
+            
+            // Reload with the code directly
+            reloadGame(code);
+        }
+        
+        function reloadGame(codeToExecute) {
+            try {
+                // Clear previous game instance
+                if (window.gameInstance && typeof window.gameInstance.destroy === 'function') {
+                    try {
+                        window.gameInstance.destroy(true);
+                    } catch (e) {
+                        console.warn('Error destroying previous game:', e);
+                    }
+                }
+                window.gameInstance = null;
+                
+                // Get code from parameter or from script element
+                let code = codeToExecute;
+                if (!code) {
+                    const gameScript = document.getElementById('game-code');
+                    if (gameScript) {
+                        code = gameScript.textContent;
+                    }
+                }
+                
+                // Only execute if there's actual code
+                if (!code || code.trim() === '' || code.includes('Waiting for game code')) {
+                    console.log('No game code to execute yet');
+                    return;
+                }
+                
+                // Clear error container
+                const errorContainer = document.getElementById('error-container');
+                if (errorContainer) {
+                    errorContainer.innerHTML = '';
+                }
+                
+                // Check if Phaser is available - wait a bit if not loaded yet
+                if (typeof Phaser === 'undefined') {
+                    console.warn('Phaser not loaded yet, waiting...');
+                    // Retry after a short delay (Phaser might still be loading)
+                    setTimeout(() => {
+                        if (typeof Phaser !== 'undefined') {
+                            reloadGame(code); // Pass code to retry
+                        } else {
+                            const errorMsg = 'Phaser.js is not loaded. Please wait or check console.';
+                            console.error(errorMsg);
+                            if (errorContainer) {
+                                errorContainer.innerHTML = '<div class="error-message">' + errorMsg + '</div>';
+                            }
+                        }
+                    }, 1000);
+                    return;
+                }
+                
+                console.log('✅ Phaser is available, executing game code...');
+                
+                // If document already loaded, dispatch DOMContentLoaded so bundles waiting on it run
+                try {
+                    if (document.readyState !== 'loading') {
+                        const evt = new Event('DOMContentLoaded');
+                        window.dispatchEvent(evt);
+                        console.log('📢 Dispatched DOMContentLoaded');
+                    }
+                } catch (e) {
+                    console.warn('Dispatch DOMContentLoaded failed:', e.message);
+                }
+                
+                // Create new script element with fresh code and execute
+                const newScript = document.createElement('script');
+                // Use var instead of const/let to allow redeclaration on reload
+                // Replace const/let declarations with var
+                const processedCode = code
+                    .replace(/\bconst\s+config\b/g, 'var config')
+                    .replace(/\blet\s+(game|player|config)\b/g, 'var $1');
+                
+                newScript.textContent = processedCode;
+                document.body.appendChild(newScript);
+                
+                // Note: We don't remove the newScript - it will execute immediately
+                // The game-code script element remains for reference
+                
+            } catch (error) {
+                showError(error);
+            }
+        }
+        
+        function showError(error) {
+            const errorContainer = document.getElementById('error-container');
+            if (errorContainer) {
+                errorContainer.innerHTML = `<div class="error-message">Error: ${error.message}\n\n${error.stack || 'No stack trace available'}</div>`;
+            }
+            console.error('GameForge Preview Error:', error);
+        }
+        
+        // Expose reload function globally
+        window.reloadGame = reloadGame;
+
+        // FPS/memory overlay
+        (function(){
+            const el = document.getElementById('perf-overlay');
+            let last = performance.now();
+            let frames = 0;
+            function update() {
+                const now = performance.now();
+                frames++;
+                if (now - last >= 1000) {
+                    const fps = frames; frames = 0; last = now;
+                    let mem = 'n/a';
+                    if (performance && performance.memory) {
+                        const mb = performance.memory.usedJSHeapSize / (1024*1024);
+                        mem = mb.toFixed(1)+'MB';
+                    }
+                    el.textContent = `FPS: ${fps} | Mem: ${mem}`;
+                }
+                requestAnimationFrame(update);
+            }
+            requestAnimationFrame(update);
+        })();
+
+        // Forward runtime errors to parent
+        (function(){
+            const send = (payload) => {
+                try { parent.postMessage({ type: 'runtime-error', ...payload }, '*'); } catch(e){}
+            };
+            window.addEventListener('error', (e) => {
+                send({ message: e.message, stack: (e.error && e.error.stack) || '' });
+            });
+            window.addEventListener('unhandledrejection', (e) => {
+                const reason = e.reason || {};
+                send({ message: 'Unhandled promise rejection: ' + (reason.message || String(reason)), stack: reason.stack || '' });
+            });
+            const origError = console.error;
+            console.error = function(){
+                try { send({ message: Array.from(arguments).join(' ') }); } catch(_){}
+                return origError.apply(console, arguments);
+            };
+        })();
+    </script>
+</body>
+</html>
+

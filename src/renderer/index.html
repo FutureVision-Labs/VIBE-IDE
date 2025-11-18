@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIBE IDE</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top Menu Bar -->
+        <div class="menu-bar">
+            <div class="menu-title">VIBE IDE</div>
+            <div class="menu-items">
+                <span class="menu-item">File</span>
+                <span class="menu-item">Edit</span>
+                <span class="menu-item">View</span>
+                <span class="menu-item">Help</span>
+            </div>
+            <div class="menu-right">
+                <button class="theme-toggle" id="themeToggle" title="Toggle Theme">
+                    🌙
+                </button>
+                <button class="btn-small" id="btnGenreRules" title="Manage Genre Rules">🧩 Genre Rules</button>
+                <button class="btn-small" id="btnBuildJournal" title="Build Project Journal (HTML)">📝 Build Journal</button>
+                <button class="btn-small" id="btnExportJournal" title="Export Project Journal (PDF)">📄 Export PDF</button>
+                <button class="btn-small" id="btnJournalSettings" title="Journal Settings">⚙️ Settings</button>
+            </div>
+        </div>
+
+        <!-- Main Layout -->
+        <div class="main-layout">
+            <!-- Left Sidebar - File Tree (Phase 2) -->
+            <div class="sidebar left-sidebar" id="leftSidebar">
+                <div class="sidebar-header">
+                    <h3>📁 Explorer</h3>
+                    <button class="sidebar-toggle" id="toggleLeftSidebar" title="Toggle Sidebar">◀</button>
+                </div>
+                <div class="sidebar-content" id="fileTree">
+                    <div class="file-tree">
+                        <div class="tree-item folder" data-path="/">
+                            <span class="tree-icon">📁</span>
+                            <span class="tree-label">No project loaded</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="resizer vertical-resizer" id="leftResizer"></div>
+
+            <!-- Center - Editor Area -->
+            <div class="editor-area">
+                <div class="editor-tabs" id="editorTabs">
+                    <div class="tab active" data-tab="welcome">Welcome</div>
+                </div>
+                <div class="editor-content" id="editorContent">
+                    <!-- Monaco Editor Container -->
+                    <div id="monacoEditor" style="display: none; width: 100%; height: 100%;"></div>
+                    
+                    <!-- Welcome Screen -->
+                    <div class="welcome-screen" id="welcomeScreen">
+                        <img src="../../logo.jpg" alt="GameForge IDE Logo" class="welcome-logo">
+                        <h1>🚀 Welcome to VIBE IDE!</h1>
+                        <p class="subtitle">Beginner-friendly coding environment with AI assistance</p>
+                        
+                        <div class="welcome-actions">
+                            <button class="btn btn-primary" onclick="showNewProject()">
+                                ➕ New Project
+                            </button>
+                            <button class="btn btn-secondary" onclick="showOpenProject()">
+                                📂 Open Project
+                            </button>
+                        </div>
+
+                        <div class="welcome-info">
+                            <h3>🚀 Quick Start</h3>
+                            <ul>
+                                <li>Create a new project from template</li>
+                                <li>Start coding in the Monaco Editor</li>
+                                <li>See live preview of your game</li>
+                                <li>Get AI assistance for Phaser.js</li>
+                            </ul>
+                        </div>
+
+                        <div class="phase-info">
+                            <h3>📋 Current Phase: Live Preview (Week 5-6)</h3>
+                            <p>✅ Electron app structure created</p>
+                            <p>✅ Monaco Editor integrated</p>
+                            <p>✅ File tree navigation</p>
+                            <p>✅ Live preview with Phaser.js</p>
+                            <p>✅ Hot reload functionality</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="resizer vertical-resizer" id="rightResizer"></div>
+            <!-- Right Sidebar - AI Chat (Phase 6) -->
+            <div class="sidebar right-sidebar" id="rightSidebar">
+                <div class="sidebar-header">
+                    <h3>🤖 AI Assistant</h3>
+                    <button class="sidebar-toggle" id="toggleRightSidebar" title="Toggle Sidebar">▶</button>
+                </div>
+                <div class="sidebar-content">
+                    <!-- Chat Messages Area -->
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="chat-welcome">
+                            <p>👋 Hey! I'm your AI coding buddy!</p>
+                            <p>Ask me anything about Phaser.js, get code suggestions, or just vibe code together! 😊</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Chat Input Area -->
+                    <div class="chat-input-area">
+                        <!-- Formatting Toolbar -->
+                        <div class="formatting-toolbar">
+                            <button class="format-btn" data-format="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+                            <button class="format-btn" data-format="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+                            <button class="format-btn" data-format="code" title="Inline Code (Ctrl+`)"><code>`</code></button>
+                            <button class="format-btn" data-format="codeblock" title="Code Block">{ }</button>
+                            <button class="format-btn" data-format="strikethrough" title="Strikethrough"><s>S</s></button>
+                            <div class="toolbar-spacer"></div>
+                            <label class="emoticon-toggle" title="Convert emoticons to emoji">
+                                <input type="checkbox" id="emoticonConvert" checked>
+                                <span>😊</span>
+                            </label>
+                            <button class="emoji-btn" id="emojiPickerBtn" title="Insert Emoji">😀</button>
+                        </div>
+                        
+                        <!-- Emoji Picker Popup -->
+                        <div class="emoji-picker" id="emojiPicker" style="display: none;">
+                            <div class="emoji-grid">
+                                <button class="emoji-item" data-emoji="😊">😊</button>
+                                <button class="emoji-item" data-emoji="😄">😄</button>
+                                <button class="emoji-item" data-emoji="😅">😅</button>
+                                <button class="emoji-item" data-emoji="😂">😂</button>
+                                <button class="emoji-item" data-emoji="🎉">🎉</button>
+                                <button class="emoji-item" data-emoji="🚀">🚀</button>
+                                <button class="emoji-item" data-emoji="💡">💡</button>
+                                <button class="emoji-item" data-emoji="⚠️">⚠️</button>
+                                <button class="emoji-item" data-emoji="❌">❌</button>
+                                <button class="emoji-item" data-emoji="✅">✅</button>
+                                <button class="emoji-item" data-emoji="🎮">🎮</button>
+                                <button class="emoji-item" data-emoji="🎨">🎨</button>
+                                <button class="emoji-item" data-emoji="🔥">🔥</button>
+                                <button class="emoji-item" data-emoji="💪">💪</button>
+                                <button class="emoji-item" data-emoji="🤔">🤔</button>
+                                <button class="emoji-item" data-emoji="😤">😤</button>
+                                <button class="emoji-item" data-emoji="🎯">🎯</button>
+                                <button class="emoji-item" data-emoji="❤️">❤️</button>
+                                <button class="emoji-item" data-emoji="👍">👍</button>
+                                <button class="emoji-item" data-emoji="👎">👎</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Text Input -->
+                        <textarea 
+                            id="chatInput" 
+                            class="chat-input" 
+                            placeholder="Type your message... (Shift+Enter for new line, Enter to send)"
+                            rows="3"
+                        ></textarea>
+                        
+                        <!-- Send Button -->
+                        <div class="chat-actions">
+                            <button class="btn btn-primary" id="chatSendBtn" title="Send (Enter)">Send</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom - Preview Pane (Phase 3) -->
+        <div class="resizer horizontal-resizer" id="previewResizer"></div>
+        <div class="preview-pane" id="previewPane">
+            <div class="preview-header">
+                <span>🎮 Live Preview</span>
+                <div class="preview-controls">
+                    <label style="margin-right:8px; color:#9fb0c6; font-size:12px; display:inline-flex; align-items:center; gap:6px;">
+                        <input type="checkbox" id="autoBundleToggle" checked /> Auto-bundle
+                    </label>
+                    <button class="btn-small" id="previewOpenExternal" title="Open in external browser">🌐 Open</button>
+                    <button class="btn-small" id="bundleLogToggle" title="Toggle bundle log">🧾 Log</button>
+                    <button class="btn-small" id="togglePreview" title="Toggle Preview">▼</button>
+                    <button class="btn-small" id="previewPlay" title="Play Preview">▶️ Play</button>
+                    <button class="btn-small" id="previewPause" title="Pause Preview" style="display: none;">⏸️ Pause</button>
+                    <button class="btn-small" id="previewRestart" title="Restart Preview">🔄 Restart</button>
+                    <button class="btn-small" id="previewReload" title="Reload Preview">🔄 Reload</button>
+                </div>
+            </div>
+            <div id="bundleLog" style="display:none; font-family: monospace; font-size: 12px; color:#a6b3c4; background:#15181c; border-top:1px solid #2a2f36; padding:6px 10px; max-height:120px; overflow:auto;"></div>
+            <div class="preview-content" id="previewContent">
+                <div class="preview-loading" id="previewLoading">
+                    <p>📦 No game loaded. Start coding to see preview!</p>
+                </div>
+                <iframe id="previewFrame" style="display: none; width: 100%; height: 100%; border: none;"></iframe>
+                <canvas id="previewCanvas" style="display: none;"></canvas>
+            </div>
+        </div>
+        
+        <!-- Floating toggle button for collapsed right sidebar -->
+        <button class="sidebar-float-toggle" id="rightSidebarFloatToggle" title="Show AI Assistant" style="display: none;">◀</button>
+    </div>
+
+    <!-- Genre Rule Editor Modal -->
+    <div class="modal-overlay" id="genreModalOverlay" style="display:none;">
+        <div class="modal genre-modal">
+            <div class="genre-modal-header">
+                <div>
+                    <h3 id="genreModalTitle">Genre Rule Editor</h3>
+                    <p id="genreModalSubtitle" class="genre-modal-subtitle">Inspect and customize genre guidance</p>
+                </div>
+                <button class="btn-icon" id="genreModalClose" title="Close">✖</button>
+            </div>
+            <div class="genre-modal-body">
+                <aside class="genre-sidebar">
+                    <div class="genre-sidebar-header">
+                        <span>Genres</span>
+                        <button class="btn-small" id="genreNewBtn" title="Create new rule">＋ New</button>
+                    </div>
+                    <div class="genre-list" id="genreList"></div>
+                </aside>
+                <div class="genre-main">
+                    <div class="genre-tabs">
+                        <button class="genre-tab active" data-tab="form">Form View</button>
+                        <button class="genre-tab" data-tab="json">Raw JSON</button>
+                    </div>
+                    <div class="genre-content" id="genreFormSection">
+                        <div class="genre-form-grid">
+                            <div class="form-field">
+                                <label for="genreFieldName">Genre Name</label>
+                                <input type="text" id="genreFieldName" placeholder="platformer">
+                            </div>
+                            <div class="form-field">
+                                <label for="genreFieldVersion">Rule Version</label>
+                                <input type="text" id="genreFieldVersion" placeholder="1.0.0">
+                            </div>
+                            <div class="form-field">
+                                <label for="genreFieldPhaserVersion">Phaser Version</label>
+                                <input type="text" id="genreFieldPhaserVersion" placeholder="3.x">
+                            </div>
+                            <div class="form-field">
+                                <label for="genreFieldAuthor">Author</label>
+                                <input type="text" id="genreFieldAuthor" placeholder="GameForge Team">
+                            </div>
+                            <div class="form-field full">
+                                <label for="genreFieldDescription">Description</label>
+                                <textarea id="genreFieldDescription" rows="3" placeholder="Overview of this genre"></textarea>
+                            </div>
+                        </div>
+                        <div class="form-section">
+                            <div class="genre-subsection" id="genreCommonPatternsStructured">
+                                <div class="genre-subheader">
+                                    <span>Structured Editor</span>
+                                </div>
+                                <div class="genre-patterns-grid" id="genrePatternsGrid">
+                                    <div class="genre-pattern-card" data-pattern="player">
+                                        <div class="genre-card-title">
+                                            <span>Player</span>
+                                        </div>
+                                        <div class="genre-pattern-body">
+                                            <div class="pattern-section" data-pattern-section="movement">
+                                                <label>Movement Description</label>
+                                                <input type="text" data-pattern-input="player.movement" placeholder="e.g. horizontal + jump">
+                                            </div>
+                                            <div class="pattern-section" data-pattern-section="physics">
+                                                <div class="pattern-grid">
+                                                    <label>Gravity</label>
+                                                    <input type="number" data-pattern-input="player.physics.gravity" placeholder="800">
+                                                    <label>Jump Speed</label>
+                                                    <input type="number" data-pattern-input="player.physics.jumpSpeed" placeholder="-600">
+                                                    <label>Max Speed</label>
+                                                    <input type="number" data-pattern-input="player.physics.maxSpeed" placeholder="200">
+                                                    <label>Friction</label>
+                                                    <input type="number" step="0.1" data-pattern-input="player.physics.friction" placeholder="0.8">
+                                                    <label>Bounce</label>
+                                                    <input type="number" step="0.1" data-pattern-input="player.physics.bounce" placeholder="0">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="genre-pattern-card" data-pattern="enemies">
+                                        <div class="genre-card-title">
+                                            <span>Enemies</span>
+                                            <button class="btn-small" data-pattern-repeat-add="enemies.types">＋ Add Type</button>
+                                        </div>
+                                        <div class="genre-pattern-body">
+                                            <label>Spawn Logic</label>
+                                            <input type="text" data-pattern-input="enemies.spawnLogic" placeholder="patrol, chase, flying, etc.">
+                                            <label>Types</label>
+                                            <div class="tag-input" data-pattern-tags="enemies.types">
+                                                <div class="tag-list" data-tag-list></div>
+                                                <input type="text" data-tag-input placeholder="Add enemy type">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="genre-pattern-card" data-pattern="camera">
+                                        <div class="genre-card-title">
+                                            <span>Camera</span>
+                                        </div>
+                                        <div class="genre-pattern-body pattern-grid">
+                                            <label>Follow Target</label>
+                                            <input type="text" data-pattern-input="camera.follow" placeholder="player">
+                                            <label>Deadzone</label>
+                                            <input type="number" data-pattern-input="camera.deadzone" placeholder="50">
+                                            <label>Bounds</label>
+                                            <input type="text" data-pattern-input="camera.bounds" placeholder="levelBounds">
+                                        </div>
+                                    </div>
+                                    <div class="genre-pattern-card" data-pattern="collectibles">
+                                        <div class="genre-card-title">
+                                            <span>Collectibles</span>
+                                        </div>
+                                        <div class="genre-pattern-body">
+                                            <label>Collection Method</label>
+                                            <input type="text" data-pattern-input="collectibles.collectionPattern" placeholder="overlap detection">
+                                            <label>Types</label>
+                                            <div class="tag-input" data-pattern-tags="collectibles.types">
+                                                <div class="tag-list" data-tag-list></div>
+                                                <input type="text" data-tag-input placeholder="coin, powerup, key">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-section">
+                            <h4>AI Suggestions</h4>
+                            <div class="form-field full">
+                                <label for="genreFieldContext">Context</label>
+                                <textarea id="genreFieldContext" rows="4" placeholder="Guidance for AI helper"></textarea>
+                            </div>
+                            <div class="genre-subsection">
+                                <div class="genre-subheader">
+                                    <span>Code Examples</span>
+                                    <button class="btn-small" id="genreAddCodeExample">＋ Add Example</button>
+                                </div>
+                                <div id="genreCodeExamplesList" class="genre-code-examples"></div>
+                            </div>
+                            <div class="genre-subsection">
+                                <div class="genre-subheader">
+                                    <span>Common Bugs</span>
+                                </div>
+                                <div class="tag-input" id="genreCommonBugs">
+                                    <div class="tag-list" data-tag-list></div>
+                                    <input type="text" placeholder="Add a bug and press Enter" data-tag-input />
+                                </div>
+                            </div>
+                            <div class="genre-subsection">
+                                <div class="genre-subheader">
+                                    <span>Performance Tips</span>
+                                </div>
+                                <div class="tag-input" id="genrePerformanceTips">
+                                    <div class="tag-list" data-tag-list></div>
+                                    <input type="text" placeholder="Add a tip and press Enter" data-tag-input />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-section">
+                            <div class="form-field full">
+                                <label for="genreFieldValidation">Validation Rules (JSON)</label>
+                                <textarea id="genreFieldValidation" class="code-textarea" rows="8"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="genre-content" id="genreJsonSection" style="display:none;">
+                        <div id="genreJsonEditor" class="genre-json-editor"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="genre-modal-footer">
+                <div class="genre-status" id="genreStatus"></div>
+                <div class="genre-actions">
+                    <button class="btn-small" id="genreResetBtn" title="Reload last saved version">Reset</button>
+                    <button class="btn-small" id="genreReloadBundledBtn" title="Load bundled default">Load Default</button>
+                    <button class="btn-small" id="genreExportBtn" title="Export to JSON file">Export</button>
+                    <button class="btn-small" id="genreDeleteBtn" title="Remove custom override">Delete Override</button>
+                    <button class="btn-small primary" id="genreSaveBtn" title="Save custom override">Save Override</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monaco Editor Loader -->
+    <script>
+        // IMPORTANT: Store Node.js require BEFORE Monaco loads and replaces it
+        window.nodeRequire = require;
+        
+        // Load Monaco Editor using Node.js fs (since nodeIntegration: true)
+        (function() {
+            try {
+                const fs = window.nodeRequire('fs');
+                const path = window.nodeRequire('path');
+                
+                // Get the actual path to Monaco - use process.cwd() which should be the project root
+                const appPath = process.cwd();
+                const monacoLoaderPath = path.join(appPath, 'node_modules', 'monaco-editor', 'min', 'vs', 'loader.js');
+                
+                console.log('Attempting to load Monaco from:', monacoLoaderPath);
+                console.log('Current working directory:', appPath);
+                
+                if (fs.existsSync(monacoLoaderPath)) {
+                    console.log('Monaco loader.js found, reading...');
+                    
+                    // Read and execute Monaco loader
+                    const loaderCode = fs.readFileSync(monacoLoaderPath, 'utf-8');
+                    
+                    // Create script element
+                    const loaderScript = document.createElement('script');
+                    loaderScript.textContent = loaderCode;
+                    document.head.appendChild(loaderScript);
+                    
+                    console.log('Monaco loader.js executed');
+                    
+                    // Wait for loader to initialize
+                    setTimeout(function() {
+                        try {
+                            if (typeof require === 'undefined' || !require.config) {
+                                console.error('require.config not available');
+                                document.getElementById('monacoEditor').innerHTML = '<div style="padding: 20px; color: #f48771;">require.config not available</div>';
+                                return;
+                            }
+                            
+                            // Configure Monaco paths - use absolute path
+                            const monacoVsPath = path.join(appPath, 'node_modules', 'monaco-editor', 'min', 'vs').replace(/\\/g, '/');
+                            require.config({ 
+                                paths: { vs: monacoVsPath }
+                            });
+                            
+                            console.log('Require config set, loading Monaco from:', monacoVsPath);
+                            
+                            // Load Monaco Editor main module
+                            require(['vs/editor/editor.main'], function () {
+                                console.log('✅ Monaco Editor library loaded successfully');
+                                
+                                // Initialize Monaco Editor
+                                setTimeout(function() {
+                                    if (window.initMonacoEditor) {
+                                        window.initMonacoEditor();
+                                    } else {
+                                        let attempts = 0;
+                                        const checkInit = setInterval(function() {
+                                            attempts++;
+                                            if (window.initMonacoEditor) {
+                                                clearInterval(checkInit);
+                                                window.initMonacoEditor();
+                                            } else if (attempts > 20) {
+                                                clearInterval(checkInit);
+                                                console.warn('initMonacoEditor not found after 2 seconds');
+                                            }
+                                        }, 100);
+                                    }
+                                }, 200);
+                            }, function(err) {
+                                console.error('Failed to load Monaco Editor module:', err);
+                                const errorMsg = err && err.message ? err.message : String(err);
+                                document.getElementById('monacoEditor').innerHTML = '<div style="padding: 20px; color: #f48771;">Failed to load Monaco Editor. Error: ' + errorMsg + '</div>';
+                            });
+                        } catch (error) {
+                            console.error('Error in Monaco loading:', error);
+                            document.getElementById('monacoEditor').innerHTML = '<div style="padding: 20px; color: #f48771;">Error: ' + error.message + '</div>';
+                        }
+                    }, 300);
+                    
+                } else {
+                    console.error('Monaco loader.js not found at:', monacoLoaderPath);
+                    document.getElementById('monacoEditor').innerHTML = '<div style="padding: 20px; color: #f48771;">Monaco Editor not found at: ' + monacoLoaderPath + '<br>Current dir: ' + appPath + '</div>';
+                }
+            } catch (error) {
+                console.error('Error setting up Monaco loader:', error);
+                document.getElementById('monacoEditor').innerHTML = '<div style="padding: 20px; color: #f48771;">Setup error: ' + error.message + '</div>';
+            }
+        })();
+    </script>
+    <script src="renderer.js"></script>
+</body>
+</html>
+
+
