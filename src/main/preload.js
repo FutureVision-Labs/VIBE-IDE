@@ -51,7 +51,7 @@ window.electronAPI = {
   isWindowMaximized: () => ipcRenderer.invoke('window:isMaximized'),
   
   // OpenAI (Phase 2)
-  openaiChat: (messages, systemPrompt) => ipcRenderer.invoke('openai:chat', { messages, systemPrompt }),
+  openaiChat: (messages, systemPrompt, maxTokens) => ipcRenderer.invoke('openai:chat', { messages, systemPrompt, maxTokens }),
   openaiCheckStatus: () => ipcRenderer.invoke('openai:checkStatus')
 };
 

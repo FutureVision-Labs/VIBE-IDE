@@ -21,6 +21,7 @@ const state = {
     autoReload: true,
     previewRunning: false,
     autoBundle: true, // prefer bundling for real projects
+    mdPreviewMode: false, // Track if markdown preview is active
     theme: localStorage.getItem('vibe-ide-theme') || 'dark',
     leftSidebarWidth: parseInt(localStorage.getItem('vibe-ide-left-sidebar-width') || '260', 10),
     rightSidebarWidth: parseInt(localStorage.getItem('vibe-ide-right-sidebar-width') || '320', 10),
@@ -793,27 +794,27 @@ function updateCursyState(newState, statusText = null) {
     console.log('🔵 updateCursyState called:', newState, statusText);
     
     const character = document.getElementById('cursyCharacter');
-    const statusIndicator = document.getElementById('statusIndicator');
-    const statusTextEl = document.getElementById('statusText');
     const roomPropsLayer = document.getElementById('roomPropsLayer');
     const characterLayer = document.getElementById('roomCharacterLayer');
     const roomContainer = document.querySelector('.room-container');
     
     console.log('🔍 Elements found:', {
         character: !!character,
-        statusIndicator: !!statusIndicator,
-        statusTextEl: !!statusTextEl,
-        characterLayer: !!characterLayer
+        characterLayer: !!characterLayer,
+        roomContainer: !!roomContainer
     });
     
-    if (!character || !statusIndicator || !statusTextEl) {
-        console.error('❌ Missing required elements!');
+    if (!character || !characterLayer || !roomContainer) {
+        console.error('❌ Missing required elements!', {
+            character: !!character,
+            characterLayer: !!characterLayer,
+            roomContainer: !!roomContainer
+        });
         return;
     }
     
     // Remove all state classes
     character.className = 'cursy-character';
-    statusIndicator.className = 'status-indicator';
     
     // Remove any existing bubbles (check both characterLayer and roomContainer)
     const existingBubbles = document.querySelectorAll('.cursy-bubble');
@@ -828,15 +829,11 @@ function updateCursyState(newState, statusText = null) {
     switch (newState) {
         case 'idle':
             character.classList.add('idle');
-            statusIndicator.classList.add('active');
-            statusTextEl.textContent = statusText || 'Ready to help!';
             startCursyAnimation('idle');
             break;
             
         case 'thinking':
             character.classList.add('thinking');
-            statusIndicator.classList.add('thinking');
-            statusTextEl.textContent = statusText || 'Thinking...';
             startCursyAnimation('idle'); // Use idle animation for thinking
             
             // Add thought bubble with animated dots
@@ -850,32 +847,68 @@ function updateCursyState(newState, statusText = null) {
                 thoughtBubble.appendChild(thinkingDots);
                 roomContainer.appendChild(thoughtBubble);
                 
-                // Position bubble relative to character (offset slightly to the right)
-                const charRect = character.getBoundingClientRect();
-                const containerRect = roomContainer.getBoundingClientRect();
-                const charCenterX = charRect.left - containerRect.left + (charRect.width / 2);
-                thoughtBubble.style.left = (charCenterX + 10) + 'px'; // Offset 10px to the right
-                thoughtBubble.style.top = (charRect.top - containerRect.top - 60) + 'px';
+                // Position bubble after a small delay to ensure character is rendered
+                setTimeout(() => {
+                    const charRect = character.getBoundingClientRect();
+                    const containerRect = roomContainer.getBoundingClientRect();
+                    const visualizationRect = document.querySelector('.cursy-visualization')?.getBoundingClientRect();
+                    
+                    if (charRect.width > 0 && containerRect.width > 0) {
+                        // Position relative to the visualization container, not room-container
+                        // This ensures bubbles can appear above the room
+                        const charCenterX = charRect.left - (visualizationRect?.left || containerRect.left) + (charRect.width / 2);
+                        const charTop = charRect.top - (visualizationRect?.top || containerRect.top);
+                        
+                        // Position relative to visualization container
+                        const vizContainer = document.querySelector('.cursy-visualization') || roomContainer;
+                        thoughtBubble.style.position = 'absolute';
+                        thoughtBubble.style.left = (charCenterX - 40) + 'px';
+                        thoughtBubble.style.top = (charTop - 60) + 'px';
+                        thoughtBubble.style.zIndex = '1000'; // Much higher z-index
+                        thoughtBubble.style.opacity = '1';
+                        thoughtBubble.style.visibility = 'visible';
+                        thoughtBubble.style.display = 'flex';
+                        thoughtBubble.style.pointerEvents = 'none'; // Don't block clicks
+                        
+                        // Move bubble to visualization container if it's in room-container
+                        if (thoughtBubble.parentElement === roomContainer && vizContainer !== roomContainer) {
+                            vizContainer.appendChild(thoughtBubble);
+                        }
+                        
+                        console.log('✅ Thought bubble positioned:', { 
+                            left: thoughtBubble.style.left, 
+                            top: thoughtBubble.style.top,
+                            zIndex: thoughtBubble.style.zIndex,
+                            display: window.getComputedStyle(thoughtBubble).display,
+                            visibility: window.getComputedStyle(thoughtBubble).visibility,
+                            opacity: window.getComputedStyle(thoughtBubble).opacity,
+                            parent: thoughtBubble.parentElement?.className
+                        });
+                    } else {
+                        console.warn('⚠️ Character or container not properly sized, using fallback positioning');
+                        thoughtBubble.style.left = '50%';
+                        thoughtBubble.style.top = '20%';
+                        thoughtBubble.style.position = 'absolute';
+                        thoughtBubble.style.zIndex = '1000';
+                        thoughtBubble.style.opacity = '1';
+                        thoughtBubble.style.visibility = 'visible';
+                        thoughtBubble.style.display = 'flex';
+                    }
+                }, 150);
                 
-                console.log('✅ Thought bubble appended and positioned');
-                console.log('📍 Character position:', { charRect, containerRect, charCenterX });
-                console.log('📍 Bubble position:', thoughtBubble.getBoundingClientRect());
+                console.log('✅ Thought bubble appended');
             } else {
-                console.error('❌ roomContainer or character not found for thought bubble!');
+                console.error('❌ roomContainer or character not found for thought bubble!', { roomContainer: !!roomContainer, character: !!character });
             }
             break;
             
         case 'typing':
             character.classList.add('typing');
-            statusIndicator.classList.add('typing');
-            statusTextEl.textContent = statusText || 'Typing response...';
             startCursyAnimation('typing');
             break;
             
         case 'celebrating':
             character.classList.add('celebrating');
-            statusIndicator.classList.add('active');
-            statusTextEl.textContent = statusText || 'Celebrating!';
             startCursyAnimation('idle'); // Use idle animation for celebrating
             
             // Add green speech bubble with animated "YES!!!"
@@ -889,15 +922,43 @@ function updateCursyState(newState, statusText = null) {
                 celebrateBubble.appendChild(celebrateText);
                 roomContainer.appendChild(celebrateBubble);
                 
-                // Position bubble relative to character (offset slightly to the right, same height as thought bubble)
-                const charRect = character.getBoundingClientRect();
-                const containerRect = roomContainer.getBoundingClientRect();
-                const charCenterX = charRect.left - containerRect.left + (charRect.width / 2);
-                celebrateBubble.style.left = (charCenterX + 10) + 'px'; // Offset 10px to the right
-                celebrateBubble.style.top = (charRect.top - containerRect.top - 60) + 'px'; // Same height as thought bubble
+                // Position bubble after a small delay
+                setTimeout(() => {
+                    const charRect = character.getBoundingClientRect();
+                    const containerRect = roomContainer.getBoundingClientRect();
+                    const visualizationRect = document.querySelector('.cursy-visualization')?.getBoundingClientRect();
+                    
+                    if (charRect.width > 0 && containerRect.width > 0) {
+                        const charCenterX = charRect.left - (visualizationRect?.left || containerRect.left) + (charRect.width / 2);
+                        const charTop = charRect.top - (visualizationRect?.top || containerRect.top);
+                        
+                        const vizContainer = document.querySelector('.cursy-visualization') || roomContainer;
+                        celebrateBubble.style.position = 'absolute';
+                        celebrateBubble.style.left = (charCenterX - 35) + 'px';
+                        celebrateBubble.style.top = (charTop - 60) + 'px';
+                        celebrateBubble.style.zIndex = '1000';
+                        celebrateBubble.style.opacity = '1';
+                        celebrateBubble.style.visibility = 'visible';
+                        celebrateBubble.style.display = 'flex';
+                        celebrateBubble.style.pointerEvents = 'none';
+                        
+                        if (celebrateBubble.parentElement === roomContainer && vizContainer !== roomContainer) {
+                            vizContainer.appendChild(celebrateBubble);
+                        }
+                        
+                        console.log('✅ Celebrate bubble positioned');
+                    } else {
+                        celebrateBubble.style.left = '50%';
+                        celebrateBubble.style.top = '20%';
+                        celebrateBubble.style.position = 'absolute';
+                        celebrateBubble.style.zIndex = '1000';
+                        celebrateBubble.style.opacity = '1';
+                        celebrateBubble.style.visibility = 'visible';
+                        celebrateBubble.style.display = 'flex';
+                    }
+                }, 150);
                 
-                console.log('✅ Celebrate bubble appended and positioned');
-                console.log('📍 Bubble position:', celebrateBubble.getBoundingClientRect());
+                console.log('✅ Celebrate bubble appended');
             } else {
                 console.error('❌ roomContainer or character not found for celebrate bubble!');
             }
@@ -909,8 +970,6 @@ function updateCursyState(newState, statusText = null) {
             
         case 'error':
             character.classList.add('error');
-            statusIndicator.classList.add('error');
-            statusTextEl.textContent = statusText || 'Error occurred';
             startCursyAnimation('typing'); // Use typing animation for error
             
             // Add red speech bubble with animated exclamation marks
@@ -924,15 +983,43 @@ function updateCursyState(newState, statusText = null) {
                 errorBubble.appendChild(errorExclamations);
                 roomContainer.appendChild(errorBubble);
                 
-                // Position bubble relative to character (offset slightly to the right, same height as thought bubble)
-                const charRect = character.getBoundingClientRect();
-                const containerRect = roomContainer.getBoundingClientRect();
-                const charCenterX = charRect.left - containerRect.left + (charRect.width / 2);
-                errorBubble.style.left = (charCenterX + 10) + 'px'; // Offset 10px to the right
-                errorBubble.style.top = (charRect.top - containerRect.top - 60) + 'px'; // Same height as thought bubble
+                // Position bubble after a small delay
+                setTimeout(() => {
+                    const charRect = character.getBoundingClientRect();
+                    const containerRect = roomContainer.getBoundingClientRect();
+                    const visualizationRect = document.querySelector('.cursy-visualization')?.getBoundingClientRect();
+                    
+                    if (charRect.width > 0 && containerRect.width > 0) {
+                        const charCenterX = charRect.left - (visualizationRect?.left || containerRect.left) + (charRect.width / 2);
+                        const charTop = charRect.top - (visualizationRect?.top || containerRect.top);
+                        
+                        const vizContainer = document.querySelector('.cursy-visualization') || roomContainer;
+                        errorBubble.style.position = 'absolute';
+                        errorBubble.style.left = (charCenterX - 35) + 'px';
+                        errorBubble.style.top = (charTop - 60) + 'px';
+                        errorBubble.style.zIndex = '1000';
+                        errorBubble.style.opacity = '1';
+                        errorBubble.style.visibility = 'visible';
+                        errorBubble.style.display = 'flex';
+                        errorBubble.style.pointerEvents = 'none';
+                        
+                        if (errorBubble.parentElement === roomContainer && vizContainer !== roomContainer) {
+                            vizContainer.appendChild(errorBubble);
+                        }
+                        
+                        console.log('✅ Error bubble positioned');
+                    } else {
+                        errorBubble.style.left = '50%';
+                        errorBubble.style.top = '20%';
+                        errorBubble.style.position = 'absolute';
+                        errorBubble.style.zIndex = '1000';
+                        errorBubble.style.opacity = '1';
+                        errorBubble.style.visibility = 'visible';
+                        errorBubble.style.display = 'flex';
+                    }
+                }, 150);
                 
-                console.log('✅ Error bubble appended and positioned');
-                console.log('📍 Bubble position:', errorBubble.getBoundingClientRect());
+                console.log('✅ Error bubble appended');
             } else {
                 console.error('❌ roomContainer or character not found for error bubble!');
             }
@@ -1462,8 +1549,29 @@ function buildFileTree(files) {
 
 async function openFileFromPath(filePath) {
     try {
+        // Check if file is already open in a tab
+        const existingTab = state.openTabs.find(t => t.path === filePath || t.path.replace(/\\/g, '/') === filePath.replace(/\\/g, '/'));
+        if (existingTab) {
+            // File is already open, refresh it from disk
+            console.log('📄 File already open, refreshing from disk:', filePath);
+            const result = await window.electronAPI.readFile(filePath);
+            if (result.success) {
+                existingTab.content = result.content;
+                existingTab.isDirty = false;
+                // If it's the active tab, update the editor
+                if (existingTab.id === state.activeTab && state.monacoEditor) {
+                    state.monacoEditor.setValue(result.content);
+                }
+                renderTabs();
+                switchToTab(existingTab.id);
+                return;
+            }
+        }
+        
         const result = await window.electronAPI.readFile(filePath);
         if (result.success) {
+            console.log('📄 Opened file from disk:', filePath, 'content length:', result.content.length);
+            console.log('📄 First 200 chars:', result.content.substring(0, 200));
             const fileName = filePath.split(/[/\\]/).pop();
             const tab = createTab(filePath, fileName, result.content);
             // Mark as read-only if file is outside the current project path
@@ -2081,10 +2189,15 @@ function initMonacoEditor() {
         editorContainer.style.width = '100%';
         editorContainer.style.height = '100%';
         
+        // Check if there's a pending tab with content to load
+        const activeTab = state.openTabs.find(t => t.id === state.activeTab);
+        const initialValue = activeTab?.pendingContent || activeTab?.content || '// Welcome to VIBE IDE!\n// Start coding your project here...\n\nconsole.log("Hello, VIBE IDE!");';
+        const initialLanguage = activeTab ? getLanguageFromFileName(activeTab.name) : 'javascript';
+        
         // Create Monaco Editor instance
         state.monacoEditor = monaco.editor.create(editorContainer, {
-            value: '// Welcome to VIBE IDE!\n// Start coding your project here...\n\nconsole.log("Hello, VIBE IDE!");',
-            language: 'javascript',
+            value: initialValue,
+            language: initialLanguage,
             theme: state.theme === 'dark' ? 'vs-dark' : 'vs',
             fontSize: 14,
             lineNumbers: 'on',
@@ -2098,6 +2211,12 @@ function initMonacoEditor() {
         });
         
         console.log('✅ Monaco Editor initialized successfully');
+        
+        // If there was pending content, clear it now that it's set
+        if (activeTab && activeTab.pendingContent) {
+            activeTab.pendingContent = undefined;
+            console.log('✅ Set pending content in Monaco Editor');
+        }
         
         // Initial layout
         setTimeout(() => {
@@ -2132,6 +2251,11 @@ function createTab(filePath, fileName, content = '') {
 
 function renderTabs() {
     const tabsContainer = document.getElementById('editorTabs');
+    
+    // Preserve the preview toggle button before clearing
+    const mdPreviewToggle = document.getElementById('mdPreviewToggle');
+    const toggleButton = mdPreviewToggle ? mdPreviewToggle.outerHTML : '';
+    
     tabsContainer.innerHTML = '';
     
     state.openTabs.forEach(tab => {
@@ -2171,7 +2295,7 @@ function renderTabs() {
     }
 }
 
-function switchToTab(tabId) {
+async function switchToTab(tabId) {
     if (tabId === 'welcome') {
         state.activeTab = null;
         document.getElementById('welcomeScreen').style.display = 'block';
@@ -2193,43 +2317,166 @@ function switchToTab(tabId) {
     
     // Ensure Monaco Editor is initialized
     if (!state.monacoEditor) {
-        console.log('Monaco Editor not initialized, attempting to initialize...');
-        if (typeof monaco !== 'undefined') {
-            initMonacoEditor();
-        } else {
-            console.warn('Monaco Editor library not loaded yet, will retry...');
-            // Retry initialization after a delay
-            setTimeout(() => {
-                if (typeof monaco !== 'undefined' && !state.monacoEditor) {
-                    initMonacoEditor();
-                } else if (!state.monacoEditor) {
-                    editorContainer.innerHTML = '<div style="padding: 20px; color: #f48771;">Monaco Editor is still loading... Please wait or refresh.</div>';
+        console.log('Monaco Editor not initialized, checking if Monaco library is loaded...');
+        
+        // Wait for Monaco library to load
+        let monacoLoaded = typeof monaco !== 'undefined';
+        if (!monacoLoaded) {
+            console.log('⏳ Waiting for Monaco library to load...');
+            let retries = 0;
+            const maxRetries = 50; // Wait up to 10 seconds
+            while (!monacoLoaded && retries < maxRetries) {
+                await new Promise(resolve => setTimeout(resolve, 200));
+                monacoLoaded = typeof monaco !== 'undefined';
+                retries++;
+            }
+        }
+        
+        if (monacoLoaded) {
+            console.log('✅ Monaco library loaded, initializing editor...');
+            // Initialize Monaco directly - don't rely on window.initMonacoEditor which might be placeholder
+            try {
+                const editorContainer = document.getElementById('monacoEditor');
+                if (!editorContainer) {
+                    console.error('❌ Monaco Editor container not found');
+                    return;
                 }
-            }, 2000);
+                
+                if (state.monacoEditor) {
+                    console.log('Monaco Editor already initialized');
+                } else {
+                    // Create Monaco Editor instance directly
+                    state.monacoEditor = monaco.editor.create(editorContainer, {
+                        value: '',
+                        language: 'plaintext',
+                        theme: state.theme === 'dark' ? 'vs-dark' : 'vs',
+                        fontSize: 14,
+                        lineNumbers: 'on',
+                        minimap: { enabled: true },
+                        automaticLayout: true,
+                        scrollBeyondLastLine: false,
+                        wordWrap: 'on',
+                        formatOnPaste: true,
+                        formatOnType: true,
+                        tabSize: 2
+                    });
+                    console.log('✅ Monaco Editor initialized successfully');
+                }
+            } catch (err) {
+                console.error('❌ Error initializing Monaco Editor:', err);
+            }
+        } else {
+            console.error('❌ Monaco library failed to load after waiting');
+            editorContainer.innerHTML = '<div style="padding: 20px; color: #f48771;">Monaco Editor failed to load. Please refresh the app.</div>';
             renderTabs();
             return;
         }
     }
     
-    // Update Monaco editor content
-    if (state.monacoEditor && tab.content !== undefined) {
-        state.monacoEditor.setValue(tab.content);
-        // Set language based on file extension
-        const language = getLanguageFromFileName(tab.name);
-        monaco.editor.setModelLanguage(state.monacoEditor.getModel(), language);
-        
-        // Trigger layout update
-        setTimeout(() => {
-            if (state.monacoEditor) {
-                state.monacoEditor.layout();
+    // Double-check Monaco is ready before proceeding
+    if (!state.monacoEditor) {
+        console.warn('⚠️ Monaco Editor still not ready after initialization attempt');
+        editorContainer.innerHTML = '<div style="padding: 20px; color: #f48771;">Monaco Editor is still initializing... Please wait.</div>';
+        renderTabs();
+        return;
+    }
+    
+    // Re-read file from disk ONLY if file is not dirty (hasn't been modified)
+    // This prevents stale cached content while preserving unsaved changes
+    if (tab.path && window.electronAPI && window.electronAPI.readFile && !tab.isDirty) {
+        try {
+            console.log('📄 Re-reading file from disk (file is clean):', tab.path);
+            const result = await window.electronAPI.readFile(tab.path);
+            if (result.success) {
+                // Update tab content with fresh content from disk
+                const oldLength = tab.content ? tab.content.length : 0;
+                tab.content = result.content;
+                console.log('✅ Refreshed tab content from disk:', tab.name, 'old length:', oldLength, 'new length:', result.content.length);
+                console.log('📄 First 200 chars of file:', result.content.substring(0, 200));
+            } else {
+                console.error('❌ Failed to read file from disk:', result.error);
             }
-        }, 100);
+        } catch (err) {
+            console.error('❌ Error reading file from disk:', err);
+        }
+    } else if (tab.isDirty) {
+        console.log('📝 File is dirty (has unsaved changes), skipping disk refresh:', tab.name);
+    } else {
+        console.warn('⚠️ Cannot refresh file - missing path or electronAPI');
+    }
+    
+    // Update Monaco editor content - wait for Monaco to be ready
+    if (tab.content !== undefined) {
+        // Wait for Monaco to be ready if it's not yet
+        let monacoReady = false;
+        let retries = 0;
+        while (!state.monacoEditor && retries < 20) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            retries++;
+        }
         
-        // Update preview if it's a JS or HTML file
-        if (tab.name.endsWith('.js') || tab.name.endsWith('.html')) {
+        if (state.monacoEditor) {
+            console.log('✅ Monaco Editor ready, setting content for:', tab.name);
+            state.monacoEditor.setValue(tab.content);
+            // Set language based on file extension
+            const language = getLanguageFromFileName(tab.name);
+            monaco.editor.setModelLanguage(state.monacoEditor.getModel(), language);
+            
+            // Setup markdown preview listener
+            setupMarkdownPreviewListener();
+            
+            // Handle markdown preview mode - DEFAULT TO PREVIEW for .md files!
+            const isMarkdown = tab.name.endsWith('.md') || tab.name.endsWith('.markdown');
+            if (isMarkdown) {
+                // Default to preview mode for markdown files (unless explicitly set to edit)
+                if (state.mdPreviewMode === undefined || state.mdPreviewMode === null) {
+                    state.mdPreviewMode = true; // Default to preview for 10-year-olds!
+                }
+                
+                // Show toolbar
+                const toolbar = document.getElementById('mdToolbar');
+                if (toolbar) {
+                    toolbar.style.display = 'flex';
+                    setupMarkdownToolbar();
+                }
+                
+                if (state.mdPreviewMode) {
+                    // Show preview, hide editor
+                    document.getElementById('monacoEditor').style.display = 'none';
+                    document.getElementById('mdPreview').style.display = 'block';
+                    updateMarkdownPreview();
+                } else {
+                    // Show editor, hide preview
+                    document.getElementById('monacoEditor').style.display = 'block';
+                    document.getElementById('mdPreview').style.display = 'none';
+                }
+            } else {
+                // Hide toolbar for non-markdown files
+                const toolbar = document.getElementById('mdToolbar');
+                if (toolbar) toolbar.style.display = 'none';
+                
+                // Show editor, hide preview
+                document.getElementById('monacoEditor').style.display = 'block';
+                document.getElementById('mdPreview').style.display = 'none';
+            }
+            
+            // Trigger layout update
             setTimeout(() => {
-                updatePreview();
-            }, 500);
+                if (state.monacoEditor) {
+                    state.monacoEditor.layout();
+                }
+            }, 100);
+            
+            // Update preview if it's a JS or HTML file
+            if (tab.name.endsWith('.js') || tab.name.endsWith('.html')) {
+                setTimeout(() => {
+                    updatePreview();
+                }, 500);
+            }
+        } else {
+            console.error('❌ Monaco Editor not ready after waiting, content will be set when editor initializes');
+            // Store content to set later when Monaco is ready
+            tab.pendingContent = tab.content;
         }
     }
     
@@ -4809,6 +5056,48 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// Convert HTML to Markdown for chat (simpler version)
+function htmlToMarkdownForChat(html) {
+    if (!html) return '';
+    
+    // Remove GIF preview images (they're stored separately)
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    
+    // Remove GIF preview images
+    temp.querySelectorAll('.chat-gif-preview').forEach(img => img.remove());
+    
+    let markdown = '';
+    
+    function processNode(node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+            return node.textContent;
+        }
+        
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+            return '';
+        }
+        
+        const tag = node.tagName.toLowerCase();
+        const children = Array.from(node.childNodes).map(processNode).join('');
+        
+        switch(tag) {
+            case 'strong': case 'b': return `**${children}**`;
+            case 'em': case 'i': return `*${children}*`;
+            case 'code': return `\`${children}\``;
+            case 'pre': return `\`\`\`\n${children}\n\`\`\`\n\n`;
+            case 's': case 'del': case 'strike': return `~~${children}~~`;
+            case 'br': return '\n';
+            case 'p': return `${children}\n\n`;
+            case 'div': return `${children}\n`;
+            default: return children;
+        }
+    }
+    
+    markdown = Array.from(temp.childNodes).map(processNode).join('');
+    return markdown.trim();
+}
+
 // Simple lightweight markdown parser for chat
 function parseSimpleMarkdown(text) {
     // Escape HTML first to prevent XSS
@@ -4843,6 +5132,445 @@ function parseSimpleMarkdown(text) {
     return html;
 }
 
+// Enhanced markdown parser for WYSIWYG preview
+function parseMarkdownForPreview(text) {
+    if (!text) return '';
+    
+    let html = text;
+    
+    // Headers (# ## ### etc.)
+    html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+    html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+    html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+    
+    // Horizontal rules
+    html = html.replace(/^---$/gim, '<hr>');
+    html = html.replace(/^\*\*\*$/gim, '<hr>');
+    
+    // Code blocks with language (```language\ncode```)
+    html = html.replace(/```(\w+)?\n?([\s\S]*?)```/g, (match, lang, code) => {
+        const language = lang || 'text';
+        return `<pre class="md-code-block"><code class="language-${language}">${escapeHtml(code.trim())}</code></pre>`;
+    });
+    
+    // Inline code (`code`)
+    html = html.replace(/`([^`\n]+)`/g, '<code class="md-inline-code">$1</code>');
+    
+    // Bold (**text** or __text__)
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+    
+    // Italic (*text* or _text_)
+    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
+    
+    // Strikethrough (~~text~~)
+    html = html.replace(/~~([^~]+)~~/g, '<s>$1</s>');
+    
+    // Links [text](url)
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    
+    // Images ![alt](url)
+    html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="md-image" />');
+    
+    // Blockquotes (> text)
+    html = html.replace(/^> (.+)$/gim, '<blockquote>$1</blockquote>');
+    
+    // Lists (unordered - * or -)
+    html = html.replace(/^[\*\-] (.+)$/gim, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>\n?)+/g, (match) => {
+        return '<ul>' + match + '</ul>';
+    });
+    
+    // Lists (ordered - 1. 2. etc.)
+    html = html.replace(/^\d+\. (.+)$/gim, '<li>$1</li>');
+    
+    // Paragraphs (double newline = paragraph)
+    html = html.split(/\n\n+/).map(para => {
+        para = para.trim();
+        if (!para) return '';
+        // Don't wrap if it's already a block element
+        if (para.match(/^<(h[1-6]|pre|ul|ol|blockquote|hr)/)) {
+            return para;
+        }
+        // Don't wrap if it's a list item
+        if (para.match(/^<li>/)) {
+            return para;
+        }
+        return '<p>' + para.replace(/\n/g, '<br>') + '</p>';
+    }).filter(p => p).join('\n');
+    
+    return html;
+}
+
+// Toggle markdown preview mode
+function toggleMarkdownPreview() {
+    const activeTab = state.openTabs.find(t => t.id === state.activeTab);
+    if (!activeTab) return;
+    
+    const isMarkdown = activeTab.name.endsWith('.md') || activeTab.name.endsWith('.markdown');
+    if (!isMarkdown) return;
+    
+    // If switching from preview to edit, save WYSIWYG content back to markdown
+    if (state.mdPreviewMode) {
+        saveWYSIWYGToMarkdown();
+    }
+    
+    state.mdPreviewMode = !state.mdPreviewMode;
+    
+    const editorEl = document.getElementById('monacoEditor');
+    const previewEl = document.getElementById('mdPreview');
+    
+    if (state.mdPreviewMode) {
+        // Show preview, hide editor - make it editable!
+        editorEl.style.display = 'none';
+        previewEl.style.display = 'block';
+        previewEl.contentEditable = 'true'; // Make preview editable!
+        previewEl.setAttribute('spellcheck', 'true');
+        updateMarkdownPreview();
+        
+        // Focus the preview
+        setTimeout(() => previewEl.focus(), 100);
+    } else {
+        // Show editor, hide preview
+        previewEl.contentEditable = 'false';
+        editorEl.style.display = 'block';
+        previewEl.style.display = 'none';
+        if (state.monacoEditor) {
+            state.monacoEditor.focus();
+        }
+    }
+    
+    renderTabs(); // Update toggle button text
+}
+
+// Setup markdown toolbar buttons
+function setupMarkdownToolbar() {
+    const toolbar = document.getElementById('mdToolbar');
+    if (!toolbar) return;
+    
+    // Remove existing listeners to avoid duplicates
+    const buttons = toolbar.querySelectorAll('.md-toolbar-btn');
+    buttons.forEach(btn => {
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+    });
+    
+    // Setup heading dropdown
+    const headingBtn = document.getElementById('headingBtn');
+    const headingMenu = document.getElementById('headingMenu');
+    if (headingBtn && headingMenu) {
+        headingBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            headingMenu.style.display = headingMenu.style.display === 'block' ? 'none' : 'block';
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!headingBtn.contains(e.target) && !headingMenu.contains(e.target)) {
+                headingMenu.style.display = 'none';
+            }
+        });
+        
+        // Handle heading menu items
+        headingMenu.querySelectorAll('.md-toolbar-dropdown-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const action = item.getAttribute('data-action');
+                headingMenu.style.display = 'none';
+                
+                // If in preview mode, use WYSIWYG editing
+                if (state.mdPreviewMode) {
+                    handleWYSIWYGAction(action);
+                } else {
+                    // If in edit mode, insert markdown syntax
+                    handleMarkdownToolbarAction(action);
+                }
+            });
+        });
+    }
+    
+    // Add event listeners for other buttons
+    toolbar.querySelectorAll('.md-toolbar-btn[data-action]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const action = btn.getAttribute('data-action');
+            
+            // If in preview mode, use WYSIWYG editing
+            if (state.mdPreviewMode) {
+                handleWYSIWYGAction(action);
+            } else {
+                // If in edit mode, insert markdown syntax
+                handleMarkdownToolbarAction(action);
+            }
+        });
+    });
+}
+
+// Handle WYSIWYG toolbar actions (when in preview/edit mode)
+function handleWYSIWYGAction(action) {
+    const previewEl = document.getElementById('mdPreview');
+    if (!previewEl || !previewEl.contentEditable) return;
+    
+    // Get current selection
+    const selection = window.getSelection();
+    if (!selection.rangeCount) return;
+    
+    const range = selection.getRangeAt(0);
+    
+    // Execute formatting command
+    document.execCommand('defaultParagraphSeparator', false, 'div');
+    
+    switch(action) {
+        case 'bold':
+            document.execCommand('bold', false, null);
+            break;
+        case 'italic':
+            document.execCommand('italic', false, null);
+            break;
+        case 'h1':
+            document.execCommand('formatBlock', false, '<h1>');
+            break;
+        case 'h2':
+            document.execCommand('formatBlock', false, '<h2>');
+            break;
+        case 'h3':
+            document.execCommand('formatBlock', false, '<h3>');
+            break;
+        case 'h4':
+            document.execCommand('formatBlock', false, '<h4>');
+            break;
+        case 'ulist':
+            document.execCommand('insertUnorderedList', false, null);
+            break;
+        case 'olist':
+            document.execCommand('insertOrderedList', false, null);
+            break;
+        case 'link':
+            const url = prompt('Enter URL:');
+            if (url) {
+                document.execCommand('createLink', false, url);
+            }
+            break;
+        case 'image':
+            const imgUrl = prompt('Enter image URL:');
+            if (imgUrl) {
+                const img = document.createElement('img');
+                img.src = imgUrl;
+                img.alt = 'Image';
+                img.className = 'md-image';
+                range.deleteContents();
+                range.insertNode(img);
+            }
+            break;
+        case 'code':
+            // Wrap in <code> tag
+            const code = document.createElement('code');
+            code.className = 'md-inline-code';
+            try {
+                range.surroundContents(code);
+            } catch(e) {
+                // If surroundContents fails, insert code element
+                code.textContent = range.toString();
+                range.deleteContents();
+                range.insertNode(code);
+            }
+            break;
+        case 'quote':
+            document.execCommand('formatBlock', false, '<blockquote>');
+            break;
+        case 'hr':
+            const hr = document.createElement('hr');
+            range.insertNode(hr);
+            break;
+    }
+    
+    // Save changes back to markdown
+    saveWYSIWYGToMarkdown();
+    
+    // Restore focus
+    previewEl.focus();
+}
+
+// Handle toolbar button clicks (when in code/edit mode)
+function handleMarkdownToolbarAction(action) {
+    if (!state.monacoEditor) return;
+    
+    const editor = state.monacoEditor;
+    const selection = editor.getSelection();
+    const model = editor.getModel();
+    const selectedText = model.getValueInRange(selection);
+    
+    let insertText = '';
+    let newSelection = null;
+    
+    switch(action) {
+        case 'bold':
+            insertText = selectedText ? `**${selectedText}**` : '**bold text**';
+            newSelection = { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn + 2, endLineNumber: selection.endLineNumber, endColumn: selection.endColumn + (selectedText ? 2 : 11) };
+            break;
+        case 'italic':
+            insertText = selectedText ? `*${selectedText}*` : '*italic text*';
+            newSelection = { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn + 1, endLineNumber: selection.endLineNumber, endColumn: selection.endColumn + (selectedText ? 1 : 12) };
+            break;
+        case 'h1':
+            insertText = selectedText ? `# ${selectedText}` : '# Heading 1';
+            newSelection = { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn + 2, endLineNumber: selection.endLineNumber, endColumn: selection.endColumn + (selectedText ? 2 : 9) };
+            break;
+        case 'h2':
+            insertText = selectedText ? `## ${selectedText}` : '## Heading 2';
+            newSelection = { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn + 3, endLineNumber: selection.endLineNumber, endColumn: selection.endColumn + (selectedText ? 3 : 9) };
+            break;
+        case 'h3':
+            insertText = selectedText ? `### ${selectedText}` : '### Heading 3';
+            newSelection = { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn + 4, endLineNumber: selection.endLineNumber, endColumn: selection.endColumn + (selectedText ? 4 : 9) };
+            break;
+        case 'h4':
+            insertText = selectedText ? `#### ${selectedText}` : '#### Heading 4';
+            newSelection = { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn + 5, endLineNumber: selection.endLineNumber, endColumn: selection.endColumn + (selectedText ? 5 : 9) };
+            break;
+        case 'ulist':
+            insertText = selectedText ? `- ${selectedText.split('\n').join('\n- ')}` : '- List item';
+            break;
+        case 'olist':
+            insertText = selectedText ? `1. ${selectedText.split('\n').join('\n1. ')}` : '1. List item';
+            break;
+        case 'link':
+            insertText = selectedText ? `[${selectedText}](url)` : '[link text](url)';
+            newSelection = { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn + (selectedText ? selectedText.length + 3 : 10), endLineNumber: selection.startLineNumber, endColumn: selection.startColumn + (selectedText ? selectedText.length + 6 : 13) };
+            break;
+        case 'image':
+            insertText = `![alt text](image-url)`;
+            newSelection = { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn + 2, endLineNumber: selection.startLineNumber, endColumn: selection.startColumn + 10 };
+            break;
+        case 'code':
+            insertText = selectedText ? `\`${selectedText}\`` : '`code`';
+            newSelection = { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn + 1, endLineNumber: selection.endLineNumber, endColumn: selection.endColumn + (selectedText ? 1 : 4) };
+            break;
+        case 'quote':
+            insertText = selectedText ? `> ${selectedText.split('\n').join('\n> ')}` : '> Quote';
+            break;
+        case 'hr':
+            insertText = '\n---\n';
+            break;
+    }
+    
+    if (insertText) {
+        editor.executeEdits('markdown-toolbar', [{
+            range: selection,
+            text: insertText
+        }]);
+        
+        if (newSelection) {
+            editor.setSelection(newSelection);
+        }
+        
+        editor.focus();
+    }
+}
+
+// Convert WYSIWYG HTML back to markdown
+function saveWYSIWYGToMarkdown() {
+    const previewEl = document.getElementById('mdPreview');
+    if (!previewEl || !state.monacoEditor) return;
+    
+    const html = previewEl.innerHTML;
+    let markdown = htmlToMarkdown(html);
+    
+    // Update Monaco editor with markdown
+    state.monacoEditor.setValue(markdown);
+    
+    // Update tab content
+    const activeTab = state.openTabs.find(t => t.id === state.activeTab);
+    if (activeTab) {
+        activeTab.content = markdown;
+        activeTab.isDirty = true;
+        renderTabs();
+    }
+}
+
+// Simple HTML to Markdown converter
+function htmlToMarkdown(html) {
+    // Create a temporary div to parse HTML
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    
+    let markdown = '';
+    
+    function processNode(node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+            return node.textContent;
+        }
+        
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+            return '';
+        }
+        
+        const tag = node.tagName.toLowerCase();
+        const children = Array.from(node.childNodes).map(processNode).join('');
+        
+        switch(tag) {
+            case 'h1': return `# ${children}\n\n`;
+            case 'h2': return `## ${children}\n\n`;
+            case 'h3': return `### ${children}\n\n`;
+            case 'h4': return `#### ${children}\n\n`;
+            case 'h5': return `##### ${children}\n\n`;
+            case 'h6': return `###### ${children}\n\n`;
+            case 'p': return `${children}\n\n`;
+            case 'strong': case 'b': return `**${children}**`;
+            case 'em': case 'i': return `*${children}*`;
+            case 'code': return `\`${children}\``;
+            case 'pre': return `\`\`\`\n${children}\n\`\`\`\n\n`;
+            case 'ul': return `${children}\n`;
+            case 'ol': return `${children}\n`;
+            case 'li': return `- ${children}\n`;
+            case 'blockquote': return `> ${children}\n\n`;
+            case 'a': return `[${children}](${node.href || ''})`;
+            case 'img': return `![${node.alt || ''}](${node.src || ''})`;
+            case 'hr': return `---\n\n`;
+            case 'br': return '\n';
+            default: return children;
+        }
+    }
+    
+    markdown = Array.from(temp.childNodes).map(processNode).join('');
+    return markdown.trim();
+}
+
+// Update markdown preview content
+function updateMarkdownPreview() {
+    const activeTab = state.openTabs.find(t => t.id === state.activeTab);
+    if (!activeTab) return;
+    
+    const previewEl = document.getElementById('mdPreview');
+    if (!previewEl) return;
+    
+    // Always get content from Monaco editor if available (it has the latest), otherwise from tab content
+    let content = '';
+    if (state.monacoEditor) {
+        content = state.monacoEditor.getValue();
+    } else if (activeTab.content) {
+        content = activeTab.content;
+    }
+    
+    // Parse and render markdown
+    const html = parseMarkdownForPreview(content);
+    previewEl.innerHTML = html;
+}
+
+// Listen for editor changes to update preview in real-time
+function setupMarkdownPreviewListener() {
+    if (state.monacoEditor) {
+        state.monacoEditor.onDidChangeModelContent(() => {
+            if (state.mdPreviewMode) {
+                updateMarkdownPreview();
+            }
+        });
+    }
+}
+
 function initChatInterface() {
     try {
         const chatInput = document.getElementById('chatInput');
@@ -4860,6 +5588,17 @@ function initChatInterface() {
         // Ensure input is enabled and can receive focus
         chatInput.disabled = false;
         chatInput.readOnly = false;
+        chatInput.tabIndex = 0; // Ensure it's in tab order
+        chatInput.style.pointerEvents = 'auto'; // Ensure it can receive clicks
+        
+        // Ensure input focuses when clicked
+        chatInput.addEventListener('click', (e) => {
+            e.stopPropagation();
+            chatInput.focus();
+        });
+        
+        // Force focus on load (optional - can be removed if annoying)
+        // chatInput.focus();
         
         // Emoji picker toggle
         if (emojiPickerBtn && emojiPicker) {
@@ -4902,6 +5641,13 @@ function initChatInterface() {
         chatInput.addEventListener('keydown', (e) => {
             // Enter to send, Shift+Enter for new line
             if (e.key === 'Enter' && !e.shiftKey) {
+                // For contentEditable, check if it's empty or just whitespace
+                if (chatInput.contentEditable === 'true') {
+                    const text = chatInput.textContent.trim();
+                    if (!text && !chatInput.querySelector('img')) {
+                        return; // Don't send empty messages
+                    }
+                }
                 e.preventDefault();
                 sendChatMessage();
             }
@@ -5082,7 +5828,45 @@ function initGifPicker() {
                     
                     gifItem.appendChild(img);
                     gifItem.addEventListener('click', () => {
-                        // Insert GIF into chat
+                        // Insert GIF visually (but store code separately)
+                        const chatGifCode = document.getElementById('chatGifCode');
+                        const gifUrl = gif.images.original.url;
+                        const gifCode = `[GIF:${gifUrl}]`;
+                        
+                        // Store GIF code in hidden input (for sending to AI)
+                        if (chatGifCode) {
+                            const existing = chatGifCode.value;
+                            chatGifCode.value = existing ? existing + '\n' + gifCode : gifCode;
+                        }
+                        
+                        // Insert GIF visually in chat input (WYSIWYG)
+                        if (chatInput.contentEditable === 'true') {
+                            // Insert as image element
+                            const selection = window.getSelection();
+                            if (selection.rangeCount > 0) {
+                                const range = selection.getRangeAt(0);
+                                const gifImg = document.createElement('img');
+                                gifImg.src = gif.images.fixed_height_small.url;
+                                gifImg.alt = 'GIF';
+                                gifImg.className = 'chat-gif-preview';
+                                gifImg.style.cssText = 'max-width: 100px; max-height: 100px; border-radius: 4px; margin: 4px 0; display: inline-block; vertical-align: middle;';
+                                range.insertNode(gifImg);
+                                range.setStartAfter(gifImg);
+                                range.collapse(true);
+                                selection.removeAllRanges();
+                                selection.addRange(range);
+                            } else {
+                                chatInput.appendChild(gifImg);
+                            }
+                        } else {
+                            // Fallback for textarea - insert GIF code
+                            insertTextAtCursor(chatInput, gifCode);
+                        }
+                        
+                        // Close picker and focus input
+                        closeGifPicker();
+                        chatInput.focus();
+                    });
                         const gifUrl = gif.images.original.url;
                         const gifMarkdown = `[GIF:${gifUrl}]`;
                         insertTextAtCursor(chatInput, gifMarkdown);
@@ -5123,49 +5907,119 @@ async function getRandomGif(searchTerm) {
     }
 }
 
-function insertTextAtCursor(textarea, text) {
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const value = textarea.value;
-    
-    textarea.value = value.substring(0, start) + text + value.substring(end);
-    textarea.selectionStart = textarea.selectionEnd = start + text.length;
+function insertTextAtCursor(element, text) {
+    if (element.contentEditable === 'true') {
+        // ContentEditable div
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            range.deleteContents();
+            const textNode = document.createTextNode(text);
+            range.insertNode(textNode);
+            range.setStartAfter(textNode);
+            range.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        } else {
+            element.textContent += text;
+        }
+    } else {
+        // Textarea (fallback)
+        const start = element.selectionStart;
+        const end = element.selectionEnd;
+        const value = element.value;
+        element.value = value.substring(0, start) + text + value.substring(end);
+        element.selectionStart = element.selectionEnd = start + text.length;
+    }
 }
 
-function applyFormatting(textarea, format) {
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = textarea.value.substring(start, end);
-    
-    let formattedText = '';
-    let newCursorPos = start;
-    
-    switch (format) {
-        case 'bold':
-            formattedText = `**${selectedText || 'bold text'}**`;
-            newCursorPos = selectedText ? end + 4 : start + 2;
-            break;
-        case 'italic':
-            formattedText = `*${selectedText || 'italic text'}*`;
-            newCursorPos = selectedText ? end + 2 : start + 1;
-            break;
-        case 'code':
-            formattedText = `\`${selectedText || 'code'}\``;
-            newCursorPos = selectedText ? end + 2 : start + 1;
-            break;
-        case 'codeblock':
-            formattedText = `\`\`\`\n${selectedText || 'code here'}\n\`\`\``;
-            newCursorPos = selectedText ? end + 7 : start + 4;
-            break;
-        case 'strikethrough':
-            formattedText = `~~${selectedText || 'strikethrough'}~~`;
-            newCursorPos = selectedText ? end + 4 : start + 2;
-            break;
+function applyFormatting(element, format) {
+    if (element.contentEditable === 'true') {
+        // WYSIWYG formatting for contentEditable
+        document.execCommand('defaultParagraphSeparator', false, 'div');
+        
+        switch (format) {
+            case 'bold':
+                document.execCommand('bold', false, null);
+                break;
+            case 'italic':
+                document.execCommand('italic', false, null);
+                break;
+            case 'code':
+                // Wrap in <code> tag
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    const code = document.createElement('code');
+                    try {
+                        range.surroundContents(code);
+                    } catch(e) {
+                        code.textContent = range.toString();
+                        range.deleteContents();
+                        range.insertNode(code);
+                    }
+                }
+                break;
+            case 'codeblock':
+                // Wrap in <pre><code>
+                const sel = window.getSelection();
+                if (sel.rangeCount > 0) {
+                    const rng = sel.getRangeAt(0);
+                    const pre = document.createElement('pre');
+                    const code = document.createElement('code');
+                    pre.appendChild(code);
+                    try {
+                        code.textContent = rng.toString() || 'code here';
+                        rng.deleteContents();
+                        rng.insertNode(pre);
+                    } catch(e) {
+                        code.textContent = rng.toString() || 'code here';
+                        rng.deleteContents();
+                        rng.insertNode(pre);
+                    }
+                }
+                break;
+            case 'strikethrough':
+                document.execCommand('strikeThrough', false, null);
+                break;
+        }
+        element.focus();
+    } else {
+        // Textarea formatting (fallback)
+        const start = element.selectionStart;
+        const end = element.selectionEnd;
+        const selectedText = element.value.substring(start, end);
+        
+        let formattedText = '';
+        let newCursorPos = start;
+        
+        switch (format) {
+            case 'bold':
+                formattedText = `**${selectedText || 'bold text'}**`;
+                newCursorPos = selectedText ? end + 4 : start + 2;
+                break;
+            case 'italic':
+                formattedText = `*${selectedText || 'italic text'}*`;
+                newCursorPos = selectedText ? end + 2 : start + 1;
+                break;
+            case 'code':
+                formattedText = `\`${selectedText || 'code'}\``;
+                newCursorPos = selectedText ? end + 2 : start + 1;
+                break;
+            case 'codeblock':
+                formattedText = `\`\`\`\n${selectedText || 'code here'}\n\`\`\``;
+                newCursorPos = selectedText ? end + 7 : start + 4;
+                break;
+            case 'strikethrough':
+                formattedText = `~~${selectedText || 'strikethrough'}~~`;
+                newCursorPos = selectedText ? end + 4 : start + 2;
+                break;
+        }
+        
+        const value = element.value;
+        element.value = value.substring(0, start) + formattedText + value.substring(end);
+        element.selectionStart = element.selectionEnd = newCursorPos;
     }
-    
-    const value = textarea.value;
-    textarea.value = value.substring(0, start) + formattedText + value.substring(end);
-    textarea.selectionStart = textarea.selectionEnd = newCursorPos;
 }
 
 function convertEmoticons(text) {
@@ -5334,10 +6188,11 @@ async function handleCodeImplementation(responseText, originalMessage) {
     }
     
     try {
-        // Extract code blocks with potential file paths
+        const implementations = [];
+        
+        // 1. Extract code blocks with potential file paths
         // Pattern: Optional "File: path" line, then ```language\ncode```
         const codeBlockRegex = /(?:File:\s*([^\n]+)\s*\n)?```(\w+)?\n?([\s\S]*?)```/g;
-        const implementations = [];
         let match;
         
         while ((match = codeBlockRegex.exec(responseText)) !== null) {
@@ -5354,8 +6209,89 @@ async function handleCodeImplementation(responseText, originalMessage) {
             }
         }
         
+        // 2. Detect file updates in natural language responses (e.g., "Here's the updated PROJECT_JOURNAL.md:")
+        // Look for patterns like:
+        // - "updated PROJECT_JOURNAL.md" or "updated journal"
+        // - "Here's the revised journal:"
+        // - "Project Journal Update" followed by markdown content
+        const lowerResponse = responseText.toLowerCase();
+        const projectPath = state.currentProject.path;
+        
+        // Check for journal updates - look for various phrases that indicate a journal update
+        const journalPhrases = [
+            'updated journal', 'revised journal', 'fresh journal', 'journal update',
+            'project journal update', 'project_journal.md', 'project journal',
+            'here\'s the', 'here is the'
+        ];
+        const hasJournalPhrase = journalPhrases.some(phrase => lowerResponse.includes(phrase));
+        const hasJournalContent = responseText.includes('## Project Name:') || 
+                                  responseText.includes('# 🚀 Project Journal') ||
+                                  responseText.includes('### Project Journal Update') ||
+                                  (responseText.includes('##') && lowerResponse.includes('project name'));
+        
+        if (hasJournalPhrase && hasJournalContent) {
+            console.log('📝 Detected journal update phrase and content');
+            
+            // DON'T extract just a snippet - we need to tell Cursy to provide the FULL journal
+            // For now, skip auto-implementation of journal updates to prevent overwriting
+            // Instead, we should enhance the "update journal" command to handle this properly
+            console.log('⚠️ Journal update detected, but skipping auto-implementation to prevent overwriting full journal');
+            console.log('💡 Use "update journal" command instead for safe journal updates');
+            
+            // Actually, let's check if the response contains a FULL journal (starts with # 🚀 Project Journal)
+            // If it's just a snippet (starts with ### Project Journal Update or ## Project Name:), skip it
+            if (responseText.includes('# 🚀 Project Journal')) {
+                // This looks like a full journal - extract from the heading to the end
+                const fullJournalMatch = responseText.match(/(#+\s*[🚀]*\s*Project Journal[\s\S]*)/i);
+                if (fullJournalMatch && fullJournalMatch[1].length > 200) {
+                    const journalPath = projectPath.replace(/[/\\]$/, '') + (projectPath.includes('\\') ? '\\' : '/') + 'PROJECT_JOURNAL.md';
+                    implementations.push({
+                        filePath: journalPath,
+                        language: 'markdown',
+                        code: fullJournalMatch[1].trim()
+                    });
+                    console.log('✅ Added FULL journal update to implementations, length:', fullJournalMatch[1].length);
+                } else {
+                    console.log('⚠️ Journal content too short, skipping to prevent overwrite');
+                }
+            } else {
+                console.log('⚠️ Response contains journal snippet, not full journal - skipping auto-implementation');
+                console.log('💡 Ask Cursy to "update journal" for a complete, safe journal update');
+            }
+        }
+        
+        // 3. Check for other common file updates (package.json, config files, etc.)
+        const filePatterns = [
+            { pattern: /package\.json/i, defaultPath: 'package.json' },
+            { pattern: /project\.json|config\.json/i, defaultPath: 'project.json' },
+            { pattern: /readme\.md/i, defaultPath: 'README.md' }
+        ];
+        
+        for (const filePattern of filePatterns) {
+            if (filePattern.pattern.test(responseText)) {
+                // Look for JSON or markdown content after mentioning the file
+                // Escape the pattern source for use in a new RegExp
+                const escapedPattern = filePattern.pattern.source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regexPattern = '(?:updated|here\'?s|revised).*?' + escapedPattern + '[\\s\\S]*?(?:```(?:json|markdown)?\\n?([\\s\\S]*?)```|(\\{[\\s\\S]*?\\}))';
+                const fileMatch = responseText.match(new RegExp(regexPattern, 'i'));
+                if (fileMatch && (fileMatch[1] || fileMatch[2])) {
+                    const fileContent = (fileMatch[1] || fileMatch[2]).trim();
+                    if (fileContent.length > 10) {
+                        const filePath = projectPath.replace(/[/\\]$/, '') + (projectPath.includes('\\') ? '\\' : '/') + filePattern.defaultPath;
+                        implementations.push({
+                            filePath: filePath,
+                            language: filePattern.defaultPath.endsWith('.json') ? 'json' : 'markdown',
+                            code: fileContent
+                        });
+                        console.log('📝 Detected ' + filePattern.defaultPath + ' update in response');
+                    }
+                }
+            }
+        }
+        
         // If we found code blocks, offer to implement them
         if (implementations.length > 0) {
+            console.log(`✅ Found ${implementations.length} code block(s) to implement`);
             // Show implementation options
             const chatMessages = document.getElementById('chatMessages');
             if (chatMessages) {
@@ -5377,12 +6313,26 @@ async function handleCodeImplementation(responseText, originalMessage) {
                 implHtml += '<br><button onclick="implementAllCode()" style="padding: 8px 20px; background: #00d4ff; color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">✨ Implement All</button>';
                 
                 implDiv.innerHTML = implHtml;
-                chatMessages.appendChild(implDiv);
+                // IMPORTANT: Insert AFTER the last assistant message, not just append
+                // Find the last assistant message and insert after it
+                const assistantMessages = chatMessages.querySelectorAll('.chat-message.assistant');
+                if (assistantMessages.length > 0) {
+                    const lastAssistantMsg = assistantMessages[assistantMessages.length - 1];
+                    lastAssistantMsg.insertAdjacentElement('afterend', implDiv);
+                } else {
+                    // Fallback: just append if no assistant messages found
+                    chatMessages.appendChild(implDiv);
+                }
                 chatMessages.scrollTop = chatMessages.scrollHeight;
                 
                 // Store implementations for button handlers
                 window.pendingImplementations = implementations;
+                console.log('✅ Implementation offer displayed');
+            } else {
+                console.warn('⚠️ chatMessages element not found');
             }
+        } else {
+            console.log('ℹ️ No code blocks found in response (or they were too short)');
         }
     } catch (err) {
         console.error('Error handling code implementation:', err);
@@ -5586,6 +6536,22 @@ function updateWelcomeMessage() {
         const currentHtml = welcomeDiv.innerHTML;
         if (currentHtml.includes('Status:')) {
             welcomeDiv.innerHTML = currentHtml.replace(/Status:.*?<br>/i, `Status: ${aiStatus}<br>`);
+        } else if (currentHtml.includes('offline mode')) {
+            // Update the old offline mode message
+            welcomeDiv.innerHTML = currentHtml.replace(/offline mode/i, aiStatus);
+        }
+        
+        // Ensure chat input is still focusable after update
+        const chatInput = document.getElementById('chatInput');
+        if (chatInput) {
+            chatInput.disabled = false;
+            chatInput.readOnly = false;
+            // Try to focus if it's not already focused
+            if (document.activeElement !== chatInput) {
+                setTimeout(() => {
+                    chatInput.focus();
+                }, 100);
+            }
         }
     }
 }
@@ -5611,6 +6577,12 @@ window.testOpenAI = async function() {
     if (window.electronAPI && window.electronAPI.openaiCheckStatus) {
         const status = await window.electronAPI.openaiCheckStatus();
         console.log('Main process status:', status);
+        console.log('📁 Config file should be at:', status.configPath);
+        console.log('📁 Config file exists:', status.configExists);
+        if (!status.configExists) {
+            console.log('💡 To fix: Create a file at the path above with:');
+            console.log('   { "apiKey": "your-key-here" }');
+        }
     }
     
     return {
@@ -5993,7 +6965,11 @@ function insertCodeContext() {
 window.insertQuickMessage = function(message) {
     const chatInput = document.getElementById('chatInput');
     if (chatInput) {
-        chatInput.value = message;
+        if (chatInput.contentEditable === 'true') {
+            chatInput.innerHTML = message;
+        } else {
+            chatInput.value = message;
+        }
         chatInput.focus();
     }
 };
@@ -6002,31 +6978,60 @@ function sendChatMessage() {
     const chatInput = document.getElementById('chatInput');
     const chatMessages = document.getElementById('chatMessages');
     const emoticonConvert = document.getElementById('emoticonConvert');
+    const chatGifCode = document.getElementById('chatGifCode');
     
     if (!chatInput || !chatMessages) return;
     
-    let message = chatInput.value.trim();
-    if (!message) return;
+    // Get content from WYSIWYG input
+    let messageHtml = '';
+    let messageMarkdown = '';
     
-    // Convert emoticons if enabled
-    if (emoticonConvert && emoticonConvert.checked) {
-        message = convertEmoticons(message);
+    if (chatInput.contentEditable === 'true') {
+        // Get HTML content
+        messageHtml = chatInput.innerHTML.trim();
+        if (!messageHtml) return;
+        
+        // Convert HTML to markdown for sending
+        messageMarkdown = htmlToMarkdownForChat(messageHtml);
+        
+        // Get GIF code if any (stored separately)
+        const gifCode = chatGifCode ? chatGifCode.value : '';
+        if (gifCode) {
+            messageMarkdown += (messageMarkdown ? '\n\n' : '') + gifCode;
+        }
+        
+        // Convert emoticons in markdown if enabled
+        if (emoticonConvert && emoticonConvert.checked) {
+            messageMarkdown = convertEmoticons(messageMarkdown);
+        }
+    } else {
+        // Fallback for textarea
+        messageMarkdown = chatInput.value.trim();
+        if (!messageMarkdown) return;
+        
+        if (emoticonConvert && emoticonConvert.checked) {
+            messageMarkdown = convertEmoticons(messageMarkdown);
+        }
+        
+        messageHtml = parseSimpleMarkdown(messageMarkdown);
     }
     
-    // Render markdown to HTML using simple parser
-    const messageHtml = parseSimpleMarkdown(message);
-    
-    // Create user message element
+    // Display user message as styled HTML (no markdown visible)
     const messageDiv = document.createElement('div');
     messageDiv.className = 'chat-message user';
     messageDiv.innerHTML = messageHtml;
     chatMessages.appendChild(messageDiv);
     
-    // Add to history
-    addMessageToHistory('user', message);
+    // Add to history (with markdown for AI)
+    addMessageToHistory('user', messageMarkdown);
     
     // Clear input
-    chatInput.value = '';
+    if (chatInput.contentEditable === 'true') {
+        chatInput.innerHTML = '';
+    } else {
+        chatInput.value = '';
+    }
+    if (chatGifCode) chatGifCode.value = '';
     
     // Scroll to bottom
     chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -6046,8 +7051,8 @@ function sendChatMessage() {
         updateCursyState('typing', 'Typing response...');
     }, 300);
     
-    // Check for special commands (use message directly to avoid duplicate declaration)
-    const messageLower = message.toLowerCase().trim();
+    // Check for special commands (use messageMarkdown)
+    const messageLower = messageMarkdown.toLowerCase().trim();
     if (messageLower === 'update journal' || messageLower === 'update project journal' || messageLower.startsWith('cursy, update journal')) {
         // Trigger journal update
         typingDiv.innerHTML = '<p>🤖 Cursy is analyzing the project and updating the journal...</p>';
@@ -6056,6 +7061,22 @@ function sendChatMessage() {
         (async () => {
             try {
                 const analysis = await analyzeProjectForJournal();
+                
+                // Check all requirements
+                if (!analysis) {
+                    throw new Error('Could not analyze project structure');
+                }
+                if (!state.currentProject) {
+                    throw new Error('No project loaded. Please open a project first.');
+                }
+                if (!window.electronAPI || !window.electronAPI.openaiChat) {
+                    throw new Error('OpenAI IPC not available. Please restart the app.');
+                }
+                if (!state.useOpenAI) {
+                    throw new Error('OpenAI not initialized. Check console for details.');
+                }
+                
+                // All checks passed, proceed
                 if (analysis && state.useOpenAI && window.electronAPI && window.electronAPI.openaiChat) {
                     // Use AI to generate journal update with a very specific prompt
                     const journalPrompt = `You are updating a PROJECT_JOURNAL.md file. IMPORTANT: Return ONLY the complete markdown content of the updated journal file. Do NOT include any commentary, explanations, or text outside the markdown. Start directly with the markdown content.
@@ -6077,51 +7098,139 @@ CRITICAL: Return ONLY the complete updated PROJECT_JOURNAL.md markdown content. 
 
                     // Call OpenAI directly via IPC (bypass conversation context for this)
                     try {
-                        const systemPrompt = `You are Cursy, an AI assistant. When asked to update a project journal, return ONLY the complete markdown file content with no additional commentary.`;
+                        const systemPrompt = `You are Cursy, an AI assistant. When asked to update a project journal, return ONLY the complete markdown file content with no additional commentary. Start directly with "# 🚀 Project Journal" or "# Project Journal".`;
                         const messages = [{ role: 'user', content: journalPrompt }];
                         
-                        const response = await window.electronAPI.openaiChat(messages, systemPrompt);
+                        console.log('📤 Sending journal update request to OpenAI...');
+                        const response = await window.electronAPI.openaiChat(messages, systemPrompt, 4000); // Request 4000 tokens for journal
+                        
+                        console.log('📥 OpenAI response received:', {
+                            success: response.success,
+                            hasContent: !!response.content,
+                            contentLength: response.content?.length || 0
+                        });
                         
                         if (response.success && response.content) {
                             let journalContent = response.content.trim();
+                            
+                            console.log('📝 Raw response length:', journalContent.length);
+                            console.log('📝 Raw response first 500 chars:', journalContent.substring(0, 500));
                             
                             // Remove any leading/trailing commentary
                             // Look for markdown code blocks first
                             if (journalContent.includes('```markdown')) {
                                 const match = journalContent.match(/```markdown\s*\n([\s\S]*?)\n```/);
-                                if (match) journalContent = match[1].trim();
+                                if (match) {
+                                    journalContent = match[1].trim();
+                                    console.log('📝 Extracted from markdown code block, new length:', journalContent.length);
+                                }
                             } else if (journalContent.includes('```')) {
-                                const match = journalContent.match(/```\s*\n([\s\S]*?)\n```/);
-                                if (match) journalContent = match[1].trim();
+                                const match = journalContent.match(/```[a-z]*\s*\n([\s\S]*?)\n```/);
+                                if (match) {
+                                    journalContent = match[1].trim();
+                                    console.log('📝 Extracted from code block, new length:', journalContent.length);
+                                }
                             }
                             
                             // Remove any text before the first # heading
                             const firstHeading = journalContent.indexOf('#');
-                            if (firstHeading > 0) {
+                            if (firstHeading > 0 && firstHeading < 200) {
                                 journalContent = journalContent.substring(firstHeading);
+                                console.log('📝 Trimmed before first heading, new length:', journalContent.length);
                             }
                             
                             // Ensure it starts with the journal header
                             if (!journalContent.startsWith('# 🚀 Project Journal') && !journalContent.startsWith('# Project Journal')) {
                                 // Try to find where the actual journal starts
                                 const journalStart = journalContent.search(/#\s*[🚀]*\s*Project Journal/i);
-                                if (journalStart > 0) {
+                                if (journalStart > 0 && journalStart < 500) {
                                     journalContent = journalContent.substring(journalStart);
+                                    console.log('📝 Found journal start at position', journalStart, 'new length:', journalContent.length);
+                                } else {
+                                    // If we can't find the header, prepend it
+                                    console.warn('⚠️ Journal header not found, prepending it');
+                                    journalContent = '# 🚀 Project Journal\n\n' + journalContent;
                                 }
                             }
                             
                             // Only proceed if we have substantial content
                             if (journalContent.length > 100) {
-                                console.log('📝 Writing journal content, length:', journalContent.length);
-                                console.log('📝 First 200 chars:', journalContent.substring(0, 200));
+                                console.log('✅ Journal content ready to write, length:', journalContent.length);
+                                console.log('📝 First 300 chars:', journalContent.substring(0, 300));
                                 
                                 const result = await updateProjectJournal(journalContent);
+                                console.log('📝 Write result:', result);
+                                
                                 if (result.success) {
                                     // Reload the journal to verify it was written
                                     await loadProjectJournal(state.currentProject.path);
                                     
                                     // Verify the content was actually written
                                     if (state.projectJournal && state.projectJournal.length > 100) {
+                                        console.log('✅ Journal successfully written and verified, length:', state.projectJournal.length);
+                                        
+                                        // If PROJECT_JOURNAL.md is currently open in a tab, refresh it
+                                        const journalPath = state.currentProject.path.replace(/[/\\]$/, '') + (state.currentProject.path.includes('\\') ? '\\' : '/') + 'PROJECT_JOURNAL.md';
+                                        const journalTab = state.openTabs.find(t => t.path === journalPath || t.path.replace(/\\/g, '/') === journalPath.replace(/\\/g, '/'));
+                                        if (journalTab) {
+                                            console.log('📝 PROJECT_JOURNAL.md is open in a tab, refreshing from disk...');
+                                            
+                                            // Re-read from disk to ensure we have the actual file content
+                                            const readResult = await window.electronAPI.readFile(journalPath);
+                                            if (readResult.success) {
+                                                const freshContent = readResult.content;
+                                                console.log('📝 Fresh content from disk, length:', freshContent.length);
+                                                
+                                                // Update the tab content with fresh content from disk
+                                                journalTab.content = freshContent;
+                                                journalTab.isDirty = false;
+                                                
+                                                // Force editor refresh
+                                                const wasActive = journalTab.id === state.activeTab;
+                                                if (wasActive) {
+                                                    // Update tab content first
+                                                    journalTab.content = freshContent;
+                                                    
+                                                    // If editor is ready, update it directly
+                                                    if (state.monacoEditor) {
+                                                        state.monacoEditor.setValue(freshContent);
+                                                        console.log('✅ Editor content refreshed with fresh content from disk');
+                                                    } else {
+                                                        // Editor not ready, try again after a delay
+                                                        setTimeout(() => {
+                                                            if (state.monacoEditor && journalTab.id === state.activeTab) {
+                                                                state.monacoEditor.setValue(freshContent);
+                                                                console.log('✅ Editor content refreshed (delayed)');
+                                                            }
+                                                        }, 200);
+                                                    }
+                                                    
+                                                    // Also force a tab switch to trigger reload
+                                                    const otherTab = state.openTabs.find(t => t.id !== journalTab.id);
+                                                    if (otherTab) {
+                                                        // Quick switch away and back to force reload
+                                                        const originalTab = journalTab.id;
+                                                        switchToTab(otherTab.id);
+                                                        setTimeout(() => {
+                                                            switchToTab(originalTab);
+                                                            // Ensure content is set after switch
+                                                            if (state.monacoEditor) {
+                                                                state.monacoEditor.setValue(freshContent);
+                                                                console.log('✅ Editor content refreshed (via tab switch)');
+                                                            }
+                                                        }, 100);
+                                                    }
+                                                }
+                                                
+                                                // Re-render tabs to update the dirty indicator
+                                                renderTabs();
+                                            } else {
+                                                console.warn('⚠️ Could not re-read journal file for refresh:', readResult.error);
+                                            }
+                                        } else {
+                                            console.log('📝 PROJECT_JOURNAL.md is not currently open in a tab');
+                                        }
+                                        
                                         typingDiv.remove();
                                         const responseDiv = document.createElement('div');
                                         responseDiv.className = 'chat-message assistant';
@@ -6133,18 +7242,22 @@ CRITICAL: Return ONLY the complete updated PROJECT_JOURNAL.md markdown content. 
                                         setTimeout(() => updateCursyState('idle', 'Ready to help!'), 2000);
                                         return;
                                     } else {
-                                        console.error('Journal was written but reload failed or content is empty');
+                                        console.error('❌ Journal was written but reload failed or content is empty');
+                                        console.error('Reloaded journal length:', state.projectJournal?.length || 0);
                                         throw new Error('Journal update verification failed');
                                     }
                                 } else {
-                                    console.error('Failed to update journal file:', result.error);
+                                    console.error('❌ Failed to update journal file:', result.error);
                                     throw new Error(result.error || 'Failed to write journal file');
                                 }
                             } else {
-                                console.warn('Extracted journal content too short:', journalContent.length);
-                                console.warn('Content preview:', journalContent.substring(0, 200));
+                                console.warn('⚠️ Extracted journal content too short:', journalContent.length);
+                                console.warn('⚠️ Content preview:', journalContent.substring(0, 500));
                                 throw new Error('Extracted journal content is too short or invalid');
                             }
+                        } else {
+                            console.error('❌ OpenAI response failed or empty:', response);
+                            throw new Error(response.error || 'OpenAI response was empty');
                         }
                     } catch (err) {
                         console.error('Error calling OpenAI for journal update:', err);
@@ -6181,10 +7294,10 @@ CRITICAL: Return ONLY the complete updated PROJECT_JOURNAL.md markdown content. 
         return;
     }
     
-    // Check if this is an implementation request (using message directly since lowerMessage already declared above)
-    const isImplementationRequest = message.toLowerCase().match(/\b(implement|create|write|add to|update|modify|change|edit|build|make|generate)\b/) && 
-                                    (message.toLowerCase().includes('file') || message.toLowerCase().includes('code') || message.toLowerCase().includes('script') || 
-                                     message.toLowerCase().includes('html') || message.toLowerCase().includes('css') || message.toLowerCase().includes('js'));
+    // Check if this is an implementation request (using messageMarkdown)
+    const isImplementationRequest = messageMarkdown.toLowerCase().match(/\b(implement|create|write|add to|update|modify|change|edit|build|make|generate)\b/) && 
+                                    (messageMarkdown.toLowerCase().includes('file') || messageMarkdown.toLowerCase().includes('code') || messageMarkdown.toLowerCase().includes('script') || 
+                                     messageMarkdown.toLowerCase().includes('html') || messageMarkdown.toLowerCase().includes('css') || messageMarkdown.toLowerCase().includes('js'));
     
     // Try OpenAI first, fall back to mock if unavailable
     (async () => {
@@ -6195,12 +7308,12 @@ CRITICAL: Return ONLY the complete updated PROJECT_JOURNAL.md markdown content. 
         if (state.useOpenAI && state.openaiClient) {
             try {
                 // Enhance prompt for implementation requests
-                let enhancedMessage = message;
+                let enhancedMessage = messageMarkdown;
                 if (isImplementationRequest && state.currentProject) {
-                    enhancedMessage = `${message}\n\nIMPORTANT: If you provide code, please format it clearly with file paths. For example: "File: index.html" followed by the code block. I will implement the changes automatically.`;
+                    enhancedMessage = `${messageMarkdown}\n\nIMPORTANT: If you provide code, please format it clearly with file paths. For example: "File: index.html" followed by the code block. I will implement the changes automatically.`;
                 }
                 
-                responseText = await callOpenAI(enhancedMessage);
+                responseText = await callOpenAI(enhancedMessage); // Use markdown version (includes GIF code)
                 if (responseText) {
                     // Check if response suggests a GIF (simple heuristic)
                     const lowerResponseText = responseText.toLowerCase();
@@ -6212,10 +7325,6 @@ CRITICAL: Return ONLY the complete updated PROJECT_JOURNAL.md markdown content. 
                         gifTerm = 'debugging';
                     }
                     
-                    // Check if response contains code blocks that should be implemented
-                    if (isImplementationRequest && state.currentProject && responseText.includes('```')) {
-                        await handleCodeImplementation(responseText, message);
-                    }
                 }
             } catch (err) {
                 console.error('OpenAI call failed:', err);
@@ -6225,7 +7334,7 @@ CRITICAL: Return ONLY the complete updated PROJECT_JOURNAL.md markdown content. 
         
         // Fall back to mock response if OpenAI failed or unavailable
         if (!responseText) {
-            const mockResponse = getMockResponse(message);
+            const mockResponse = getMockResponse(messageMarkdown);
             responseText = mockResponse.text;
             gifTerm = mockResponse.gifTerm;
         }
@@ -6257,6 +7366,25 @@ CRITICAL: Return ONLY the complete updated PROJECT_JOURNAL.md markdown content. 
         
         // Scroll to bottom
         chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        // Check if response contains code blocks OR file updates that should be implemented
+        // This includes: code blocks, journal updates, config file updates, etc.
+        // IMPORTANT: Do this AFTER displaying the response so buttons appear below it
+        if (state.currentProject && responseText) {
+            const hasCodeBlocks = responseText.includes('```');
+            const hasFileUpdates = responseText.toLowerCase().includes('updated journal') || 
+                                  responseText.toLowerCase().includes('revised journal') ||
+                                  responseText.toLowerCase().includes('project journal update') ||
+                                  responseText.includes('## Project Name:') ||
+                                  responseText.includes('# 🚀 Project Journal');
+            
+            if (hasCodeBlocks || hasFileUpdates) {
+                console.log('💻 Detected code blocks or file updates in response, checking for implementation...');
+                await handleCodeImplementation(responseText, message);
+                // Scroll again after implementation offer is added
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }
         
         // Update Cursy state based on response
         if (responseText.toLowerCase().includes('error') || responseText.toLowerCase().includes('bug')) {

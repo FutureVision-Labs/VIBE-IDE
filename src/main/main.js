@@ -10,25 +10,37 @@ let openaiApiKey = null;
 function loadOpenAIKey() {
   try {
     // Try to load from config file first
-    const configPath = path.join(app.getPath('userData'), 'openai-config.json');
+    const userDataPath = app.getPath('userData');
+    const configPath = path.join(userDataPath, 'openai-config.json');
+    console.log('🔍 Looking for OpenAI config at:', configPath);
+    
     if (fs.existsSync(configPath)) {
+      console.log('✅ Found config file');
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
       if (config.apiKey) {
         openaiApiKey = config.apiKey;
+        console.log('✅ OpenAI API key loaded from config file');
         return true;
+      } else {
+        console.warn('⚠️ Config file exists but no apiKey found');
       }
+    } else {
+      console.warn('⚠️ Config file not found at:', configPath);
     }
     
     // Fall back to environment variable
     if (process.env.OPENAI_API_KEY) {
       openaiApiKey = process.env.OPENAI_API_KEY;
+      console.log('✅ OpenAI API key loaded from environment variable');
       return true;
     }
     
-    console.warn('⚠️ OpenAI API key not found. Create openai-config.json in userData or set OPENAI_API_KEY env var.');
+    console.warn('⚠️ OpenAI API key not found. Create openai-config.json in:', userDataPath);
+    console.warn('   Or set OPENAI_API_KEY environment variable');
     return false;
   } catch (error) {
     console.error('❌ Error loading OpenAI key:', error);
+    console.error('   Error details:', error.message);
     return false;
   }
 }
@@ -53,8 +65,8 @@ function initOpenAIClient() {
   }
 }
 
-// Initialize on startup
-initOpenAIClient();
+// Don't initialize here - wait for app to be ready
+// initOpenAIClient() will be called in app.whenReady()
 
 let mainWindow;
 let splashWindow;
@@ -1417,7 +1429,7 @@ ipcMain.handle('genre:saveRule', async (event, genreName, ruleData) => {
 });
 
 // OpenAI IPC Handler (Phase 2)
-ipcMain.handle('openai:chat', async (event, { messages, systemPrompt }) => {
+ipcMain.handle('openai:chat', async (event, { messages, systemPrompt, maxTokens }) => {
   try {
     if (!openaiClient) {
       // Try to initialize if not already done
@@ -1439,7 +1451,7 @@ ipcMain.handle('openai:chat', async (event, { messages, systemPrompt }) => {
       model: 'gpt-4o-mini',
       messages: chatMessages,
       temperature: 0.7,
-      max_tokens: 1000
+      max_tokens: maxTokens || 1000
     });
 
     const aiResponse = response.choices[0].message.content;
@@ -1455,9 +1467,17 @@ ipcMain.handle('openai:chat', async (event, { messages, systemPrompt }) => {
 });
 
 ipcMain.handle('openai:checkStatus', async () => {
+  const userDataPath = app.getPath('userData');
+  const configPath = path.join(userDataPath, 'openai-config.json');
+  const configExists = fs.existsSync(configPath);
+  
   return {
     initialized: !!openaiClient,
-    hasApiKey: !!openaiApiKey
+    hasApiKey: !!openaiApiKey,
+    userDataPath: userDataPath,
+    configPath: configPath,
+    configExists: configExists,
+    hasEnvVar: !!process.env.OPENAI_API_KEY
   };
 });
 
@@ -1550,6 +1570,9 @@ app.whenReady().then(() => {
   } catch (e) {
     console.warn('Failed to register gf protocol:', e.message);
   }
+  
+  // Initialize OpenAI client now that app is ready
+  initOpenAIClient();
   
   // Create splash window first, then main window
   createSplashWindow();
