@@ -112,11 +112,13 @@ function loadPixabayKey() {
 }
 
 async function searchPixabayImages(query, options = {}) {
+  console.log('🔍 searchPixabayImages called with query:', query);
   if (!pixabayApiKey) {
     console.log('⚠️ Pixabay key not loaded, attempting to load...');
-    if (!loadPixabayKey()) {
+    const loaded = loadPixabayKey();
+    if (!loaded || !pixabayApiKey) {
       console.error('❌ Failed to load Pixabay key');
-      return { success: false, error: 'Pixabay API key not configured' };
+      return { success: false, error: 'Pixabay API key not configured. Check main process console for details.' };
     }
   }
   console.log('✅ Using Pixabay key (length:', pixabayApiKey.length, ')');
@@ -172,11 +174,13 @@ async function searchPixabayImages(query, options = {}) {
 }
 
 async function searchPixabayVideos(query, options = {}) {
+  console.log('🔍 searchPixabayVideos called with query:', query);
   if (!pixabayApiKey) {
     console.log('⚠️ Pixabay key not loaded, attempting to load...');
-    if (!loadPixabayKey()) {
+    const loaded = loadPixabayKey();
+    if (!loaded || !pixabayApiKey) {
       console.error('❌ Failed to load Pixabay key');
-      return { success: false, error: 'Pixabay API key not configured' };
+      return { success: false, error: 'Pixabay API key not configured. Check main process console for details.' };
     }
   }
   console.log('✅ Using Pixabay key (length:', pixabayApiKey.length, ')');
@@ -1637,14 +1641,25 @@ ipcMain.handle('pixabay:searchVideos', async (event, { query, options }) => {
 });
 
 ipcMain.handle('pixabay:checkStatus', async () => {
+  console.log('🔍 Pixabay status check - current key state:', !!pixabayApiKey);
   if (!pixabayApiKey) {
+    console.log('⚠️ Key not loaded, attempting to load...');
     const loaded = loadPixabayKey();
     console.log('🔍 Pixabay key check - loaded:', loaded, 'key exists:', !!pixabayApiKey);
+    if (loaded && pixabayApiKey) {
+      console.log('✅ Key loaded successfully, length:', pixabayApiKey.length);
+    } else {
+      console.error('❌ Failed to load key. Check config file at:', app.getPath('userData'));
+    }
+  } else {
+    console.log('✅ Key already loaded, length:', pixabayApiKey.length);
   }
   return { 
     available: !!pixabayApiKey,
     hasKey: !!pixabayApiKey,
-    keyLength: pixabayApiKey ? pixabayApiKey.length : 0
+    keyLength: pixabayApiKey ? pixabayApiKey.length : 0,
+    userDataPath: app.getPath('userData'),
+    configPath: path.join(app.getPath('userData'), 'pixabay-config.json')
   };
 });
 
