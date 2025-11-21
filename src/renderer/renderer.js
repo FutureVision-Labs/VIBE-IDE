@@ -3002,16 +3002,23 @@ async function switchToTab(tabId) {
                         console.warn('⚠️ Preview toggle button missing, recreating...');
                         // Recreate button if missing
                         const separator = toolbar.querySelector('.md-toolbar-separator:last-of-type');
-                        if (separator && separator.nextSibling) {
+                        if (separator) {
                             const btn = document.createElement('button');
                             btn.id = 'mdPreviewToggle';
                             btn.className = 'md-toolbar-btn';
                             btn.title = 'Toggle Preview/Editor';
                             btn.innerHTML = '👁️ Preview';
-                            toolbar.insertBefore(btn, separator.nextSibling);
+                            toolbar.appendChild(btn); // Append to end instead of insertBefore
                             setupMarkdownToolbar(); // Re-setup to attach event listener
                         }
+                    } else {
+                        // Ensure button is visible
+                        previewToggle.style.display = '';
+                        previewToggle.style.visibility = 'visible';
+                        console.log('✅ Preview toggle button found and visible');
                     }
+                    // Update button state
+                    updatePreviewToggleButton();
                 }
                 
                 if (state.mdPreviewMode) {
