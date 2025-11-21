@@ -1645,26 +1645,40 @@ ipcMain.handle('pixabay:searchVideos', async (event, { query, options }) => {
 });
 
 ipcMain.handle('pixabay:checkStatus', async () => {
-  console.log('🔍 Pixabay status check - current key state:', !!pixabayApiKey);
+  console.log('═══════════════════════════════════════════════════════');
+  console.log('🔍 PIXABAY STATUS CHECK CALLED');
+  console.log('═══════════════════════════════════════════════════════');
+  console.log('Current key state:', !!pixabayApiKey);
+  console.log('Key variable type:', typeof pixabayApiKey);
+  
   if (!pixabayApiKey) {
     console.log('⚠️ Key not loaded, attempting to load...');
     const loaded = loadPixabayKey();
-    console.log('🔍 Pixabay key check - loaded:', loaded, 'key exists:', !!pixabayApiKey);
+    console.log('🔍 loadPixabayKey() returned:', loaded);
+    console.log('🔍 Key exists after load:', !!pixabayApiKey);
     if (loaded && pixabayApiKey) {
       console.log('✅ Key loaded successfully, length:', pixabayApiKey.length);
     } else {
-      console.error('❌ Failed to load key. Check config file at:', app.getPath('userData'));
+      console.error('❌ Failed to load key');
+      console.error('   User data path:', app.getPath('userData'));
+      console.error('   Config path:', path.join(app.getPath('userData'), 'pixabay-config.json'));
     }
   } else {
     console.log('✅ Key already loaded, length:', pixabayApiKey.length);
   }
-  return { 
+  
+  const result = { 
     available: !!pixabayApiKey,
     hasKey: !!pixabayApiKey,
     keyLength: pixabayApiKey ? pixabayApiKey.length : 0,
     userDataPath: app.getPath('userData'),
     configPath: path.join(app.getPath('userData'), 'pixabay-config.json')
   };
+  
+  console.log('Returning result:', JSON.stringify(result, null, 2));
+  console.log('═══════════════════════════════════════════════════════');
+  
+  return result;
 });
 
 ipcMain.handle('openai:checkStatus', async () => {
@@ -1776,7 +1790,13 @@ app.whenReady().then(() => {
   initOpenAIClient();
   
   // Load Pixabay API key now that app is ready
-  loadPixabayKey();
+  console.log('═══════════════════════════════════════════════════════');
+  console.log('🚀 APP READY - Loading Pixabay key on startup');
+  console.log('═══════════════════════════════════════════════════════');
+  const pixabayLoaded = loadPixabayKey();
+  console.log('Pixabay key loaded on startup:', pixabayLoaded);
+  console.log('Key exists after startup load:', !!pixabayApiKey);
+  console.log('═══════════════════════════════════════════════════════');
   
   // Create splash window first, then main window
   createSplashWindow();
