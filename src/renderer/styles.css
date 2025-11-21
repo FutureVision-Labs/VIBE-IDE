@@ -3061,6 +3061,8 @@ body.light-theme ::-webkit-scrollbar-thumb:hover {
     display: flex;
     align-items: center;
     justify-content: center;
+    backdrop-filter: none !important; /* Explicitly disable blur */
+    -webkit-backdrop-filter: none !important;
 }
 
 .modal-overlay {
@@ -3070,7 +3072,8 @@ body.light-theme ::-webkit-scrollbar-thumb:hover {
     width: 100%;
     height: 100%;
     background: rgba(0, 0, 0, 0.8);
-    /* backdrop-filter removed - it was blurring the entire screen */
+    backdrop-filter: none !important; /* Explicitly disable blur */
+    -webkit-backdrop-filter: none !important;
 }
 
 .modal-content-cursy {
