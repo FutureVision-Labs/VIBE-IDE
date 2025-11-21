@@ -6211,23 +6211,71 @@ async function handleCodeImplementation(responseText, originalMessage) {
         const implementations = [];
         
         // 1. Extract code blocks with potential file paths
-        // Pattern: Optional "File: path" line, then ```language\ncode```
-        const codeBlockRegex = /(?:File:\s*([^\n]+)\s*\n)?```(\w+)?\n?([\s\S]*?)```/g;
+        // Strategy: Find all code blocks first, then look backwards for file hints
+        // This handles multiple formats:
+        // - "### File: index.html" followed by code block
+        // - "File: index.html" followed by code block
+        // - "Here's the revised index.html file:" followed by code block
+        // - Just code blocks (will prompt user for file path)
+        
+        const codeBlockRegex = /```(\w+)?\n?([\s\S]*?)```/g;
+        const allCodeBlocks = [];
         let match;
         
+        // Find all code blocks with their positions
         while ((match = codeBlockRegex.exec(responseText)) !== null) {
-            const filePathHint = match[1] ? match[1].trim() : null;
-            const language = match[2] || 'text';
-            const code = match[3].trim();
-            
-            if (code.length > 10) { // Only consider substantial code blocks
-                implementations.push({
-                    filePath: filePathHint,
-                    language: language,
-                    code: code
-                });
-            }
+            allCodeBlocks.push({
+                index: match.index,
+                language: match[1] || 'text',
+                code: match[2].trim(),
+                fullMatch: match[0]
+            });
         }
+        
+        // For each code block, look backwards for file hints
+        allCodeBlocks.forEach(block => {
+            if (block.code.length < 10) return; // Skip tiny code blocks
+            
+            // Look backwards up to 500 chars for file hints
+            const beforeBlock = responseText.substring(Math.max(0, block.index - 500), block.index);
+            
+            // Try multiple patterns to find file hints
+            // Pattern 1: "### File: path" or "## File: path" (markdown headers) - capture only the path
+            // Pattern 2: "File: path" (simple format)
+            // Pattern 3: "Here's the revised/updated path:" or similar
+            const fileHintPatterns = [
+                /(?:###?\s*)?File:\s*([^\n\s]+(?:\s+[^\n\s]+)*)/i,  // Captures path after "File:"
+                /(?:here'?s|here is|revised|updated).*?([^\s:]+\.(?:html|js|css|json|md|ts|tsx|jsx|py|java|cpp|c|h|php|rb|go|rs|swift|kt)):?/i,
+                /(?:file|path):\s*([^\s\n]+\.(?:html|js|css|json|md|ts|tsx|jsx|py|java|cpp|c|h|php|rb|go|rs|swift|kt))/i
+            ];
+            
+            let filePathHint = null;
+            for (let i = 0; i < fileHintPatterns.length; i++) {
+                const pattern = fileHintPatterns[i];
+                const fileHintMatch = beforeBlock.match(pattern);
+                if (fileHintMatch && fileHintMatch[1]) {
+                    filePathHint = fileHintMatch[1].trim();
+                    // Clean up the file path - remove any markdown formatting or extra text
+                    filePathHint = filePathHint.replace(/^###?\s*/, '').replace(/\s*$/, '');
+                    console.log(`🔍 Found file hint: "${filePathHint}" using pattern ${i + 1}`);
+                    break;
+                }
+            }
+            
+            if (!filePathHint) {
+                console.log(`⚠️ No file hint found for code block (${block.language}, ${block.code.length} chars)`);
+                console.log(`   Looking in: "${beforeBlock.substring(Math.max(0, beforeBlock.length - 200))}"`);
+            }
+            
+            // Add to implementations
+            implementations.push({
+                filePath: filePathHint,
+                language: block.language,
+                code: block.code
+            });
+            
+            console.log(`📝 Found code block: ${filePathHint || 'unnamed'} (${block.language}), ${block.code.length} chars`);
+        });
         
         // 2. Detect file updates in natural language responses (e.g., "Here's the updated PROJECT_JOURNAL.md:")
         // Look for patterns like:
