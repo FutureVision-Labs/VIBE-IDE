@@ -261,14 +261,11 @@ async function searchPixabayAudio(query, options = {}) {
   
   try {
     const https = require('https');
-    // Note: Pixabay doesn't have a dedicated audio API, but we can use their video API
-    // and filter for audio content, or use a different service
-    // For now, we'll use a placeholder that returns mock data or use Freesound API
-    // Let's use Pixabay video API as a fallback and note that audio search may be limited
-    const url = new URL('https://pixabay.com/api/videos/');
+    // Pixabay Audio API endpoint
+    const url = new URL('https://pixabay.com/api/');
     url.searchParams.set('key', pixabayApiKey);
     url.searchParams.set('q', query);
-    url.searchParams.set('video_type', 'all');
+    url.searchParams.set('audio_type', options.category === 'music' ? 'music' : 'all'); // 'music' or 'all' (includes sound effects)
     url.searchParams.set('safesearch', options.safesearch !== false ? 'true' : 'false');
     url.searchParams.set('per_page', options.perPage || 20);
     url.searchParams.set('page', options.page || 1);
@@ -292,22 +289,29 @@ async function searchPixabayAudio(query, options = {}) {
             if (json.error) {
               resolve({ success: false, error: json.error });
             } else {
-              // Convert video hits to audio-like format
-              const audioHits = (json.hits || []).map(video => ({
-                id: video.id,
-                tags: video.tags,
-                duration: video.duration || 0,
-                url: video.videos?.medium?.url || video.videos?.small?.url || video.picture,
-                type: 'mpeg',
-                user: video.user
+              // Pixabay audio API returns hits with audio-specific fields
+              const audioHits = (json.hits || []).map(audio => ({
+                id: audio.id,
+                tags: audio.tags,
+                duration: audio.duration || 0,
+                url: audio.url || audio.audio_url || audio.preview_url,
+                type: audio.type || 'mpeg',
+                user: audio.user,
+                title: audio.title || audio.tags,
+                format: audio.format || 'mp3',
+                bitrate: audio.bitrate || 0,
+                sample_rate: audio.sample_rate || 0
               }));
               resolve({ success: true, hits: audioHits, total: json.total || 0 });
             }
           } catch (parseError) {
+            console.error('❌ Error parsing Pixabay audio response:', parseError);
+            console.error('Response data:', data.substring(0, 500));
             resolve({ success: false, error: `Failed to parse response: ${parseError.message}` });
           }
         });
       }).on('error', (error) => {
+        console.error('❌ HTTPS request error:', error);
         resolve({ success: false, error: `Network error: ${error.message}` });
       });
     });
