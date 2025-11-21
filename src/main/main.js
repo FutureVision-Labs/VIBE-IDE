@@ -1826,6 +1826,7 @@ ipcMain.handle('pixabay:checkStatus', async () => {
   console.log('Current key state:', !!pixabayApiKey);
   console.log('Key variable type:', typeof pixabayApiKey);
   
+  // Always try to load the key if it's not already loaded
   if (!pixabayApiKey) {
     console.log('⚠️ Key not loaded, attempting to load...');
     const loaded = loadPixabayKey();
@@ -1835,19 +1836,28 @@ ipcMain.handle('pixabay:checkStatus', async () => {
       console.log('✅ Key loaded successfully, length:', pixabayApiKey.length);
     } else {
       console.error('❌ Failed to load key');
-      console.error('   User data path:', app.getPath('userData'));
-      console.error('   Config path:', path.join(app.getPath('userData'), 'pixabay-config.json'));
     }
   } else {
     console.log('✅ Key already loaded, length:', pixabayApiKey.length);
+  }
+  
+  // Get paths (ensure app is ready)
+  let userDataPath, configPath;
+  try {
+    userDataPath = app.getPath('userData');
+    configPath = path.join(userDataPath, 'pixabay-config.json');
+  } catch (error) {
+    console.error('❌ Error getting paths:', error);
+    userDataPath = 'unknown';
+    configPath = 'unknown';
   }
   
   const result = { 
     available: !!pixabayApiKey,
     hasKey: !!pixabayApiKey,
     keyLength: pixabayApiKey ? pixabayApiKey.length : 0,
-    userDataPath: app.getPath('userData'),
-    configPath: path.join(app.getPath('userData'), 'pixabay-config.json')
+    userDataPath: userDataPath,
+    configPath: configPath
   };
   
   console.log('Returning result:', JSON.stringify(result, null, 2));
