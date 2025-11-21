@@ -1,4 +1,4 @@
-# Memetic Stand-Up: Live AI Analysis - SET LIST 🎤🎭
+# Meme Master: Live AI Analysis - SET LIST 🎤🎭
 
 **Performed by:** Damo & Cursy  
 **Format:** Interactive meme analysis with live AI processing  
@@ -9,7 +9,7 @@
 ## 🎬 OPENING (5 minutes)
 
 **1. Introduction**
-- Damo introduces the concept: "Memetic Stand-Up with AI Analysis"
+- Damo introduces the concept: "Meme Master - Memetic Stand-Up with AI Analysis"
 - Explains what memetics is (brief, accessible)
 - Introduces Cursy (AI co-performer)
 - Sets the tone: "We're going to analyze memes, and I'm going to help an AI understand why humans find things funny. This might go horribly wrong!"
