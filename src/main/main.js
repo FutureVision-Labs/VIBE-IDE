@@ -72,6 +72,9 @@ function initOpenAIClient() {
 let pixabayApiKey = null;
 
 function loadPixabayKey() {
+  console.log('═══════════════════════════════════════════════════════');
+  console.log('🔑 loadPixabayKey() FUNCTION CALLED');
+  console.log('═══════════════════════════════════════════════════════');
   try {
     // app.getPath('userData') should be available after app.whenReady()
     const userDataPath = app.getPath('userData');
@@ -82,16 +85,21 @@ function loadPixabayKey() {
     if (fs.existsSync(configPath)) {
       const fileContent = fs.readFileSync(configPath, 'utf-8');
       console.log('   File content length:', fileContent.length);
+      console.log('   File content preview:', fileContent.substring(0, 100));
       const config = JSON.parse(fileContent);
       console.log('   Parsed config keys:', Object.keys(config));
+      console.log('   apiKey exists:', !!config.apiKey);
+      console.log('   apiKey value preview:', config.apiKey ? config.apiKey.substring(0, 10) + '...' : 'null');
       
       if (config.apiKey && config.apiKey.trim()) {
         pixabayApiKey = config.apiKey.trim();
         console.log('✅ Pixabay API key loaded from config file (length:', pixabayApiKey.length, ')');
+        console.log('   Key value:', pixabayApiKey);
+        console.log('   Global pixabayApiKey variable set:', !!pixabayApiKey);
         return true;
       } else {
         console.warn('⚠️ Config file exists but apiKey is empty or missing');
-        console.warn('   Config object:', config);
+        console.warn('   Config object:', JSON.stringify(config, null, 2));
       }
     } else {
       console.warn('⚠️ Config file not found at:', configPath);
@@ -104,6 +112,7 @@ function loadPixabayKey() {
     }
     
     console.warn('⚠️ Pixabay API key not found. Create pixabay-config.json in:', userDataPath);
+    console.log('═══════════════════════════════════════════════════════');
     return false;
   } catch (error) {
     console.error('❌ Error loading Pixabay key:', error);
@@ -111,6 +120,7 @@ function loadPixabayKey() {
     if (error.stack) {
       console.error('   Stack:', error.stack);
     }
+    console.log('═══════════════════════════════════════════════════════');
     return false;
   }
 }
