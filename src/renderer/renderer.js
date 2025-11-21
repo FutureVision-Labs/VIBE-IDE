@@ -1463,6 +1463,7 @@ function buildCursyOffice() {
     });
     
     console.log('✅ Props added:', propsLayer.children.length);
+    console.log('✅ Hotspots created:', hotspotLayer.children.length);
 }
 
 // Initialize Cursy to idle state
