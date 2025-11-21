@@ -5339,8 +5339,7 @@ function setupMarkdownToolbar() {
         });
     });
     
-    // Setup preview toggle button
-    const previewToggle = document.getElementById('mdPreviewToggle');
+    // Setup preview toggle button (reuse the variable declared above)
     if (previewToggle) {
         previewToggle.addEventListener('click', (e) => {
             e.preventDefault();
