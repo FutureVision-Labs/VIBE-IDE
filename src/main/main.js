@@ -82,7 +82,18 @@ function loadPixabayKey() {
   try {
     // app.getPath('userData') should be available after app.whenReady()
     const userDataPath = app.getPath('userData');
-    const configPath = path.join(userDataPath, 'pixabay-config.json');
+    console.log('📁 User data path:', userDataPath);
+    
+    // Check both possible locations (vibe-ide and VIBE IDE)
+    const configPath1 = path.join(userDataPath, 'pixabay-config.json');
+    const configPath2 = path.join(path.dirname(userDataPath), 'VIBE IDE', 'pixabay-config.json');
+    
+    let configPath = configPath1;
+    if (!fs.existsSync(configPath1) && fs.existsSync(configPath2)) {
+      console.log('⚠️ Config not found in default location, trying alternate path...');
+      configPath = configPath2;
+    }
+    
     console.log('🔍 Looking for Pixabay config at:', configPath);
     console.log('   File exists:', fs.existsSync(configPath));
     
