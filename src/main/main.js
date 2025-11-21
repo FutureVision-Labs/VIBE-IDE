@@ -121,16 +121,36 @@ async function searchPixabayImages(query, options = {}) {
     return new Promise((resolve, reject) => {
       https.get(url.toString(), (res) => {
         let data = '';
+        
+        // Check for HTTP errors
+        if (res.statusCode !== 200) {
+          res.on('data', () => {}); // Drain response
+          res.on('end', () => {
+            resolve({ success: false, error: `HTTP ${res.statusCode}: ${res.statusMessage || 'Request failed'}` });
+          });
+          return;
+        }
+        
         res.on('data', (chunk) => { data += chunk; });
         res.on('end', () => {
           try {
             const result = JSON.parse(data);
-            resolve({ success: true, data: result });
+            // Check if Pixabay returned an error
+            if (result.error) {
+              resolve({ success: false, error: result.error });
+            } else {
+              resolve({ success: true, data: result });
+            }
           } catch (error) {
-            reject(error);
+            console.error('❌ Error parsing Pixabay response:', error);
+            console.error('Response data:', data.substring(0, 500));
+            resolve({ success: false, error: `Parse error: ${error.message}` });
           }
         });
-      }).on('error', reject);
+      }).on('error', (error) => {
+        console.error('❌ HTTPS request error:', error);
+        resolve({ success: false, error: error.message });
+      });
     });
   } catch (error) {
     return { success: false, error: error.message };
@@ -156,16 +176,36 @@ async function searchPixabayVideos(query, options = {}) {
     return new Promise((resolve, reject) => {
       https.get(url.toString(), (res) => {
         let data = '';
+        
+        // Check for HTTP errors
+        if (res.statusCode !== 200) {
+          res.on('data', () => {}); // Drain response
+          res.on('end', () => {
+            resolve({ success: false, error: `HTTP ${res.statusCode}: ${res.statusMessage || 'Request failed'}` });
+          });
+          return;
+        }
+        
         res.on('data', (chunk) => { data += chunk; });
         res.on('end', () => {
           try {
             const result = JSON.parse(data);
-            resolve({ success: true, data: result });
+            // Check if Pixabay returned an error
+            if (result.error) {
+              resolve({ success: false, error: result.error });
+            } else {
+              resolve({ success: true, data: result });
+            }
           } catch (error) {
-            reject(error);
+            console.error('❌ Error parsing Pixabay response:', error);
+            console.error('Response data:', data.substring(0, 500));
+            resolve({ success: false, error: `Parse error: ${error.message}` });
           }
         });
-      }).on('error', reject);
+      }).on('error', (error) => {
+        console.error('❌ HTTPS request error:', error);
+        resolve({ success: false, error: error.message });
+      });
     });
   } catch (error) {
     return { success: false, error: error.message };
@@ -1693,6 +1733,9 @@ app.whenReady().then(() => {
   
   // Initialize OpenAI client now that app is ready
   initOpenAIClient();
+  
+  // Load Pixabay API key now that app is ready
+  loadPixabayKey();
   
   // Create splash window first, then main window
   createSplashWindow();

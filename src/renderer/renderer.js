@@ -1552,33 +1552,53 @@ window.searchMusic = async function() {
     const query = input ? input.value : 'lofi';
     const resultsDiv = document.getElementById('musicResults');
     
-    if (!resultsDiv) return;
+    if (!resultsDiv) {
+        console.error('❌ musicResults div not found!');
+        return;
+    }
+    
+    if (!window.electronAPI || !window.electronAPI.pixabaySearchVideos) {
+        resultsDiv.innerHTML = '<p style="color: #ff4444;">❌ Pixabay API not available. Check console for errors.</p>';
+        console.error('❌ window.electronAPI.pixabaySearchVideos not found!');
+        return;
+    }
     
     resultsDiv.innerHTML = '<p>Searching for music...</p>';
+    console.log('🔍 Searching for music:', query);
     
     try {
         // Note: Pixabay videos API can be used for music/audio content
         const response = await window.electronAPI.pixabaySearchVideos(query, { perPage: 20 });
+        console.log('📥 Pixabay response:', response);
         
-        if (response.success && response.data.hits && response.data.hits.length > 0) {
+        if (!response) {
+            resultsDiv.innerHTML = '<p style="color: #ff4444;">❌ No response from API</p>';
+            return;
+        }
+        
+        if (response.success && response.data && response.data.hits && response.data.hits.length > 0) {
             let html = '';
             response.data.hits.forEach((video, index) => {
-                const thumbnail = video.videos.small.thumbnail;
+                const thumbnail = video.videos ? video.videos.small.thumbnail : '';
                 html += `
                     <div class="music-item" onclick="playMusic(${index})" data-video='${JSON.stringify(video).replace(/'/g, "&apos;")}'>
-                        <img src="${thumbnail}" alt="${video.tags}">
-                        <h4>${video.tags.split(',')[0]}</h4>
-                        <p>${video.user}</p>
+                        <img src="${thumbnail}" alt="${video.tags || 'Music'}">
+                        <h4>${(video.tags || 'Music').split(',')[0]}</h4>
+                        <p>${video.user || 'Unknown'}</p>
                     </div>
                 `;
             });
             resultsDiv.innerHTML = html;
             window.musicVideos = response.data.hits;
+            console.log(`✅ Found ${response.data.hits.length} music results`);
         } else {
-            resultsDiv.innerHTML = '<p>No music found. Try a different search term.</p>';
+            const errorMsg = response.error || 'No music found';
+            resultsDiv.innerHTML = `<p style="color: #ffaa00;">⚠️ ${errorMsg}. Try a different search term.</p>`;
+            console.warn('⚠️ No music found:', response);
         }
     } catch (error) {
-        resultsDiv.innerHTML = `<p>Error searching music: ${error.message}</p>`;
+        console.error('❌ Error searching music:', error);
+        resultsDiv.innerHTML = `<p style="color: #ff4444;">❌ Error: ${error.message || 'Unknown error'}</p>`;
     }
 };
 
@@ -1662,29 +1682,49 @@ window.searchImages = async function() {
     const query = input ? input.value : 'art';
     const resultsDiv = document.getElementById('imageResults');
     
-    if (!resultsDiv) return;
+    if (!resultsDiv) {
+        console.error('❌ imageResults div not found!');
+        return;
+    }
+    
+    if (!window.electronAPI || !window.electronAPI.pixabaySearchImages) {
+        resultsDiv.innerHTML = '<p style="color: #ff4444;">❌ Pixabay API not available. Check console for errors.</p>';
+        console.error('❌ window.electronAPI.pixabaySearchImages not found!');
+        return;
+    }
     
     resultsDiv.innerHTML = '<p>Searching for images...</p>';
+    console.log('🔍 Searching for images:', query);
     
     try {
         const response = await window.electronAPI.pixabaySearchImages(query, { perPage: 30 });
+        console.log('📥 Pixabay response:', response);
         
-        if (response.success && response.data.hits && response.data.hits.length > 0) {
+        if (!response) {
+            resultsDiv.innerHTML = '<p style="color: #ff4444;">❌ No response from API</p>';
+            return;
+        }
+        
+        if (response.success && response.data && response.data.hits && response.data.hits.length > 0) {
             let html = '';
             response.data.hits.forEach((image) => {
                 html += `
                     <div class="image-gallery-item" onclick="selectImage('${image.webformatURL.replace(/'/g, "\\'")}')">
-                        <img src="${image.previewURL}" alt="${image.tags}">
-                        <div class="image-overlay">${image.tags}</div>
+                        <img src="${image.previewURL}" alt="${image.tags || 'Image'}">
+                        <div class="image-overlay">${image.tags || 'Image'}</div>
                     </div>
                 `;
             });
             resultsDiv.innerHTML = html;
+            console.log(`✅ Found ${response.data.hits.length} image results`);
         } else {
-            resultsDiv.innerHTML = '<p>No images found. Try a different search term.</p>';
+            const errorMsg = response.error || 'No images found';
+            resultsDiv.innerHTML = `<p style="color: #ffaa00;">⚠️ ${errorMsg}. Try a different search term.</p>`;
+            console.warn('⚠️ No images found:', response);
         }
     } catch (error) {
-        resultsDiv.innerHTML = `<p>Error searching images: ${error.message}</p>`;
+        console.error('❌ Error searching images:', error);
+        resultsDiv.innerHTML = `<p style="color: #ff4444;">❌ Error: ${error.message || 'Unknown error'}</p>`;
     }
 };
 
@@ -1726,31 +1766,52 @@ window.searchVideos = async function() {
     const query = input ? input.value : 'coding tutorial';
     const resultsDiv = document.getElementById('videoResults');
     
-    if (!resultsDiv) return;
+    if (!resultsDiv) {
+        console.error('❌ videoResults div not found!');
+        return;
+    }
+    
+    if (!window.electronAPI || !window.electronAPI.pixabaySearchVideos) {
+        resultsDiv.innerHTML = '<p style="color: #ff4444;">❌ Pixabay API not available. Check console for errors.</p>';
+        console.error('❌ window.electronAPI.pixabaySearchVideos not found!');
+        return;
+    }
     
     resultsDiv.innerHTML = '<p>Searching for videos...</p>';
+    console.log('🔍 Searching for videos:', query);
     
     try {
         const response = await window.electronAPI.pixabaySearchVideos(query, { perPage: 20 });
+        console.log('📥 Pixabay response:', response);
         
-        if (response.success && response.data.hits && response.data.hits.length > 0) {
+        if (!response) {
+            resultsDiv.innerHTML = '<p style="color: #ff4444;">❌ No response from API</p>';
+            return;
+        }
+        
+        if (response.success && response.data && response.data.hits && response.data.hits.length > 0) {
             let html = '';
             response.data.hits.forEach((video) => {
-                const thumbnail = video.videos.small.thumbnail;
+                const thumbnail = video.videos ? video.videos.small.thumbnail : '';
+                const videoUrl = video.videos ? video.videos.medium.url : '';
                 html += `
-                    <div class="video-item" onclick="playVideo('${video.videos.medium.url.replace(/'/g, "\\'")}')">
-                        <img src="${thumbnail}" alt="${video.tags}">
-                        <h4>${video.tags.split(',')[0]}</h4>
-                        <p>${video.user} • ${Math.floor(video.duration)}s</p>
+                    <div class="video-item" onclick="playVideo('${videoUrl.replace(/'/g, "\\'")}')">
+                        <img src="${thumbnail}" alt="${video.tags || 'Video'}">
+                        <h4>${(video.tags || 'Video').split(',')[0]}</h4>
+                        <p>${video.user || 'Unknown'} • ${Math.floor(video.duration || 0)}s</p>
                     </div>
                 `;
             });
             resultsDiv.innerHTML = html;
+            console.log(`✅ Found ${response.data.hits.length} video results`);
         } else {
-            resultsDiv.innerHTML = '<p>No videos found. Try a different search term.</p>';
+            const errorMsg = response.error || 'No videos found';
+            resultsDiv.innerHTML = `<p style="color: #ffaa00;">⚠️ ${errorMsg}. Try a different search term.</p>`;
+            console.warn('⚠️ No videos found:', response);
         }
     } catch (error) {
-        resultsDiv.innerHTML = `<p>Error searching videos: ${error.message}</p>`;
+        console.error('❌ Error searching videos:', error);
+        resultsDiv.innerHTML = `<p style="color: #ff4444;">❌ Error: ${error.message || 'Unknown error'}</p>`;
     }
 };
 
