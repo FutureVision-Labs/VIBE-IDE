@@ -1997,9 +1997,12 @@ app.whenReady().then(() => {
   console.log('═══════════════════════════════════════════════════════');
   console.log('🚀 APP READY - Loading Pixabay key on startup');
   console.log('═══════════════════════════════════════════════════════');
+  console.log('BEFORE loadPixabayKey() - pixabayApiKey:', pixabayApiKey);
   const pixabayLoaded = loadPixabayKey();
   console.log('Pixabay key loaded on startup:', pixabayLoaded);
+  console.log('AFTER loadPixabayKey() - pixabayApiKey:', pixabayApiKey);
   console.log('Key exists after startup load:', !!pixabayApiKey);
+  console.log('Key length:', pixabayApiKey ? pixabayApiKey.length : 0);
   console.log('═══════════════════════════════════════════════════════');
   
   // Create splash window first, then main window
