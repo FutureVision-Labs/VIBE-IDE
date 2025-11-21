@@ -2251,11 +2251,6 @@ function createTab(filePath, fileName, content = '') {
 
 function renderTabs() {
     const tabsContainer = document.getElementById('editorTabs');
-    
-    // Preserve the preview toggle button before clearing
-    const mdPreviewToggle = document.getElementById('mdPreviewToggle');
-    const toggleButton = mdPreviewToggle ? mdPreviewToggle.outerHTML : '';
-    
     tabsContainer.innerHTML = '';
     
     state.openTabs.forEach(tab => {
