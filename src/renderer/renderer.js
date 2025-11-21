@@ -2548,6 +2548,11 @@ document.addEventListener('DOMContentLoaded', () => {
         initOpenAI();
     }, 500);
     
+    // Initialize Pixabay API (check key on startup)
+    setTimeout(() => {
+        initializePixabay();
+    }, 600);
+    
     // Apply saved theme
     if (state.theme === 'light') {
         document.body.className = 'light-theme';
