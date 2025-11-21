@@ -3114,14 +3114,26 @@ async function switchToTab(tabId) {
                 }
                 
                 if (state.mdPreviewMode) {
-                    // Show preview, hide editor
-                    document.getElementById('monacoEditor').style.display = 'none';
-                    document.getElementById('mdPreview').style.display = 'block';
+                    // Show preview, hide editor - make it editable!
+                    const previewEl = document.getElementById('mdPreview');
+                    const editorEl = document.getElementById('monacoEditor');
+                    editorEl.style.display = 'none';
+                    previewEl.style.display = 'block';
+                    previewEl.contentEditable = 'true'; // Make preview editable for WYSIWYG!
+                    previewEl.setAttribute('spellcheck', 'true');
                     updateMarkdownPreview();
+                    // Focus the preview after a short delay
+                    setTimeout(() => previewEl.focus(), 100);
                 } else {
                     // Show editor, hide preview
-                    document.getElementById('monacoEditor').style.display = 'block';
-                    document.getElementById('mdPreview').style.display = 'none';
+                    const previewEl = document.getElementById('mdPreview');
+                    const editorEl = document.getElementById('monacoEditor');
+                    previewEl.contentEditable = 'false';
+                    editorEl.style.display = 'block';
+                    previewEl.style.display = 'none';
+                    if (state.monacoEditor) {
+                        state.monacoEditor.focus();
+                    }
                 }
                 // Update toggle button state
                 updatePreviewToggleButton();
@@ -7285,17 +7297,25 @@ async function handleCodeImplementation(responseText, originalMessage) {
                         window.implementAllCode();
                     });
                 }
+                
                 // IMPORTANT: Insert AFTER the last assistant message, not just append
-                // Find the last assistant message and insert after it
-                const assistantMessages = chatMessages.querySelectorAll('.chat-message.assistant');
-                if (assistantMessages.length > 0) {
-                    const lastAssistantMsg = assistantMessages[assistantMessages.length - 1];
-                    lastAssistantMsg.insertAdjacentElement('afterend', implDiv);
-                } else {
-                    // Fallback: just append if no assistant messages found
-                    chatMessages.appendChild(implDiv);
-                }
-                chatMessages.scrollTop = chatMessages.scrollHeight;
+                // Use a small delay to ensure DOM is fully updated
+                setTimeout(() => {
+                    const assistantMessages = chatMessages.querySelectorAll('.chat-message.assistant:not(.typing)');
+                    if (assistantMessages.length > 0) {
+                        const lastAssistantMsg = assistantMessages[assistantMessages.length - 1];
+                        // Check if implementation offer already exists after this message
+                        const existingOffer = lastAssistantMsg.nextElementSibling;
+                        if (existingOffer && existingOffer.classList.contains('implementation-offer')) {
+                            existingOffer.remove();
+                        }
+                        lastAssistantMsg.insertAdjacentElement('afterend', implDiv);
+                    } else {
+                        // Fallback: just append if no assistant messages found
+                        chatMessages.appendChild(implDiv);
+                    }
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }, 100);
                 
                 // Store implementations for button handlers
                 window.pendingImplementations = implementations;

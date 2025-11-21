@@ -79,22 +79,39 @@ function loadPixabayKey() {
   try {
     // Try to load from config file first
     const userDataPath = app.getPath('userData');
-    const configPath = path.join(userDataPath, 'pixabay-config.json');
-    console.log('🔍 Looking for Pixabay config at:', configPath);
     
-    if (fs.existsSync(configPath)) {
-      console.log('✅ Found config file');
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-      if (config.apiKey) {
-        pixabayApiKey = config.apiKey.trim();
-        console.log('✅ Pixabay API key loaded from config file');
-        return true;
-      } else {
-        console.warn('⚠️ Config file exists but no apiKey found');
+    // Check both possible paths (vibe-ide and VIBE IDE)
+    const possiblePaths = [
+      path.join(userDataPath, 'pixabay-config.json'),
+      path.join(path.dirname(userDataPath), 'VIBE IDE', 'pixabay-config.json')
+    ];
+    
+    // Also check if userDataPath itself might be different case
+    if (userDataPath.toLowerCase().includes('vibe')) {
+      const altPath = userDataPath.replace(/vibe-ide/i, 'VIBE IDE');
+      if (altPath !== userDataPath) {
+        possiblePaths.push(path.join(altPath, 'pixabay-config.json'));
       }
-    } else {
-      console.warn('⚠️ Config file not found at:', configPath);
     }
+    
+    console.log('🔍 Looking for Pixabay config in possible paths:');
+    possiblePaths.forEach(p => console.log('   -', p));
+    
+    for (const configPath of possiblePaths) {
+      if (fs.existsSync(configPath)) {
+        console.log('✅ Found config file at:', configPath);
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        if (config.apiKey) {
+          pixabayApiKey = config.apiKey.trim();
+          console.log('✅ Pixabay API key loaded from config file (length:', pixabayApiKey.length, ')');
+          return true;
+        } else {
+          console.warn('⚠️ Config file exists but no apiKey found');
+        }
+      }
+    }
+    
+    console.warn('⚠️ Config file not found in any of the checked paths');
     
     // Fall back to environment variable
     if (process.env.PIXABAY_API_KEY) {
@@ -1766,7 +1783,10 @@ ipcMain.handle('pixabay:searchAudio', async (event, { query, options }) => {
 ipcMain.handle('pixabay:checkStatus', async () => {
   // Always try to load if not already loaded
   if (!pixabayApiKey) {
-    loadPixabayKey();
+    const loaded = loadPixabayKey();
+    if (!loaded) {
+      console.warn('⚠️ Failed to load Pixabay key in checkStatus handler');
+    }
   }
   
   const userDataPath = app.getPath('userData');
