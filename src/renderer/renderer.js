@@ -2445,6 +2445,8 @@ async function switchToTab(tabId) {
                     document.getElementById('monacoEditor').style.display = 'block';
                     document.getElementById('mdPreview').style.display = 'none';
                 }
+                // Update toggle button state
+                updatePreviewToggleButton();
             } else {
                 // Hide toolbar for non-markdown files
                 const toolbar = document.getElementById('mdToolbar');
@@ -5236,7 +5238,9 @@ function toggleMarkdownPreview() {
         }
     }
     
-    renderTabs(); // Update toggle button text
+    // Update toggle button text
+    updatePreviewToggleButton();
+    renderTabs();
 }
 
 // Setup markdown toolbar buttons
@@ -5302,6 +5306,33 @@ function setupMarkdownToolbar() {
             }
         });
     });
+    
+    // Setup preview toggle button
+    const previewToggle = document.getElementById('mdPreviewToggle');
+    if (previewToggle) {
+        previewToggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            toggleMarkdownPreview();
+            // Update button text
+            updatePreviewToggleButton();
+        });
+        // Set initial button state
+        updatePreviewToggleButton();
+    }
+}
+
+// Update preview toggle button text
+function updatePreviewToggleButton() {
+    const previewToggle = document.getElementById('mdPreviewToggle');
+    if (previewToggle) {
+        if (state.mdPreviewMode) {
+            previewToggle.innerHTML = '📝 Editor';
+            previewToggle.title = 'Switch to Markdown Editor';
+        } else {
+            previewToggle.innerHTML = '👁️ Preview';
+            previewToggle.title = 'Switch to WYSIWYG Preview';
+        }
+    }
 }
 
 // Handle WYSIWYG toolbar actions (when in preview/edit mode)
