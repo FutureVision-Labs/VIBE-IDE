@@ -7439,6 +7439,21 @@ async function analyzeProjectForJournal() {
 // ============================================
 
 // Initialize OpenAI client (via IPC)
+// Initialize Pixabay API key check on startup
+async function initializePixabay() {
+    try {
+        const status = await window.electronAPI.pixabayCheckStatus();
+        if (status.available) {
+            console.log('✅ Pixabay API ready (key length:', status.keyLength, ')');
+        } else {
+            console.warn('⚠️ Pixabay API key not configured. Music & SFX features will not work.');
+            console.warn('   Config path:', status.configPath);
+        }
+    } catch (error) {
+        console.error('❌ Error checking Pixabay status:', error);
+    }
+}
+
 async function initOpenAI() {
     try {
         console.log('🔧 Checking OpenAI status via IPC...');
