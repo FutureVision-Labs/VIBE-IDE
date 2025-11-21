@@ -1636,6 +1636,7 @@ ipcMain.handle('openai:chat', async (event, { messages, systemPrompt, maxTokens 
 });
 
 // Pixabay API IPC handlers
+console.log('📝 Registering Pixabay IPC handlers...');
 ipcMain.handle('pixabay:searchImages', async (event, { query, options }) => {
   return await searchPixabayImages(query, options);
 });
