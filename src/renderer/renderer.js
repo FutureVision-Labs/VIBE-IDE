@@ -3088,8 +3088,11 @@ async function switchToTab(tabId) {
             const isMarkdown = tab.name.endsWith('.md') || tab.name.endsWith('.markdown');
             if (isMarkdown) {
                 // Default to preview mode for markdown files (unless explicitly set to edit)
-                if (state.mdPreviewMode === undefined || state.mdPreviewMode === null) {
-                    state.mdPreviewMode = true; // Default to preview for 10-year-olds!
+                // Check if this is a new markdown file or if we should default to preview
+                if (state.mdPreviewMode === undefined || state.mdPreviewMode === null || state.mdPreviewMode === false) {
+                    // For markdown files, default to preview mode (WYSIWYG) for 10-year-olds!
+                    state.mdPreviewMode = true;
+                    console.log('📝 Defaulting to WYSIWYG preview mode for markdown file');
                 }
                 
                 // Show toolbar
