@@ -1810,20 +1810,21 @@ ipcMain.handle('pixabay:checkStatus', async () => {
     console.log('═══════════════════════════════════════════════════════');
     console.log('Current key state:', !!pixabayApiKey);
     console.log('Key variable type:', typeof pixabayApiKey);
+    console.log('Key value:', pixabayApiKey ? pixabayApiKey.substring(0, 10) + '...' : 'null');
     
-    // Always try to load the key if it's not already loaded
-    if (!pixabayApiKey) {
-      console.log('⚠️ Key not loaded, attempting to load...');
-      const loaded = loadPixabayKey();
-      console.log('🔍 loadPixabayKey() returned:', loaded);
-      console.log('🔍 Key exists after load:', !!pixabayApiKey);
-      if (loaded && pixabayApiKey) {
-        console.log('✅ Key loaded successfully, length:', pixabayApiKey.length);
-      } else {
-        console.error('❌ Failed to load key');
-      }
+    // ALWAYS try to load the key - don't trust the variable state
+    console.log('🔄 Force reloading key...');
+    const loaded = loadPixabayKey();
+    console.log('🔍 loadPixabayKey() returned:', loaded);
+    console.log('🔍 Key exists after load:', !!pixabayApiKey);
+    console.log('🔍 Key length after load:', pixabayApiKey ? pixabayApiKey.length : 0);
+    if (loaded && pixabayApiKey) {
+      console.log('✅ Key loaded successfully, length:', pixabayApiKey.length);
+      console.log('✅ Key value (first 10):', pixabayApiKey.substring(0, 10) + '...');
     } else {
-      console.log('✅ Key already loaded, length:', pixabayApiKey.length);
+      console.error('❌ Failed to load key');
+      console.error('   loaded return value:', loaded);
+      console.error('   pixabayApiKey after load:', pixabayApiKey);
     }
     
     // Get paths (ensure app is ready)
@@ -1987,6 +1988,13 @@ app.whenReady().then(() => {
   console.log('AFTER loadPixabayKey() - pixabayApiKey:', pixabayApiKey);
   console.log('Key exists after startup load:', !!pixabayApiKey);
   console.log('Key length:', pixabayApiKey ? pixabayApiKey.length : 0);
+  console.log('Key value (first 10 chars):', pixabayApiKey ? pixabayApiKey.substring(0, 10) + '...' : 'null');
+  // FORCE verify the key is actually set
+  if (pixabayApiKey && pixabayApiKey.length > 0) {
+    console.log('✅✅✅ PIXABAY KEY IS LOADED AND READY! ✅✅✅');
+  } else {
+    console.error('❌❌❌ PIXABAY KEY FAILED TO LOAD! ❌❌❌');
+  }
   console.log('═══════════════════════════════════════════════════════');
   
   // Create splash window first, then main window

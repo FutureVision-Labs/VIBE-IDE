@@ -7264,13 +7264,27 @@ async function handleCodeImplementation(responseText, originalMessage) {
                     const fileName = impl.filePath || `code-${idx + 1}.${getFileExtension(impl.language)}`;
                     implHtml += `<div style="margin: 8px 0; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">`;
                     implHtml += `<strong>📄 ${fileName}</strong> (${impl.language})<br>`;
-                    implHtml += `<button onclick="implementCode(${idx})" style="margin-top: 5px; padding: 5px 15px; background: #00ff88; color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Implement This</button>`;
+                    implHtml += `<button class="implement-btn" data-index="${idx}" style="margin-top: 5px; padding: 5px 15px; background: #00ff88; color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Implement This</button>`;
                     implHtml += `</div>`;
                 });
                 
-                implHtml += '<br><button onclick="implementAllCode()" style="padding: 8px 20px; background: #00d4ff; color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">✨ Implement All</button>';
+                implHtml += '<br><button class="implement-all-btn" style="padding: 8px 20px; background: #00d4ff; color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">✨ Implement All</button>';
                 
                 implDiv.innerHTML = implHtml;
+                
+                // Attach event listeners to buttons (can't use onclick in innerHTML)
+                implDiv.querySelectorAll('.implement-btn').forEach((btn, idx) => {
+                    btn.addEventListener('click', () => {
+                        window.implementCode(parseInt(btn.dataset.index));
+                    });
+                });
+                
+                const implementAllBtn = implDiv.querySelector('.implement-all-btn');
+                if (implementAllBtn) {
+                    implementAllBtn.addEventListener('click', () => {
+                        window.implementAllCode();
+                    });
+                }
                 // IMPORTANT: Insert AFTER the last assistant message, not just append
                 // Find the last assistant message and insert after it
                 const assistantMessages = chatMessages.querySelectorAll('.chat-message.assistant');
