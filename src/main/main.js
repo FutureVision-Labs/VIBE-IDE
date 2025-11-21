@@ -3,6 +3,10 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 
+console.log('═══════════════════════════════════════════════════════');
+console.log('🚀 MAIN PROCESS STARTING - LOGGING TEST');
+console.log('═══════════════════════════════════════════════════════');
+
 // Initialize OpenAI client in main process
 let openaiClient = null;
 let openaiApiKey = null;
