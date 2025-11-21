@@ -1,0 +1,97 @@
+{
+  "genre": "blog",
+  "version": "1.0.0",
+  "frameworkVersion": "Framework-agnostic",
+  "description": "Blog/content website patterns and best practices",
+  "author": "VIBE IDE Team",
+  "isBundled": true,
+  "commonPatterns": {
+    "contentManagement": {
+      "pattern": "Markdown-based content with frontmatter",
+      "codeSnippet": "// Markdown post structure\n---\ntitle: \"My Blog Post\"\ndate: \"2025-11-19\"\nauthor: \"John Doe\"\ntags: [\"javascript\", \"web-dev\"]\n---\n\n# Blog Post Title\n\nContent here...",
+      "docLink": "https://www.markdownguide.org/"
+    },
+    "postListing": {
+      "pattern": "Paginated or infinite scroll post list",
+      "codeSnippet": "// Post listing with pagination\nconst [posts, setPosts] = useState([]);\nconst [page, setPage] = useState(1);\nconst postsPerPage = 10;\n\nconst paginatedPosts = posts.slice(\n  (page - 1) * postsPerPage,\n  page * postsPerPage\n);"
+    },
+    "rssFeed": {
+      "pattern": "RSS feed generation for syndication",
+      "codeSnippet": "// RSS feed generation\nconst generateRSS = (posts) => {\n  return `<?xml version=\"1.0\"?>\n<rss version=\"2.0\">\n  <channel>\n    <title>My Blog</title>\n    ${posts.map(post => `\n      <item>\n        <title>${post.title}</title>\n        <link>${post.url}</link>\n        <description>${post.excerpt}</description>\n      </item>\n    `).join('')}\n  </channel>\n</rss>`;\n};"
+    },
+    "search": {
+      "pattern": "Full-text search across posts",
+      "codeSnippet": "// Search functionality\nconst [searchQuery, setSearchQuery] = useState('');\n\nconst filteredPosts = posts.filter(post => {\n  const query = searchQuery.toLowerCase();\n  return post.title.toLowerCase().includes(query) ||\n         post.content.toLowerCase().includes(query) ||\n         post.tags.some(tag => tag.toLowerCase().includes(query));\n});"
+    },
+    "comments": {
+      "pattern": "Comment system (Disqus, custom, or static)",
+      "codeSnippet": "// Comment structure\nconst [comments, setComments] = useState([]);\n\nconst addComment = (comment) => {\n  setComments(prev => [\n    { ...comment, id: Date.now(), date: new Date() },\n    ...prev\n  ]);\n};"
+    }
+  },
+  "aiSuggestions": {
+    "context": "You are helping create a blog/content website. Common patterns include: markdown-based content with frontmatter, post listing with pagination, individual post pages, RSS feed generation, search functionality, tag/category filtering, comment system, author pages, archive pages. SEO is important - use proper meta tags, semantic HTML, structured data. Performance matters - static site generation, image optimization, lazy loading. Content management can be static (markdown files) or dynamic (CMS).",
+    "codeExamples": [
+      {
+        "title": "Markdown Parsing",
+        "description": "Parse markdown files with frontmatter",
+        "code": "import matter from 'gray-matter';\n\nconst { data, content } = matter(markdownFile);\n// data = frontmatter (title, date, etc.)\n// content = markdown content",
+        "docLink": "https://github.com/jonschlinkert/gray-matter"
+      },
+      {
+        "title": "Post Listing with Pagination",
+        "description": "Display posts with pagination",
+        "code": "const postsPerPage = 10;\nconst totalPages = Math.ceil(posts.length / postsPerPage);\nconst currentPosts = posts.slice(\n  (currentPage - 1) * postsPerPage,\n  currentPage * postsPerPage\n);",
+        "docLink": ""
+      },
+      {
+        "title": "Tag Filtering",
+        "description": "Filter posts by tags",
+        "code": "const [selectedTag, setSelectedTag] = useState(null);\n\nconst filteredPosts = selectedTag\n  ? posts.filter(post => post.tags.includes(selectedTag))\n  : posts;",
+        "docLink": ""
+      },
+      {
+        "title": "SEO Meta Tags",
+        "description": "Add SEO meta tags to posts",
+        "code": "<head>\n  <title>{post.title} | My Blog</title>\n  <meta name=\"description\" content={post.excerpt} />\n  <meta property=\"og:title\" content={post.title} />\n  <meta property=\"og:description\" content={post.excerpt} />\n</head>",
+        "docLink": "https://developers.google.com/search/docs/appearance/snippet"
+      }
+    ],
+    "commonBugs": [
+      "Missing SEO meta tags - Always include title, description, Open Graph tags",
+      "Images not optimized - Compress and use appropriate formats",
+      "No RSS feed - Important for content syndication",
+      "Missing pagination - Can cause performance issues with many posts",
+      "Search not working - Implement proper search functionality",
+      "Markdown not rendering - Use proper markdown parser",
+      "Date formatting issues - Use consistent date format",
+      "Missing 404 page - Always handle missing posts gracefully"
+    ],
+    "performanceTips": [
+      "Use static site generation (SSG) for better performance",
+      "Optimize images - Use WebP, lazy loading, responsive images",
+      "Implement code splitting for blog posts",
+      "Cache post data - Use service workers or CDN",
+      "Minimize JavaScript - Only load what's needed",
+      "Use a CDN for static assets",
+      "Implement proper caching headers"
+    ]
+  },
+  "validationRules": {
+    "requiredFeatures": ["post listing", "individual post pages", "navigation"],
+    "recommendedFeatures": ["RSS feed", "search", "tags/categories", "comments", "archive"],
+    "seoRequirements": {
+      "metaTags": "Title, description, Open Graph tags",
+      "semanticHtml": "Use proper HTML5 semantic elements",
+      "structuredData": "Schema.org markup for articles",
+      "sitemap": "XML sitemap for search engines"
+    },
+    "commonPatterns": ["markdown content", "post listing", "tag filtering", "RSS feed"],
+    "bestPractices": {
+      "content": "Use markdown for posts, frontmatter for metadata",
+      "images": "Optimize images, use alt text",
+      "performance": "Static generation, lazy loading, caching",
+      "seo": "Proper meta tags, semantic HTML, structured data"
+    }
+  }
+}
+

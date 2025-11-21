@@ -15,6 +15,7 @@ window.electronAPI = {
   copyFile: (srcPath, destPath) => ipcRenderer.invoke('fs:copyFile', srcPath, destPath),
   createFile: (filePath, content) => ipcRenderer.invoke('fs:createFile', filePath, content),
   createFolder: (folderPath) => ipcRenderer.invoke('fs:createFolder', folderPath),
+  renameFile: (oldPath, newPath) => ipcRenderer.invoke('fs:rename', oldPath, newPath),
   deleteFile: (filePath) => ipcRenderer.invoke('fs:delete', filePath),
   fileExists: (filePath) => ipcRenderer.invoke('fs:exists', filePath),
   readDir: (dirPath) => ipcRenderer.invoke('fs:readDir', dirPath),
@@ -47,7 +48,11 @@ window.electronAPI = {
   minimizeWindow: () => ipcRenderer.invoke('window:minimize'),
   maximizeWindow: () => ipcRenderer.invoke('window:maximize'),
   closeWindow: () => ipcRenderer.invoke('window:close'),
-  isWindowMaximized: () => ipcRenderer.invoke('window:isMaximized')
+  isWindowMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+  
+  // OpenAI (Phase 2)
+  openaiChat: (messages, systemPrompt) => ipcRenderer.invoke('openai:chat', { messages, systemPrompt }),
+  openaiCheckStatus: () => ipcRenderer.invoke('openai:checkStatus')
 };
 
 console.log('VIBE IDE Preload Script Loaded');

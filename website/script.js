@@ -78,6 +78,70 @@ function initLogoCarousel() {
     scheduleNextRotation();
 }
 
+// VIBE Acronyms
+const vibeAcronyms = [
+    'Versatile Integrated Beginner Environment',
+    'Virtual Interactive Beginner Experience',
+    'Visual Intelligent Beginner Environment',
+    'Visionary Integrated Beginner Environment',
+    'Very Intuitive Beginner Experience',
+    'Versatile Innovative Beginner Ecosystem',
+    'Visual Interactive Beginner Editor',
+    'Virtual Intelligent Beginner Environment',
+    'Visionary Innovative Beginner Environment',
+    'Versatile Intuitive Beginner Experience',
+    'Visual Integrated Beginner Ecosystem'
+];
+
+// Initialize acronym rotator
+function initAcronymRotator() {
+    const rotator = document.getElementById('acronymRotator');
+    if (!rotator) return;
+    
+    // Create all acronym spans
+    vibeAcronyms.forEach((acronym, index) => {
+        const span = document.createElement('span');
+        span.className = 'acronym-text';
+        span.textContent = acronym;
+        if (index === 0) {
+            span.classList.add('active');
+        }
+        rotator.appendChild(span);
+    });
+    
+    // Rotate through acronyms
+    const acronyms = rotator.querySelectorAll('.acronym-text');
+    let currentIndex = 0;
+    
+    function rotateAcronym() {
+        // Fade out current
+        acronyms[currentIndex].classList.remove('active');
+        
+        // Pick random next (not current)
+        let nextIndex;
+        do {
+            nextIndex = Math.floor(Math.random() * acronyms.length);
+        } while (nextIndex === currentIndex && acronyms.length > 1);
+        
+        // Wait for full fade-out (800ms transition) before fading in next
+        setTimeout(() => {
+            acronyms[nextIndex].classList.add('active');
+            currentIndex = nextIndex;
+        }, 850); // Slightly longer than the 800ms CSS transition to ensure complete fade-out
+    }
+    
+    // Rotate every 3-5 seconds
+    function scheduleNextRotation() {
+        const delay = Math.random() * 2000 + 3000; // 3000-5000ms
+        setTimeout(() => {
+            rotateAcronym();
+            scheduleNextRotation();
+        }, delay);
+    }
+    
+    scheduleNextRotation();
+}
+
 // Smooth scroll for anchor links
 function initSmoothScroll() {
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
@@ -94,9 +158,34 @@ function initSmoothScroll() {
     });
 }
 
+// Book Modal Functions
+function openBookModal() {
+    const modal = document.getElementById('bookModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    }
+}
+
+function closeBookModal() {
+    const modal = document.getElementById('bookModal');
+    if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = ''; // Restore scrolling
+    }
+}
+
+// Close modal on Escape key
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeBookModal();
+    }
+});
+
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     initLogoCarousel();
+    initAcronymRotator();
     initSmoothScroll();
 });
 

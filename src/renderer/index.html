@@ -52,6 +52,8 @@
                 <div class="menu-item-wrapper">
                     <span class="menu-item" id="menuHelp">Help</span>
                     <div class="menu-dropdown" id="dropdownHelp">
+                        <div class="menu-dropdown-item" onclick="showKeyboardShortcuts()">⌨️ Keyboard Shortcuts</div>
+                        <div class="menu-dropdown-separator"></div>
                         <div class="menu-dropdown-item" onclick="if(window.electronAPI && window.electronAPI.showAbout) window.electronAPI.showAbout(); else alert('About VIBE IDE\n\nVersion 0.1.0\n\nBuilt with ❤️ by FutureVision Labs');">About VIBE IDE</div>
                     </div>
                 </div>
@@ -60,6 +62,7 @@
                 <button class="theme-toggle" id="themeToggle" title="Toggle Theme">
                     🌙
                 </button>
+                <button class="btn-small" id="btnUndo" title="Undo Last File Operation (Ctrl+Z)" disabled>↶ Undo</button>
                 <button class="btn-small" id="btnGenreRules" title="Manage Genre Rules">🧩 Genre Rules</button>
                 <button class="btn-small" id="btnBuildJournal" title="Build Project Journal (HTML)">📝 Build Journal</button>
                 <button class="btn-small" id="btnExportJournal" title="Export Project Journal (PDF)">📄 Export PDF</button>
@@ -80,13 +83,26 @@
                     <h3>📁 Explorer</h3>
                     <button class="sidebar-toggle" id="toggleLeftSidebar" title="Toggle Sidebar">◀</button>
                 </div>
+                <div class="file-tree-search">
+                    <input type="text" id="fileTreeSearch" placeholder="🔍 Search files..." class="file-tree-search-input">
+                </div>
                 <div class="sidebar-content" id="fileTree">
-                    <div class="file-tree">
+                    <div class="file-tree" id="fileTreeContainer">
                         <div class="tree-item folder" data-path="/">
                             <span class="tree-icon">📁</span>
                             <span class="tree-label">No project loaded</span>
                         </div>
                     </div>
+                </div>
+                <!-- Context Menu -->
+                <div class="context-menu" id="fileTreeContextMenu" style="display: none;">
+                    <div class="context-menu-item" id="ctxNewFile">📄 New File</div>
+                    <div class="context-menu-item" id="ctxNewFolder">📁 New Folder</div>
+                    <div class="context-menu-separator"></div>
+                    <div class="context-menu-item" id="ctxRename">✏️ Rename</div>
+                    <div class="context-menu-item" id="ctxDelete">🗑️ Delete</div>
+                    <div class="context-menu-separator"></div>
+                    <div class="context-menu-item" id="ctxCopyPath">📋 Copy Path</div>
                 </div>
             </div>
             <div class="resizer vertical-resizer" id="leftResizer"></div>
@@ -148,8 +164,45 @@
                 <div class="sidebar-header">
                     <h3>🤖 AI Assistant</h3>
                     <div class="sidebar-header-actions">
+                        <button class="btn-icon" id="toggleCursyViz" title="Toggle Cursy Visualization">👁️</button>
                         <button class="btn-icon" id="clearChatBtn" title="Clear Chat History">🗑️</button>
                         <button class="sidebar-toggle" id="toggleRightSidebar" title="Toggle Sidebar">▶</button>
+                    </div>
+                </div>
+                <!-- Cursy Visualization -->
+                <div class="cursy-visualization" id="cursyVisualization" style="display: none;">
+                    <div class="cursy-room" id="cursyRoom">
+                        <!-- Isometric room built from tiles -->
+                        <div class="room-container">
+                            <!-- Floor tiles -->
+                            <div class="room-floor-layer" id="roomFloorLayer"></div>
+                            
+                            <!-- Wall tiles -->
+                            <div class="room-wall-layer" id="roomWallLayer"></div>
+                            
+                            <!-- Furniture layer (desks, chairs, etc.) -->
+                            <div class="room-furniture-layer" id="roomFurnitureLayer"></div>
+                            
+                            <!-- Character layer -->
+                            <div class="room-character-layer" id="roomCharacterLayer">
+                                <img class="cursy-character" id="cursyCharacter" src="" alt="Cursy" style="display: none;">
+                            </div>
+                            
+                            <!-- Props layer (plants, decorations, etc.) -->
+                            <div class="room-props-layer" id="roomPropsLayer"></div>
+                        </div>
+                    </div>
+                    <div class="cursy-status" id="cursyStatus">
+                        <span class="status-text" id="statusText">Ready to help!</span>
+                        <div class="status-indicator" id="statusIndicator"></div>
+                    </div>
+                    <!-- Temporary test buttons for states -->
+                    <div class="cursy-test-buttons" style="display: flex; gap: 5px; padding: 5px; justify-content: center; flex-wrap: wrap;">
+                        <button class="btn-small" onclick="updateCursyState('idle', 'Ready to help!')" style="font-size: 10px; padding: 2px 6px;">Idle</button>
+                        <button class="btn-small" onclick="updateCursyState('thinking', 'Thinking...')" style="font-size: 10px; padding: 2px 6px;">Thinking</button>
+                        <button class="btn-small" onclick="updateCursyState('typing', 'Typing response...')" style="font-size: 10px; padding: 2px 6px;">Typing</button>
+                        <button class="btn-small" onclick="updateCursyState('error', 'Error occurred')" style="font-size: 10px; padding: 2px 6px;">Error</button>
+                        <button class="btn-small" onclick="updateCursyState('celebrating', 'Celebrating!')" style="font-size: 10px; padding: 2px 6px;">Celebrate</button>
                     </div>
                 </div>
                 <div class="sidebar-content">
@@ -184,6 +237,32 @@
                                 <span>😊</span>
                             </label>
                             <button class="emoji-btn" id="emojiPickerBtn" title="Insert Emoji">😀</button>
+                            <button class="emoji-btn" id="gifPickerBtn" title="Insert GIF">🎬</button>
+                        </div>
+                        
+                        <!-- GIF Picker Modal -->
+                        <div class="gif-picker-modal" id="gifPickerModal" style="display: none;">
+                            <div class="gif-picker-content">
+                                <div class="gif-picker-header">
+                                    <h3>🎬 Search GIFs</h3>
+                                    <button class="gif-picker-close" id="gifPickerClose">×</button>
+                                </div>
+                                <div class="gif-picker-search">
+                                    <input type="text" id="gifSearchInput" placeholder="Search for GIFs..." class="gif-search-input">
+                                    <button id="gifSearchBtn" class="btn btn-primary btn-small">Search</button>
+                                </div>
+                                <div class="gif-suggestions">
+                                    <button class="gif-suggestion-btn" data-term="happy coding">😊 Happy Coding</button>
+                                    <button class="gif-suggestion-btn" data-term="debugging">🐛 Debugging</button>
+                                    <button class="gif-suggestion-btn" data-term="success">✅ Success</button>
+                                    <button class="gif-suggestion-btn" data-term="error">❌ Error</button>
+                                    <button class="gif-suggestion-btn" data-term="thinking">🤔 Thinking</button>
+                                    <button class="gif-suggestion-btn" data-term="celebration">🎉 Celebration</button>
+                                </div>
+                                <div class="gif-picker-results" id="gifPickerResults">
+                                    <p class="gif-picker-placeholder">Search for GIFs or click a suggestion above</p>
+                                </div>
+                            </div>
                         </div>
                         
                         <!-- Emoji Picker Popup -->
@@ -224,14 +303,6 @@
                         <div class="chat-actions">
                             <button class="btn btn-secondary btn-small" id="insertCodeContextBtn" title="Insert Selected Code">📋 Code</button>
                             <button class="btn btn-primary" id="chatSendBtn" title="Send (Enter)">Send</button>
-                        </div>
-                        
-                        <!-- Quick Actions -->
-                        <div class="chat-quick-actions">
-                            <button class="quick-action-btn" onclick="insertQuickMessage('How do I create a function?')">💡 Functions</button>
-                            <button class="quick-action-btn" onclick="insertQuickMessage('What is a variable?')">📝 Variables</button>
-                            <button class="quick-action-btn" onclick="insertQuickMessage('How do I use a loop?')">🔄 Loops</button>
-                            <button class="quick-action-btn" onclick="insertQuickMessage('Explain arrays')">📦 Arrays</button>
                         </div>
                     </div>
                 </div>
@@ -540,6 +611,9 @@
             }
         })();
     </script>
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+    
     <script src="renderer.js"></script>
 </body>
 </html>

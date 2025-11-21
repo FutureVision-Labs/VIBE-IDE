@@ -36,6 +36,12 @@ release/
 user-data/
 window-state.json
 
+# API Keys and secrets
+openai-config.json
+*.key
+*.secret
+config.local.json
+
 # Temporary files
 *.tmp
 *.temp

@@ -1,0 +1,94 @@
+{
+  "genre": "react-spa",
+  "version": "1.0.0",
+  "frameworkVersion": "React 18.x",
+  "description": "React Single Page Application patterns and best practices",
+  "author": "VIBE IDE Team",
+  "isBundled": true,
+  "commonPatterns": {
+    "componentStructure": {
+      "pattern": "Functional components with hooks",
+      "codeSnippet": "// Functional component with hooks\nimport { useState, useEffect } from 'react';\n\nfunction MyComponent() {\n  const [state, setState] = useState(initialValue);\n  \n  useEffect(() => {\n    // Side effects here\n    return () => {\n      // Cleanup\n    };\n  }, [dependencies]);\n  \n  return (\n    <div>\n      {/* JSX here */}\n    </div>\n  );\n}\n\nexport default MyComponent;"
+    },
+    "stateManagement": {
+      "local": "useState for component-level state",
+      "global": "Context API or Redux for app-wide state",
+      "codeSnippet": "// Local state\nconst [count, setCount] = useState(0);\n\n// Context for global state\nconst ThemeContext = createContext();\n\nfunction App() {\n  const [theme, setTheme] = useState('light');\n  return (\n    <ThemeContext.Provider value={{ theme, setTheme }}>\n      <ChildComponent />\n    </ThemeContext.Provider>\n  );\n}"
+    },
+    "routing": {
+      "library": "React Router",
+      "pattern": "Declarative routing with Routes and Route",
+      "codeSnippet": "import { BrowserRouter, Routes, Route } from 'react-router-dom';\n\nfunction App() {\n  return (\n    <BrowserRouter>\n      <Routes>\n        <Route path=\"/\" element={<Home />} />\n        <Route path=\"/about\" element={<About />} />\n      </Routes>\n    </BrowserRouter>\n  );\n}"
+    },
+    "dataFetching": {
+      "pattern": "useEffect with async/await or custom hooks",
+      "codeSnippet": "useEffect(() => {\n  async function fetchData() {\n    try {\n      const response = await fetch('/api/data');\n      const data = await response.json();\n      setData(data);\n    } catch (error) {\n      setError(error);\n    }\n  }\n  fetchData();\n}, []);"
+    },
+    "forms": {
+      "pattern": "Controlled components with useState",
+      "codeSnippet": "function Form() {\n  const [formData, setFormData] = useState({ name: '', email: '' });\n  \n  const handleChange = (e) => {\n    setFormData({ ...formData, [e.target.name]: e.target.value });\n  };\n  \n  const handleSubmit = (e) => {\n    e.preventDefault();\n    // Submit logic\n  };\n  \n  return <form onSubmit={handleSubmit}>...</form>;\n}"
+    }
+  },
+  "aiSuggestions": {
+    "context": "You are helping create a React Single Page Application. Common patterns include: functional components with hooks (useState, useEffect, useContext), React Router for navigation, controlled forms, async data fetching with useEffect, component composition, props drilling vs Context API, conditional rendering, list rendering with keys. Always use functional components, not class components. Remember to include dependencies in useEffect dependency arrays to avoid stale closures. Use React.memo for expensive components. Always provide keys when rendering lists.",
+    "codeExamples": [
+      {
+        "title": "useState Hook",
+        "description": "Managing component state with useState",
+        "code": "const [count, setCount] = useState(0);\n\n// Update state\nsetCount(count + 1);\n// Or with function\nsetCount(prev => prev + 1);",
+        "docLink": "https://react.dev/reference/react/useState"
+      },
+      {
+        "title": "useEffect with Cleanup",
+        "description": "Side effects and cleanup to prevent memory leaks",
+        "code": "useEffect(() => {\n  const subscription = subscribe();\n  return () => {\n    subscription.unsubscribe();\n  };\n}, [dependencies]);",
+        "docLink": "https://react.dev/reference/react/useEffect"
+      },
+      {
+        "title": "Conditional Rendering",
+        "description": "Render components conditionally",
+        "code": "{isLoggedIn ? <Dashboard /> : <Login />}\n{error && <ErrorMessage error={error} />}",
+        "docLink": "https://react.dev/learn/conditional-rendering"
+      },
+      {
+        "title": "List Rendering with Keys",
+        "description": "Render lists with proper keys",
+        "code": "{items.map(item => (\n  <Item key={item.id} data={item} />\n))}",
+        "docLink": "https://react.dev/learn/rendering-lists"
+      }
+    ],
+    "commonBugs": [
+      "Missing dependencies in useEffect - Causes stale closures and infinite loops",
+      "Forgetting to return cleanup function - Causes memory leaks",
+      "Mutating state directly - Always use setState, never mutate state",
+      "Missing keys in lists - Causes React rendering issues",
+      "Infinite re-renders - Check useEffect dependencies and state updates",
+      "Event handler not bound - Use arrow functions or bind in class components",
+      "Async state updates - Use functional setState for updates based on previous state"
+    ],
+    "performanceTips": [
+      "Use React.memo for expensive components that don't change often",
+      "Use useMemo for expensive calculations",
+      "Use useCallback for functions passed as props",
+      "Code split with React.lazy and Suspense",
+      "Virtualize long lists with react-window or react-virtualized",
+      "Avoid creating objects/arrays in render - move to useState or useMemo",
+      "Use production build for better performance"
+    ]
+  },
+  "validationRules": {
+    "requiredFiles": ["package.json", "src/App.js", "src/index.js"],
+    "requiredDependencies": ["react", "react-dom"],
+    "recommendedDependencies": ["react-router-dom"],
+    "fileStructure": {
+      "src/": ["components/", "hooks/", "utils/", "contexts/", "App.js", "index.js"]
+    },
+    "commonPatterns": ["component composition", "hooks", "routing", "state management"],
+    "bestPractices": {
+      "components": "One component per file, named exports",
+      "hooks": "Custom hooks in hooks/ folder, prefix with 'use'",
+      "state": "Lift state up when shared, use Context for global state"
+    }
+  }
+}
+

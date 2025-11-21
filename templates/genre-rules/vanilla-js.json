@@ -1,0 +1,106 @@
+{
+  "genre": "vanilla-js",
+  "version": "1.0.0",
+  "frameworkVersion": "Vanilla JavaScript (ES6+)",
+  "description": "Pure JavaScript web application patterns and best practices",
+  "author": "VIBE IDE Team",
+  "isBundled": true,
+  "commonPatterns": {
+    "domManipulation": {
+      "pattern": "Query and manipulate DOM elements",
+      "codeSnippet": "// DOM manipulation\nconst element = document.querySelector('.my-class');\nelement.textContent = 'New text';\nelement.classList.add('active');\nelement.addEventListener('click', handleClick);"
+    },
+    "eventHandling": {
+      "pattern": "Event listeners and event delegation",
+      "codeSnippet": "// Event handling\nconst button = document.getElementById('myButton');\nbutton.addEventListener('click', (e) => {\n  e.preventDefault();\n  // Handle click\n});\n\n// Event delegation\ndocument.addEventListener('click', (e) => {\n  if (e.target.matches('.dynamic-button')) {\n    // Handle click on dynamically added elements\n  }\n});"
+    },
+    "asyncOperations": {
+      "pattern": "Fetch API and async/await",
+      "codeSnippet": "// Async operations\nasync function fetchData() {\n  try {\n    const response = await fetch('/api/data');\n    if (!response.ok) throw new Error('Network error');\n    const data = await response.json();\n    return data;\n  } catch (error) {\n    console.error('Error:', error);\n    throw error;\n  }\n}"
+    },
+    "stateManagement": {
+      "pattern": "Simple state management without frameworks",
+      "codeSnippet": "// Simple state management\nconst state = {\n  count: 0,\n  user: null\n};\n\nfunction setState(updates) {\n  Object.assign(state, updates);\n  render(); // Re-render UI\n}\n\nfunction render() {\n  document.getElementById('count').textContent = state.count;\n}"
+    },
+    "modules": {
+      "pattern": "ES6 modules for code organization",
+      "codeSnippet": "// Export\n// utils.js\nexport function formatDate(date) {\n  return date.toLocaleDateString();\n}\n\nexport const API_URL = 'https://api.example.com';\n\n// Import\n// main.js\nimport { formatDate, API_URL } from './utils.js';"
+    }
+  },
+  "aiSuggestions": {
+    "context": "You are helping create a vanilla JavaScript web application (no frameworks). Common patterns include: DOM manipulation with querySelector/getElementById, event handling with addEventListener, async operations with fetch API and async/await, ES6 modules for code organization, simple state management, form handling, localStorage/sessionStorage for persistence, class-based components for organization. Always use modern ES6+ syntax (const/let, arrow functions, template literals, destructuring, async/await). Avoid jQuery and old patterns. Use semantic HTML5, CSS3, and modern JavaScript.",
+    "codeExamples": [
+      {
+        "title": "DOM Querying",
+        "description": "Query DOM elements",
+        "code": "// Single element\nconst element = document.querySelector('.class');\nconst byId = document.getElementById('id');\n\n// Multiple elements\nconst elements = document.querySelectorAll('.class');",
+        "docLink": "https://developer.mozilla.org/en-US/docs/Web/API/Document/querySelector"
+      },
+      {
+        "title": "Event Listeners",
+        "description": "Add event listeners",
+        "code": "element.addEventListener('click', (e) => {\n  e.preventDefault();\n  // Handle event\n});",
+        "docLink": "https://developer.mozilla.org/en-US/docs/Web/API/EventTarget/addEventListener"
+      },
+      {
+        "title": "Fetch API",
+        "description": "Make HTTP requests",
+        "code": "async function getData() {\n  const response = await fetch('/api/data');\n  const data = await response.json();\n  return data;\n}",
+        "docLink": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API"
+      },
+      {
+        "title": "localStorage",
+        "description": "Persist data in browser",
+        "code": "// Save\nlocalStorage.setItem('key', JSON.stringify(data));\n\n// Load\nconst data = JSON.parse(localStorage.getItem('key'));",
+        "docLink": "https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage"
+      },
+      {
+        "title": "ES6 Modules",
+        "description": "Organize code with modules",
+        "code": "// Export\n// utils.js\nexport function helper() {}\n\n// Import\n// main.js\nimport { helper } from './utils.js';",
+        "docLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules"
+      }
+    ],
+    "commonBugs": [
+      "Forgetting to wait for DOM - Use DOMContentLoaded event",
+      "Memory leaks from event listeners - Remove listeners when done",
+      "Not handling async errors - Always use try/catch with async/await",
+      "Mutating arrays/objects directly - Use immutable patterns",
+      "Not checking if element exists - Always check before manipulating",
+      "Race conditions with async - Use Promise.all or proper sequencing",
+      "Not sanitizing user input - Always validate and sanitize",
+      "Using var instead of const/let - Use modern variable declarations"
+    ],
+    "performanceTips": [
+      "Use event delegation for dynamic elements",
+      "Debounce/throttle expensive operations",
+      "Use documentFragment for multiple DOM operations",
+      "Lazy load images and scripts",
+      "Minimize DOM queries - Cache elements",
+      "Use requestAnimationFrame for animations",
+      "Avoid inline styles - Use CSS classes"
+    ]
+  },
+  "validationRules": {
+    "requiredFiles": ["index.html", "script.js", "styles.css"],
+    "fileStructure": {
+      "": ["index.html", "script.js", "styles.css"],
+      "js/": ["utils.js", "components.js"],
+      "css/": ["main.css", "components.css"]
+    },
+    "commonPatterns": ["DOM manipulation", "event handling", "async operations", "modules"],
+    "bestPractices": {
+      "code": "Use ES6+ syntax, organize with modules",
+      "dom": "Cache DOM queries, use event delegation",
+      "async": "Use async/await, handle errors",
+      "state": "Keep state simple, update UI when state changes"
+    },
+    "modernJavaScript": {
+      "variables": "Use const/let, not var",
+      "functions": "Use arrow functions where appropriate",
+      "async": "Use async/await instead of callbacks",
+      "modules": "Use ES6 modules for organization"
+    }
+  }
+}
+

@@ -4,7 +4,7 @@
 **Target Platform:** Windows, macOS, Linux (Electron)  
 **Tech Stack:** Electron, Monaco Editor, Node.js  
 **Status:** 🟡 Planning Phase  
-**Lead Developer:** Damian (Remix Steward, Civic Banhammer Wielder)  
+**Lead Developer:** Damian (Remix Steward, Civic Banhammer Wielder)
 **Foundation:** Built on GameForge IDE Alpha codebase
 
 ---

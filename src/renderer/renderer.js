@@ -46,17 +46,59 @@ const state = {
         commonBugs: [],
         performanceTips: []
     },
-    chatHistory: [] // Store chat messages for persistence
+    chatHistory: [], // Store chat messages for persistence
+    undoStack: [], // Store last file operation for undo (rename/delete)
+    giphyApiKey: 'aYiZhypI5Grja4m0hgYobklPHipQI98e', // GIPHY API key (100 calls/hour limit)
+    openaiApiKey: null, // OpenAI API key - loaded from config file or env var
+    openaiClient: null, // OpenAI client instance
+    useOpenAI: true, // Toggle between OpenAI and mock responses
+    conversationContext: [], // Store conversation context for OpenAI
+    agentPersona: null, // Agent_Persona.md content
+    projectJournal: null // PROJECT_JOURNAL.md content
 };
 
-// Welcome screen functions
-function showNewProject() {
-    handleNewProject();
-}
+// Welcome screen functions (exposed globally for HTML onclick handlers)
+// Expose these immediately so HTML onclick handlers can access them
+// Note: These will call handleNewProject/handleOpenProject which are defined later
+window.showNewProject = function() {
+    console.log('showNewProject called');
+    if (typeof handleNewProject === 'function') {
+        handleNewProject();
+    } else {
+        console.error('handleNewProject not yet defined');
+        // Retry after a short delay
+        setTimeout(() => {
+            if (typeof handleNewProject === 'function') {
+                handleNewProject();
+            } else {
+                alert('Please wait for the app to finish loading...');
+            }
+        }, 100);
+    }
+};
 
-function showOpenProject() {
-    handleOpenProject();
-}
+window.showOpenProject = function() {
+    console.log('showOpenProject called');
+    if (typeof handleOpenProject === 'function') {
+        handleOpenProject();
+    } else {
+        console.error('handleOpenProject not yet defined');
+        // Retry after a short delay
+        setTimeout(() => {
+            if (typeof handleOpenProject === 'function') {
+                handleOpenProject();
+            } else {
+                alert('Please wait for the app to finish loading...');
+            }
+        }, 100);
+    }
+};
+
+// Also expose initMonacoEditor early (will be redefined later, but this prevents errors)
+window.initMonacoEditor = function() {
+    // This will be replaced by the actual function when it loads
+    console.log('initMonacoEditor called but not yet loaded');
+};
 
 function showAboutDialog() {
     // This will be handled by the Electron menu, but we can also show it here
@@ -229,12 +271,12 @@ async function handleSaveFile() {
             if (result.success) {
                 tab.isDirty = false;
                 renderTabs();
-                // Don't show alert - just update UI
+                showToast(`File saved: ${tab.name}`, 'success', 2000);
             } else {
-                alert('Error saving file: ' + result.error);
+                showToast('Error saving file: ' + result.error, 'error');
             }
         } catch (error) {
-            alert('Error saving file: ' + error.message);
+            showToast('Error saving file: ' + error.message, 'error');
         }
     } else {
         // Save As dialog
@@ -262,7 +304,7 @@ async function handleSaveFileAs() {
             tab.name = result.name;
             tab.isDirty = false;
             renderTabs();
-            // Don't show alert - just update UI
+            showToast(`File saved: ${result.name}`, 'success', 2000);
         }
     } catch (error) {
         alert('Error saving file: ' + error.message);
@@ -293,10 +335,10 @@ async function handleNewProject() {
         const result = await window.electronAPI.createProject(template, projectPath, genre);
         if (result.success) {
             await loadProject(projectPath);
-            alert('Project created successfully!');
+            showToast('Project created successfully!', 'success');
         } else {
             if (!result.cancelled) {
-                alert('Error creating project: ' + (result.error || 'Unknown error'));
+                showToast('Error creating project: ' + (result.error || 'Unknown error'), 'error');
             }
         }
     } catch (error) {
@@ -316,10 +358,22 @@ function showTemplateDialog() {
         // Template to genre mapping
         const templateToGenre = {
             blank: null,
+            'web-app': null,
+            'python-beginner': null,
+            'data-analysis': null,
             platformer: 'platformer',
             shooter: 'shooter',
             puzzle: 'puzzle',
             runner: 'runner'
+        };
+        
+        // Template metadata (for display)
+        const templateMetadata = {
+            blank: { name: 'Blank Project', description: 'Start from scratch with a clean slate', icon: '📄' },
+            'web-app': { name: 'Web App', description: 'HTML, CSS, and JavaScript web application', icon: '🌐' },
+            'python-beginner': { name: 'Python Beginner', description: 'Simple Python script to learn the basics', icon: '🐍' },
+            'data-analysis': { name: 'Data Analysis', description: 'Python project for analyzing data', icon: '📊' },
+            platformer: { name: 'Platformer Game', description: '2D platformer game with Phaser.js', icon: '🎮' }
         };
         
         const dialog = document.createElement('div');
@@ -338,22 +392,37 @@ function showTemplateDialog() {
             box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         `;
         
+        // Build template options HTML
+        const templateOptions = Object.entries(templateMetadata).map(([key, meta]) => 
+            `<option value="${key}">${meta.icon} ${meta.name}</option>`
+        ).join('');
+        
         dialog.innerHTML = `
             <h3 style="margin-top: 0; color: #fff;">Create New Project</h3>
             <div style="margin: 15px 0;">
                 <label style="display: block; color: #ccc; margin-bottom: 8px;">Template:</label>
                 <select id="template-select" style="
                     width: 100%;
-                    padding: 8px;
+                    padding: 10px;
                     background: #3a3a3a;
                     color: #fff;
                     border: 1px solid #666;
                     border-radius: 4px;
-                    margin-bottom: 15px;
+                    margin-bottom: 10px;
+                    font-size: 14px;
+                    cursor: pointer;
                 ">
-                    <option value="blank">Blank Project</option>
-                    <option value="platformer">Platformer Template</option>
+                    ${templateOptions}
                 </select>
+                <div id="template-description" style="
+                    background: #2a2a2a;
+                    padding: 10px;
+                    border-radius: 4px;
+                    color: #aaa;
+                    font-size: 12px;
+                    margin-bottom: 15px;
+                    min-height: 20px;
+                ">${templateMetadata.blank.description}</div>
                 
                 <label style="display: block; color: #ccc; margin-bottom: 8px;">Genre (optional):</label>
                 <select id="genre-select" style="
@@ -380,6 +449,7 @@ function showTemplateDialog() {
                     border-radius: 4px;
                     cursor: pointer;
                     font-weight: bold;
+                    transition: background 0.2s;
                 ">Create</button>
                 <button id="template-cancel" style="
                     flex: 1;
@@ -389,6 +459,7 @@ function showTemplateDialog() {
                     border: 1px solid #888;
                     border-radius: 4px;
                     cursor: pointer;
+                    transition: background 0.2s;
                 ">Cancel</button>
             </div>
         `;
@@ -399,8 +470,14 @@ function showTemplateDialog() {
         const templateSelect = document.getElementById('template-select');
         const genreSelect = document.getElementById('genre-select');
         
+        // Update description when template changes
+        const descriptionDiv = document.getElementById('template-description');
         templateSelect.addEventListener('change', () => {
             const template = templateSelect.value;
+            const meta = templateMetadata[template];
+            if (meta && descriptionDiv) {
+                descriptionDiv.textContent = meta.description;
+            }
             const inferredGenre = templateToGenre[template];
             if (inferredGenre && genreSelect.value === '') {
                 genreSelect.value = inferredGenre;
@@ -420,6 +497,842 @@ function showTemplateDialog() {
         });
     });
 }
+
+function showKeyboardShortcuts() {
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: #2d2d2d;
+        border: 2px solid #4a4a4a;
+        border-radius: 8px;
+        padding: 25px;
+        z-index: 10000;
+        min-width: 500px;
+        max-width: 700px;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    `;
+    
+    const shortcuts = [
+        { category: 'General', items: [
+            { key: 'Ctrl+N / Cmd+N', desc: 'New Project' },
+            { key: 'Ctrl+O / Cmd+O', desc: 'Open Project' },
+            { key: 'Ctrl+S / Cmd+S', desc: 'Save File' },
+            { key: 'Ctrl+Shift+S / Cmd+Shift+S', desc: 'Save As' },
+            { key: 'Ctrl+W / Cmd+W', desc: 'Close Tab' },
+            { key: 'Ctrl+, / Cmd+,', desc: 'Settings (Coming Soon)' }
+        ]},
+        { category: 'Editor', items: [
+            { key: 'Ctrl+Z / Cmd+Z', desc: 'Undo' },
+            { key: 'Ctrl+Y / Cmd+Y', desc: 'Redo' },
+            { key: 'Ctrl+X / Cmd+X', desc: 'Cut' },
+            { key: 'Ctrl+C / Cmd+C', desc: 'Copy' },
+            { key: 'Ctrl+V / Cmd+V', desc: 'Paste' },
+            { key: 'Ctrl+A / Cmd+A', desc: 'Select All' },
+            { key: 'Ctrl+F / Cmd+F', desc: 'Find' },
+            { key: 'Ctrl+H / Cmd+H', desc: 'Replace' },
+            { key: 'Ctrl+/ / Cmd+/', desc: 'Toggle Comment' },
+            { key: 'Ctrl+` / Cmd+`', desc: 'Toggle Terminal (Coming Soon)' }
+        ]},
+        { category: 'View', items: [
+            { key: 'Ctrl+B / Cmd+B', desc: 'Toggle Left Sidebar' },
+            { key: 'Ctrl+Shift+B / Cmd+Shift+B', desc: 'Toggle Right Sidebar' },
+            { key: 'Ctrl+\\ / Cmd+\\', desc: 'Toggle Preview' },
+            { key: 'F11', desc: 'Toggle Fullscreen' },
+            { key: 'Ctrl+R / Cmd+R', desc: 'Reload Window' }
+        ]},
+        { category: 'Chat', items: [
+            { key: 'Enter', desc: 'Send Message' },
+            { key: 'Shift+Enter', desc: 'New Line' },
+            { key: 'Ctrl+B / Cmd+B', desc: 'Bold Text' },
+            { key: 'Ctrl+I / Cmd+I', desc: 'Italic Text' },
+            { key: 'Ctrl+` / Cmd+`', desc: 'Inline Code' }
+        ]},
+        { category: 'Navigation', items: [
+            { key: 'Ctrl+Tab / Cmd+Tab', desc: 'Next Tab' },
+            { key: 'Ctrl+Shift+Tab / Cmd+Shift+Tab', desc: 'Previous Tab' },
+            { key: 'Ctrl+1-9 / Cmd+1-9', desc: 'Switch to Tab Number' }
+        ]}
+    ];
+    
+    const shortcutsHtml = shortcuts.map(cat => `
+        <div style="margin-bottom: 25px;">
+            <h4 style="color: #00a2ff; margin: 0 0 12px 0; font-size: 16px; border-bottom: 1px solid #444; padding-bottom: 5px;">
+                ${cat.category}
+            </h4>
+            ${cat.items.map(item => `
+                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #333;">
+                    <span style="color: #ccc; flex: 1;">${item.desc}</span>
+                    <kbd style="
+                        background: #1a1a1a;
+                        border: 1px solid #555;
+                        border-radius: 4px;
+                        padding: 4px 8px;
+                        font-family: 'Courier New', monospace;
+                        font-size: 12px;
+                        color: #fff;
+                        margin-left: 15px;
+                    ">${item.key}</kbd>
+                </div>
+            `).join('')}
+        </div>
+    `).join('');
+    
+    dialog.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; color: #fff; font-size: 20px;">⌨️ Keyboard Shortcuts</h3>
+            <button id="shortcuts-close" style="
+                background: transparent;
+                border: none;
+                color: #ccc;
+                font-size: 24px;
+                cursor: pointer;
+                padding: 0;
+                width: 30px;
+                height: 30px;
+                line-height: 1;
+            ">×</button>
+        </div>
+        <div style="color: #aaa; font-size: 13px; margin-bottom: 20px;">
+            Press these key combinations to quickly access features
+        </div>
+        ${shortcutsHtml}
+        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #444; text-align: center;">
+            <button id="shortcuts-ok" style="
+                padding: 10px 30px;
+                background: #00a2ff;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-weight: bold;
+                transition: background 0.2s;
+            ">Got it!</button>
+        </div>
+    `;
+    
+    document.body.appendChild(dialog);
+    
+    const closeDialog = () => {
+        if (dialog.parentNode) {
+            document.body.removeChild(dialog);
+        }
+    };
+    
+    document.getElementById('shortcuts-close').addEventListener('click', closeDialog);
+    document.getElementById('shortcuts-ok').addEventListener('click', closeDialog);
+    
+    // Close on Escape key
+    const escapeHandler = (e) => {
+        if (e.key === 'Escape') {
+            closeDialog();
+            document.removeEventListener('keydown', escapeHandler);
+        }
+    };
+    document.addEventListener('keydown', escapeHandler);
+    
+    // Close on background click
+    dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) {
+            closeDialog();
+        }
+    });
+}
+
+// Expose globally for onclick handler
+window.showKeyboardShortcuts = showKeyboardShortcuts;
+
+// ============================================
+// Cursy Visualization State Management
+// ============================================
+
+let cursyState = 'idle'; // idle, thinking, typing, error, celebrating
+let cursyAnimationInterval = null;
+let cursyCurrentFrame = 0;
+
+// Character animation frames configuration
+// These paths will be set up once assets are copied to the project
+const cursyAnimations = {
+    idle: {
+        frames: [
+            'assets/cursy-office/characters/dad_computer_idle_01.png',
+            'assets/cursy-office/characters/dad_computer_idle_02.png',
+            'assets/cursy-office/characters/dad_computer_idle_03.png',
+            'assets/cursy-office/characters/dad_computer_idle_04.png',
+            'assets/cursy-office/characters/dad_computer_idle_05.png',
+            'assets/cursy-office/characters/dad_computer_idle_06.png',
+            'assets/cursy-office/characters/dad_computer_idle_07.png',
+            'assets/cursy-office/characters/dad_computer_idle_08.png',
+            'assets/cursy-office/characters/dad_computer_idle_09.png',
+            'assets/cursy-office/characters/dad_computer_idle_10.png',
+            'assets/cursy-office/characters/dad_computer_idle_11.png',
+            'assets/cursy-office/characters/dad_computer_idle_12.png',
+            'assets/cursy-office/characters/dad_computer_idle_13.png',
+            'assets/cursy-office/characters/dad_computer_idle_14.png'
+        ],
+        fps: 2 // frames per second
+    },
+    thinking: {
+        frames: [
+            'assets/cursy-office/characters/dad_computer_idle_01.png',
+            'assets/cursy-office/characters/dad_computer_idle_02.png'
+        ],
+        fps: 1
+    },
+    typing: {
+        frames: [
+            'assets/cursy-office/characters/dad_computer_working_01.png',
+            'assets/cursy-office/characters/dad_computer_working_02.png',
+            'assets/cursy-office/characters/dad_computer_working_03.png',
+            'assets/cursy-office/characters/dad_computer_working_04.png',
+            'assets/cursy-office/characters/dad_computer_working_05.png',
+            'assets/cursy-office/characters/dad_computer_working_06.png',
+            'assets/cursy-office/characters/dad_computer_working_07.png',
+            'assets/cursy-office/characters/dad_computer_working_08.png',
+            'assets/cursy-office/characters/dad_computer_working_09.png',
+            'assets/cursy-office/characters/dad_computer_working_10.png',
+            'assets/cursy-office/characters/dad_computer_working_11.png',
+            'assets/cursy-office/characters/dad_computer_working_12.png',
+            'assets/cursy-office/characters/dad_computer_working_13.png',
+            'assets/cursy-office/characters/dad_computer_working_14.png',
+            'assets/cursy-office/characters/dad_computer_working_15.png',
+            'assets/cursy-office/characters/dad_computer_working_16.png',
+            'assets/cursy-office/characters/dad_computer_working_17.png',
+            'assets/cursy-office/characters/dad_computer_working_18.png',
+            'assets/cursy-office/characters/dad_computer_working_19.png',
+            'assets/cursy-office/characters/dad_computer_working_20.png',
+            'assets/cursy-office/characters/dad_computer_working_21.png',
+            'assets/cursy-office/characters/dad_computer_working_22.png',
+            'assets/cursy-office/characters/dad_computer_working_23.png',
+            'assets/cursy-office/characters/dad_computer_working_24.png',
+            'assets/cursy-office/characters/dad_computer_working_25.png',
+            'assets/cursy-office/characters/dad_computer_working_26.png',
+            'assets/cursy-office/characters/dad_computer_working_27.png',
+            'assets/cursy-office/characters/dad_computer_working_28.png',
+            'assets/cursy-office/characters/dad_computer_working_29.png',
+            'assets/cursy-office/characters/dad_computer_working_30.png',
+            'assets/cursy-office/characters/dad_computer_working_31.png'
+        ],
+        fps: 4
+    },
+    celebrating: {
+        frames: [
+            'assets/cursy-office/characters/dad_computer_idle_01.png',
+            'assets/cursy-office/characters/dad_computer_idle_02.png',
+            'assets/cursy-office/characters/dad_computer_idle_03.png',
+            'assets/cursy-office/characters/dad_computer_idle_04.png',
+            'assets/cursy-office/characters/dad_computer_idle_05.png',
+            'assets/cursy-office/characters/dad_computer_idle_06.png',
+            'assets/cursy-office/characters/dad_computer_idle_07.png',
+            'assets/cursy-office/characters/dad_computer_idle_08.png',
+            'assets/cursy-office/characters/dad_computer_idle_09.png',
+            'assets/cursy-office/characters/dad_computer_idle_10.png',
+            'assets/cursy-office/characters/dad_computer_idle_11.png',
+            'assets/cursy-office/characters/dad_computer_idle_12.png',
+            'assets/cursy-office/characters/dad_computer_idle_13.png',
+            'assets/cursy-office/characters/dad_computer_idle_14.png'
+        ],
+        fps: 6
+    }
+};
+
+function stopCursyAnimation() {
+    if (cursyAnimationInterval) {
+        clearInterval(cursyAnimationInterval);
+        cursyAnimationInterval = null;
+    }
+    cursyCurrentFrame = 0;
+}
+
+function startCursyAnimation(state) {
+    stopCursyAnimation();
+    
+    const character = document.getElementById('cursyCharacter');
+    if (!character) return;
+    
+    const animation = cursyAnimations[state];
+    if (!animation || !animation.frames.length) {
+        // Fallback: show first frame if available
+        if (animation && animation.frames[0]) {
+            character.src = animation.frames[0];
+            character.style.display = 'block';
+        }
+        return;
+    }
+    
+    // Show character
+    character.style.display = 'block';
+    
+    // Cycle through frames
+    const frameDelay = 1000 / animation.fps;
+    cursyAnimationInterval = setInterval(() => {
+        cursyCurrentFrame = (cursyCurrentFrame + 1) % animation.frames.length;
+        const framePath = animation.frames[cursyCurrentFrame];
+        
+        // Try to load the frame, with fallback
+        character.src = framePath;
+        character.onerror = () => {
+            // If frame doesn't exist, try first frame as fallback
+            if (animation.frames[0]) {
+                character.src = animation.frames[0];
+            }
+        };
+    }, frameDelay);
+    
+    // Set initial frame
+    if (animation.frames[0]) {
+        character.src = animation.frames[0];
+    }
+}
+
+function updateCursyState(newState, statusText = null) {
+    console.log('🔵 updateCursyState called:', newState, statusText);
+    
+    const character = document.getElementById('cursyCharacter');
+    const statusIndicator = document.getElementById('statusIndicator');
+    const statusTextEl = document.getElementById('statusText');
+    const roomPropsLayer = document.getElementById('roomPropsLayer');
+    const characterLayer = document.getElementById('roomCharacterLayer');
+    const roomContainer = document.querySelector('.room-container');
+    
+    console.log('🔍 Elements found:', {
+        character: !!character,
+        statusIndicator: !!statusIndicator,
+        statusTextEl: !!statusTextEl,
+        characterLayer: !!characterLayer
+    });
+    
+    if (!character || !statusIndicator || !statusTextEl) {
+        console.error('❌ Missing required elements!');
+        return;
+    }
+    
+    // Remove all state classes
+    character.className = 'cursy-character';
+    statusIndicator.className = 'status-indicator';
+    
+    // Remove any existing bubbles (check both characterLayer and roomContainer)
+    const existingBubbles = document.querySelectorAll('.cursy-bubble');
+    console.log('🗑️ Removing', existingBubbles.length, 'existing bubbles');
+    existingBubbles.forEach(bubble => bubble.remove());
+    
+    // Don't clear props - keep wall decorations visible!
+    // Props are part of the room, not the character state
+    
+    cursyState = newState;
+    
+    switch (newState) {
+        case 'idle':
+            character.classList.add('idle');
+            statusIndicator.classList.add('active');
+            statusTextEl.textContent = statusText || 'Ready to help!';
+            startCursyAnimation('idle');
+            break;
+            
+        case 'thinking':
+            character.classList.add('thinking');
+            statusIndicator.classList.add('thinking');
+            statusTextEl.textContent = statusText || 'Thinking...';
+            startCursyAnimation('idle'); // Use idle animation for thinking
+            
+            // Add thought bubble with animated dots
+            if (roomContainer && character) {
+                console.log('💭 Creating thought bubble...');
+                const thoughtBubble = document.createElement('div');
+                thoughtBubble.className = 'cursy-bubble thought';
+                const thinkingDots = document.createElement('div');
+                thinkingDots.className = 'thinking-dots';
+                thinkingDots.innerHTML = '<span></span><span></span><span></span>';
+                thoughtBubble.appendChild(thinkingDots);
+                roomContainer.appendChild(thoughtBubble);
+                
+                // Position bubble relative to character (offset slightly to the right)
+                const charRect = character.getBoundingClientRect();
+                const containerRect = roomContainer.getBoundingClientRect();
+                const charCenterX = charRect.left - containerRect.left + (charRect.width / 2);
+                thoughtBubble.style.left = (charCenterX + 10) + 'px'; // Offset 10px to the right
+                thoughtBubble.style.top = (charRect.top - containerRect.top - 60) + 'px';
+                
+                console.log('✅ Thought bubble appended and positioned');
+                console.log('📍 Character position:', { charRect, containerRect, charCenterX });
+                console.log('📍 Bubble position:', thoughtBubble.getBoundingClientRect());
+            } else {
+                console.error('❌ roomContainer or character not found for thought bubble!');
+            }
+            break;
+            
+        case 'typing':
+            character.classList.add('typing');
+            statusIndicator.classList.add('typing');
+            statusTextEl.textContent = statusText || 'Typing response...';
+            startCursyAnimation('typing');
+            break;
+            
+        case 'celebrating':
+            character.classList.add('celebrating');
+            statusIndicator.classList.add('active');
+            statusTextEl.textContent = statusText || 'Celebrating!';
+            startCursyAnimation('idle'); // Use idle animation for celebrating
+            
+            // Add green speech bubble with animated "YES!!!"
+            if (roomContainer && character) {
+                console.log('🎉 Creating celebrate bubble...');
+                const celebrateBubble = document.createElement('div');
+                celebrateBubble.className = 'cursy-bubble speech celebrate';
+                const celebrateText = document.createElement('div');
+                celebrateText.className = 'celebrate-exclamations';
+                celebrateText.innerHTML = '<span>Y</span><span>E</span><span>S</span><span>!</span><span>!</span><span>!</span>';
+                celebrateBubble.appendChild(celebrateText);
+                roomContainer.appendChild(celebrateBubble);
+                
+                // Position bubble relative to character (offset slightly to the right, same height as thought bubble)
+                const charRect = character.getBoundingClientRect();
+                const containerRect = roomContainer.getBoundingClientRect();
+                const charCenterX = charRect.left - containerRect.left + (charRect.width / 2);
+                celebrateBubble.style.left = (charCenterX + 10) + 'px'; // Offset 10px to the right
+                celebrateBubble.style.top = (charRect.top - containerRect.top - 60) + 'px'; // Same height as thought bubble
+                
+                console.log('✅ Celebrate bubble appended and positioned');
+                console.log('📍 Bubble position:', celebrateBubble.getBoundingClientRect());
+            } else {
+                console.error('❌ roomContainer or character not found for celebrate bubble!');
+            }
+            // Auto-return to idle after celebration
+            setTimeout(() => {
+                updateCursyState('idle', 'Ready to help!');
+            }, 2000);
+            break;
+            
+        case 'error':
+            character.classList.add('error');
+            statusIndicator.classList.add('error');
+            statusTextEl.textContent = statusText || 'Error occurred';
+            startCursyAnimation('typing'); // Use typing animation for error
+            
+            // Add red speech bubble with animated exclamation marks
+            if (roomContainer && character) {
+                console.log('🚨 Creating error bubble...');
+                const errorBubble = document.createElement('div');
+                errorBubble.className = 'cursy-bubble speech';
+                const errorExclamations = document.createElement('div');
+                errorExclamations.className = 'error-exclamations';
+                errorExclamations.innerHTML = '<span>!</span><span>!</span><span>!</span>';
+                errorBubble.appendChild(errorExclamations);
+                roomContainer.appendChild(errorBubble);
+                
+                // Position bubble relative to character (offset slightly to the right, same height as thought bubble)
+                const charRect = character.getBoundingClientRect();
+                const containerRect = roomContainer.getBoundingClientRect();
+                const charCenterX = charRect.left - containerRect.left + (charRect.width / 2);
+                errorBubble.style.left = (charCenterX + 10) + 'px'; // Offset 10px to the right
+                errorBubble.style.top = (charRect.top - containerRect.top - 60) + 'px'; // Same height as thought bubble
+                
+                console.log('✅ Error bubble appended and positioned');
+                console.log('📍 Bubble position:', errorBubble.getBoundingClientRect());
+            } else {
+                console.error('❌ roomContainer or character not found for error bubble!');
+            }
+            break;
+    }
+}
+
+// Build Cursy's Office Room
+// ============================================
+
+function buildCursyOffice() {
+    console.log('🔨 buildCursyOffice() called');
+    const floorLayer = document.getElementById('roomFloorLayer');
+    const wallLayer = document.getElementById('roomWallLayer');
+    const furnitureLayer = document.getElementById('roomFurnitureLayer');
+    const propsLayer = document.getElementById('roomPropsLayer');
+    
+    console.log('Layers:', { floorLayer, wallLayer, furnitureLayer, propsLayer });
+    
+    if (!floorLayer || !wallLayer || !furnitureLayer || !propsLayer) {
+        console.error('❌ Missing layers!', { floorLayer, wallLayer, furnitureLayer, propsLayer });
+        return;
+    }
+    
+    console.log('✅ All layers found, building office...');
+    
+    // Clear existing content
+    floorLayer.innerHTML = '';
+    wallLayer.innerHTML = '';
+    furnitureLayer.innerHTML = '';
+    propsLayer.innerHTML = '';
+    
+    // Use larger corner piece (lvngroom_wall02_COL03 - 150x135px, larger than COL02)
+    // This single image includes both walls and floor, perfectly aligned
+    // Since it includes the floor, put it in the floor layer
+    const roomCorner = document.createElement('img');
+    roomCorner.src = 'assets/cursy-office/room/lvngroom_wall02_COL03.png';
+    roomCorner.alt = 'Room Corner';
+    // Use natural size and scale up 2x for bigger room
+    roomCorner.style.position = 'absolute';
+    roomCorner.style.bottom = '0';
+    roomCorner.style.left = '50%';
+    roomCorner.style.transform = 'translateX(-50%)';
+    roomCorner.style.width = '300px'; // 2x the 150px original
+    roomCorner.style.height = 'auto'; // Maintain aspect ratio
+    roomCorner.onerror = () => {
+        // Fallback: create a colored div if image doesn't exist
+        roomCorner.style.display = 'none';
+        const fallback = document.createElement('div');
+        fallback.style.width = '100%';
+        fallback.style.height = '100%';
+        fallback.style.background = 'linear-gradient(to bottom, #f5f4f2 0%, #f5f4f2 60%, #8b6f47 60%, #8b6f47 100%)';
+        floorLayer.appendChild(fallback);
+    };
+    floorLayer.appendChild(roomCorner);
+    console.log('✅ Room corner added to floor layer');
+    
+    // Rug on the floor (double sized: 60x30 → 120x60)
+    const rug = document.createElement('img');
+    rug.src = 'assets/cursy-office/furniture/hmoff_rug01.png';
+    rug.alt = 'Rug';
+    rug.style.position = 'absolute';
+    rug.style.bottom = '40px'; // Positioned on the floor
+    rug.style.left = '50%'; // Center horizontally
+    rug.style.transform = 'translateX(-50%)'; // Center it
+    rug.style.width = '120px'; // Double size
+    rug.style.height = '60px'; // Double size
+    rug.onerror = () => {
+        rug.style.display = 'none';
+    };
+    floorLayer.appendChild(rug);
+    console.log('✅ Rug added to floor layer');
+    
+    // Bookcase in top right corner
+    const bookcase = document.createElement('img');
+    bookcase.src = 'assets/cursy-office/furniture/hmoff_bookshelf05.png';
+    bookcase.alt = 'Bookcase';
+    bookcase.style.position = 'absolute';
+    bookcase.style.top = '79px'; // User specified
+    bookcase.style.right = '120px'; // User specified
+    bookcase.onerror = () => {
+        bookcase.style.display = 'none';
+    };
+    furnitureLayer.appendChild(bookcase);
+    console.log('✅ Bookcase added to furniture layer');
+    
+    // Second desk with laptop and printer on the right side
+    const desk2 = document.createElement('img');
+    desk2.src = 'assets/cursy-office/furniture/hmoff_COL02.png';
+    desk2.alt = 'Desk with Laptop and Printer';
+    desk2.style.position = 'absolute';
+    desk2.style.top = '138px'; // User specified
+    desk2.style.right = '20px'; // User specified
+    desk2.onerror = () => {
+        desk2.style.display = 'none';
+    };
+    furnitureLayer.appendChild(desk2);
+    console.log('✅ Second desk added to furniture layer');
+    
+    // Gaming chair for the second desk
+    const gamingChair = document.createElement('img');
+    gamingChair.src = 'assets/cursy-office/furniture/hmoff_officeChair02.png';
+    gamingChair.alt = 'Gaming Chair';
+    gamingChair.style.position = 'absolute';
+    gamingChair.style.top = '147px'; // User specified
+    gamingChair.style.right = '56px'; // User specified
+    gamingChair.onerror = () => {
+        gamingChair.style.display = 'none';
+    };
+    furnitureLayer.appendChild(gamingChair);
+    console.log('✅ Gaming chair added to furniture layer');
+    
+    // First armchair - right wall next to the bookcase
+    const armchair1 = document.createElement('img');
+    armchair1.src = 'assets/cursy-office/furniture/hmoff_armchair.png';
+    armchair1.alt = 'Armchair';
+    armchair1.style.position = 'absolute';
+    armchair1.style.top = '116px'; // User specified
+    armchair1.style.right = '91px'; // User specified
+    armchair1.onerror = () => {
+        armchair1.style.display = 'none';
+    };
+    furnitureLayer.appendChild(armchair1);
+    console.log('✅ First armchair added to furniture layer');
+    
+    // Second armchair - bottom on the back wall (invisible wall)
+    const armchair2 = document.createElement('img');
+    armchair2.src = 'assets/cursy-office/furniture/hmoff_armchair_bCOL.png';
+    armchair2.alt = 'Armchair Back Wall';
+    armchair2.style.position = 'absolute';
+    armchair2.style.bottom = '10px'; // User specified
+    armchair2.style.left = '55%'; // User specified
+    armchair2.style.transform = 'translateX(-50%)'; // Center it
+    armchair2.onerror = () => {
+        armchair2.style.display = 'none';
+    };
+    furnitureLayer.appendChild(armchair2);
+    console.log('✅ Second armchair added to furniture layer');
+    
+    // Couch for the back wall
+    const couch = document.createElement('img');
+    couch.src = 'assets/cursy-office/furniture/lvngroom_couch_b.png';
+    couch.alt = 'Couch';
+    couch.style.position = 'absolute';
+    couch.style.bottom = '30px'; // User specified
+    couch.style.left = '61%'; // User specified
+    couch.onerror = () => {
+        couch.style.display = 'none';
+    };
+    furnitureLayer.appendChild(couch);
+    console.log('✅ Couch added to furniture layer');
+    
+    // Record player/entertainment system next to Cursy (on the left side)
+    const recordPlayer = document.createElement('img');
+    recordPlayer.src = 'assets/cursy-office/furniture/lvngroom_rack06.png';
+    recordPlayer.alt = 'Record Player Entertainment System';
+    recordPlayer.style.position = 'absolute';
+    recordPlayer.style.bottom = '25%'; // User specified
+    recordPlayer.style.left = '1%'; // User specified
+    recordPlayer.onerror = () => {
+        recordPlayer.style.display = 'none';
+    };
+    furnitureLayer.appendChild(recordPlayer);
+    console.log('✅ Record player added to furniture layer');
+    
+    // Table in the middle of the room
+    const table = document.createElement('img');
+    table.src = 'assets/cursy-office/furniture/lvngroom_rack05.png';
+    table.alt = 'Table';
+    table.style.position = 'absolute';
+    table.style.bottom = '43px'; // User specified
+    table.style.left = '55%'; // User specified
+    table.style.transform = 'translateX(-50%)'; // Center it
+    table.onerror = () => {
+        table.style.display = 'none';
+    };
+    furnitureLayer.appendChild(table);
+    console.log('✅ Table added to furniture layer');
+    
+    // Old TV on the table (or next to it)
+    const oldTV = document.createElement('img');
+    oldTV.src = 'assets/cursy-office/furniture/lvngroom_oldtv2.png';
+    oldTV.alt = 'Old TV';
+    oldTV.style.position = 'absolute';
+    oldTV.style.bottom = '67px'; // User specified
+    oldTV.style.left = '55%'; // User specified
+    oldTV.style.transform = 'translateX(-50%)'; // Center it
+    oldTV.onerror = () => {
+        oldTV.style.display = 'none';
+    };
+    furnitureLayer.appendChild(oldTV);
+    console.log('✅ Old TV added to furniture layer');
+    
+    // Note: Main desk/computer is part of the character animation sprites, no separate asset needed
+    
+    // Add wall decorations on the left wall - positions adjusted for 270px room height (was 400px)
+    // Corkboard with pinned notes
+    const corkboard = document.createElement('img');
+    corkboard.src = 'assets/cursy-office/props/pinnednote03.png';
+    corkboard.alt = 'Corkboard';
+    corkboard.style.position = 'absolute';
+    corkboard.style.top = '95px'; // Adjusted for 270px room height
+    corkboard.style.left = '10px'; // User specified
+    corkboard.onerror = () => {
+        corkboard.style.display = 'none';
+    };
+    propsLayer.appendChild(corkboard);
+    
+    // Abstract poster
+    const poster = document.createElement('img');
+    poster.src = 'assets/cursy-office/props/assortedposters01.png';
+    poster.alt = 'Poster';
+    poster.style.position = 'absolute';
+    poster.style.top = '81px'; // Adjusted for 270px room height
+    poster.style.left = '40px'; // User specified
+    poster.onerror = () => {
+        poster.style.display = 'none';
+    };
+    propsLayer.appendChild(poster);
+    
+    // Framed painting - wallFrame03 (double sized: 12x24 → 24x48)
+    const wallFrame = document.createElement('img');
+    wallFrame.src = 'assets/cursy-office/props/wallFrame03.png';
+    wallFrame.alt = 'Framed Painting';
+    wallFrame.style.position = 'absolute';
+    wallFrame.style.top = '64px'; // Adjusted for 270px room height
+    wallFrame.style.left = '82px'; // User specified
+    wallFrame.style.width = '24px'; // Double size (12x24 → 24x48)
+    wallFrame.style.height = '48px';
+    wallFrame.onerror = () => {
+        wallFrame.style.display = 'none';
+    };
+    propsLayer.appendChild(wallFrame);
+    
+    // Framed painting - caretakerframe03
+    const caretakerFrame = document.createElement('img');
+    caretakerFrame.src = 'assets/cursy-office/props/caretakerframe03.png';
+    caretakerFrame.alt = 'Framed Art';
+    caretakerFrame.style.position = 'absolute';
+    caretakerFrame.style.top = '61px'; // Adjusted for 270px room height
+    caretakerFrame.style.left = '119px'; // User specified
+    caretakerFrame.onerror = () => {
+        caretakerFrame.style.display = 'none';
+    };
+    propsLayer.appendChild(caretakerFrame);
+    
+    // Add wall decorations on the right wall - positions adjusted for 270px room height (was 400px)
+    // LOVE Poster (swapped - should be where I < U Banner was)
+    const lovePoster = document.createElement('img');
+    lovePoster.src = 'assets/cursy-office/props/wallFrame09.png';
+    lovePoster.alt = 'LOVE Poster';
+    lovePoster.style.position = 'absolute';
+    lovePoster.style.top = '90px'; // Adjusted for 270px room height
+    lovePoster.style.right = '10px'; // User specified
+    lovePoster.onerror = () => {
+        lovePoster.style.display = 'none';
+    };
+    propsLayer.appendChild(lovePoster);
+    
+    // Clock
+    const clock = document.createElement('img');
+    clock.src = 'assets/cursy-office/props/clock02.png';
+    clock.alt = 'Clock';
+    clock.style.position = 'absolute';
+    clock.style.top = '78px'; // Adjusted for 270px room height
+    clock.style.right = '66px'; // User specified
+    clock.onerror = () => {
+        clock.style.display = 'none';
+    };
+    propsLayer.appendChild(clock);
+    
+    // Vintage mirror (double sized: 8x22 → 16x44)
+    const mirror = document.createElement('img');
+    mirror.src = 'assets/cursy-office/props/mirrorvintage02.png';
+    mirror.alt = 'Mirror';
+    mirror.style.position = 'absolute';
+    mirror.style.top = '95px'; // Adjusted for 270px room height
+    mirror.style.right = '44px'; // User specified
+    mirror.style.width = '16px'; // Double size (8x22 → 16x44)
+    mirror.style.height = '44px';
+    mirror.onerror = () => {
+        mirror.style.display = 'none';
+    };
+    propsLayer.appendChild(mirror);
+    
+    // I < U Banner (swapped - should be where LOVE Poster was)
+    const iLoveUBanner = document.createElement('img');
+    iLoveUBanner.src = 'assets/cursy-office/props/wallFrame11.png';
+    iLoveUBanner.alt = 'I < U Banner';
+    iLoveUBanner.style.position = 'absolute';
+    iLoveUBanner.style.top = '105px'; // Adjusted for 270px room height
+    iLoveUBanner.style.right = '18px'; // User specified
+    iLoveUBanner.onerror = () => {
+        iLoveUBanner.style.display = 'none';
+    };
+    propsLayer.appendChild(iLoveUBanner);
+    
+    // New right wall decorations (flipped in MS Paint for right wall)
+    // Wall Frame 12
+    const wallFrame12 = document.createElement('img');
+    wallFrame12.src = 'assets/cursy-office/props/wallFrame12COL.png';
+    wallFrame12.alt = 'Wall Frame 12';
+    wallFrame12.style.position = 'absolute';
+    wallFrame12.style.top = '112px'; // User specified
+    wallFrame12.style.right = '5px'; // User specified
+    wallFrame12.onerror = () => {
+        wallFrame12.style.display = 'none';
+    };
+    propsLayer.appendChild(wallFrame12);
+    
+    // Assorted Posters 02
+    const assortedPosters02 = document.createElement('img');
+    assortedPosters02.src = 'assets/cursy-office/props/assortedposters02.png';
+    assortedPosters02.alt = 'Assorted Posters 02';
+    assortedPosters02.style.position = 'absolute';
+    assortedPosters02.style.top = '58px'; // User specified
+    assortedPosters02.style.right = '50px'; // User specified
+    assortedPosters02.onerror = () => {
+        assortedPosters02.style.display = 'none';
+    };
+    propsLayer.appendChild(assortedPosters02);
+    
+    // Caretaker Frame 05
+    const caretakerFrame05 = document.createElement('img');
+    caretakerFrame05.src = 'assets/cursy-office/props/caretakerframe05.png';
+    caretakerFrame05.alt = 'Caretaker Frame 05';
+    caretakerFrame05.style.position = 'absolute';
+    caretakerFrame05.style.top = '96px'; // User specified
+    caretakerFrame05.style.right = '70px'; // User specified
+    caretakerFrame05.onerror = () => {
+        caretakerFrame05.style.display = 'none';
+    };
+    propsLayer.appendChild(caretakerFrame05);
+    
+    // Pinned Note 01
+    const pinnedNote01 = document.createElement('img');
+    pinnedNote01.src = 'assets/cursy-office/props/pinnednote01.png';
+    pinnedNote01.alt = 'Pinned Note 01';
+    pinnedNote01.style.position = 'absolute';
+    pinnedNote01.style.top = '58px'; // User specified
+    pinnedNote01.style.right = '90px'; // User specified
+    pinnedNote01.onerror = () => {
+        pinnedNote01.style.display = 'none';
+    };
+    propsLayer.appendChild(pinnedNote01);
+    
+    console.log('✅ Props added:', propsLayer.children.length);
+}
+
+// Initialize Cursy to idle state
+function initCursyVisualization() {
+    const cursyVisualization = document.getElementById('cursyVisualization');
+    // Rebuild office if visualization is visible on load
+    if (cursyVisualization && cursyVisualization.style.display !== 'none') {
+        buildCursyOffice();
+    }
+    updateCursyState('idle', 'Ready to help!');
+}
+
+// ============================================
+// Toast Notification System
+// ============================================
+
+function showToast(message, type = 'info', duration = 3000) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    const icons = {
+        success: '✅',
+        error: '❌',
+        warning: '⚠️',
+        info: 'ℹ️'
+    };
+    
+    toast.innerHTML = `
+        <span class="toast-icon">${icons[type] || icons.info}</span>
+        <span class="toast-message">${escapeHtml(message)}</span>
+        <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+    `;
+    
+    container.appendChild(toast);
+    
+    // Auto-remove after duration
+    if (duration > 0) {
+        setTimeout(() => {
+            toast.classList.add('slide-out');
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }, duration);
+    }
+}
+
+// Expose globally for easy access
+window.showToast = showToast;
 
 async function handleOpenProject() {
     console.log('handleOpenProject called');
@@ -444,6 +1357,9 @@ async function handleOpenProject() {
 
 async function loadProject(projectPath) {
     state.currentProject = { path: projectPath };
+    // Clear undo stack when loading a new project
+    state.undoStack = [];
+    updateUndoUI();
     localStorage.setItem('vibe-ide-last-project', projectPath);
     saveToRecentProjects(projectPath);
     
@@ -477,6 +1393,12 @@ async function loadProject(projectPath) {
         console.error('Error loading project config:', error);
     }
     
+    // Load Agent_Persona.md if it exists
+    await loadAgentPersona(projectPath);
+    
+    // Load PROJECT_JOURNAL.md if it exists
+    await loadProjectJournal(projectPath);
+    
     await loadProjectFiles(projectPath);
 }
 
@@ -486,6 +1408,8 @@ async function loadProjectFiles(projectPath) {
         if (result.success) {
             const files = buildFileTree(result.files);
             renderFileTree(files);
+            const projectName = projectPath.split(/[/\\]/).pop();
+            showToast(`Project loaded: ${projectName}`, 'success', 2000);
         } else {
             alert('Error loading project files: ' + result.error);
         }
@@ -846,6 +1770,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load recent projects
     loadRecentProjects();
     
+    // Initialize OpenAI client
+    setTimeout(() => {
+        initOpenAI();
+    }, 500);
+    
     // Apply saved theme
     if (state.theme === 'light') {
         document.body.className = 'light-theme';
@@ -947,6 +1876,32 @@ document.addEventListener('DOMContentLoaded', () => {
     if (settingsBtn) {
         settingsBtn.addEventListener('click', () => showJournalSettingsModal());
     }
+    
+    // Undo button
+    const undoBtn = document.getElementById('btnUndo');
+    if (undoBtn) {
+        undoBtn.addEventListener('click', undoLastOperation);
+        updateUndoUI(); // Initialize UI state
+    }
+    
+    // Keyboard shortcut for undo (Ctrl+Z / Cmd+Z)
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+            // Only trigger if not in an input/textarea (to avoid interfering with editor undo)
+            const activeElement = document.activeElement;
+            if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+                // Check if it's the chat input - allow undo for file operations
+                if (activeElement.id === 'chatInput') {
+                    e.preventDefault();
+                    undoLastOperation();
+                }
+                // Otherwise let the default editor undo work
+            } else {
+                e.preventDefault();
+                undoLastOperation();
+            }
+        }
+    });
     
     const genreBtn = document.getElementById('btnGenreRules');
     if (genreBtn) {
@@ -1183,7 +2138,10 @@ function renderTabs() {
         const tabElement = document.createElement('div');
         tabElement.className = `tab ${tab.id === state.activeTab ? 'active' : ''}`;
         tabElement.setAttribute('data-tab-id', tab.id);
+        tabElement.setAttribute('title', tab.path); // Tooltip with full path
+        const fileIcon = getFileIcon(tab.name);
         tabElement.innerHTML = `
+            <span class="tab-icon">${fileIcon}</span>
             <span class="tab-title">${tab.name}${tab.isDirty ? ' *' : ''}</span>
             <span class="tab-close" data-tab-close="${tab.id}">×</span>
         `;
@@ -1323,7 +2281,9 @@ function getLanguageFromFileName(fileName) {
 
 // File Tree Functions
 function renderFileTree(files) {
-    const fileTreeContainer = document.querySelector('.file-tree');
+    const fileTreeContainer = document.getElementById('fileTreeContainer') || document.querySelector('.file-tree');
+    if (!fileTreeContainer) return;
+    
     fileTreeContainer.innerHTML = '';
     
     if (!files || files.length === 0) {
@@ -1335,12 +2295,17 @@ function renderFileTree(files) {
         const treeItem = createTreeItem(file);
         fileTreeContainer.appendChild(treeItem);
     });
+    
+    // Initialize search and context menu
+    initFileTreeFeatures();
 }
 
-function createTreeItem(file) {
+function createTreeItem(file, level = 0) {
     const item = document.createElement('div');
     item.className = `tree-item ${file.type}`;
     item.setAttribute('data-path', file.path);
+    item.setAttribute('data-name', file.name);
+    item.setAttribute('data-level', level);
     
     const icon = file.type === 'folder' ? '📁' : getFileIcon(file.name);
     
@@ -1349,15 +2314,38 @@ function createTreeItem(file) {
         <span class="tree-label">${file.name}</span>
     `;
     
+    // Add children container if folder has children
+    if (file.type === 'folder' && file.children && file.children.length > 0) {
+        const childrenContainer = document.createElement('div');
+        childrenContainer.className = 'tree-children';
+        file.children.forEach(child => {
+            const childItem = createTreeItem(child, level + 1);
+            childrenContainer.appendChild(childItem);
+        });
+        item.appendChild(childrenContainer);
+        item.classList.add('collapsed');
+    }
+    
+    // Left click handlers
     if (file.type === 'file') {
-        item.addEventListener('click', () => {
-            openFile(file.path, file.name);
+        item.addEventListener('click', (e) => {
+            if (!e.ctrlKey && !e.metaKey) {
+                openFile(file.path, file.name);
+            }
         });
     } else if (file.type === 'folder') {
-        item.addEventListener('click', () => {
-            toggleFolder(item);
+        item.addEventListener('click', (e) => {
+            if (!e.ctrlKey && !e.metaKey) {
+                toggleFolder(item);
+            }
         });
     }
+    
+    // Right click for context menu
+    item.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        showContextMenu(e, file);
+    });
     
     return item;
 }
@@ -1365,27 +2353,549 @@ function createTreeItem(file) {
 function getFileIcon(fileName) {
     const ext = fileName.split('.').pop().toLowerCase();
     const iconMap = {
-        'js': '📄',
+        // Code files
+        'js': '📜',
+        'jsx': '⚛️',
+        'ts': '📘',
+        'tsx': '⚛️',
         'json': '📋',
         'html': '🌐',
+        'htm': '🌐',
         'css': '🎨',
+        'scss': '🎨',
+        'sass': '🎨',
+        'less': '🎨',
         'md': '📝',
+        'mdx': '📝',
+        'py': '🐍',
+        'java': '☕',
+        'cpp': '⚙️',
+        'c': '⚙️',
+        'cs': '🔷',
+        'php': '🐘',
+        'rb': '💎',
+        'go': '🐹',
+        'rs': '🦀',
+        'swift': '🐦',
+        'kt': '🔷',
+        'sh': '💻',
+        'bat': '💻',
+        'ps1': '💻',
+        // Images
         'png': '🖼️',
         'jpg': '🖼️',
         'jpeg': '🖼️',
         'gif': '🖼️',
         'svg': '🖼️',
+        'webp': '🖼️',
+        'ico': '🖼️',
+        // Audio
         'mp3': '🔊',
         'wav': '🔊',
-        'ogg': '🔊'
+        'ogg': '🔊',
+        'flac': '🔊',
+        // Video
+        'mp4': '🎬',
+        'avi': '🎬',
+        'mov': '🎬',
+        'webm': '🎬',
+        // Documents
+        'pdf': '📕',
+        'doc': '📘',
+        'docx': '📘',
+        'txt': '📄',
+        'rtf': '📄',
+        // Data
+        'xml': '📄',
+        'yaml': '📄',
+        'yml': '📄',
+        'toml': '📄',
+        'ini': '⚙️',
+        'config': '⚙️',
+        // Archives
+        'zip': '📦',
+        'rar': '📦',
+        '7z': '📦',
+        'tar': '📦',
+        'gz': '📦',
+        // Other
+        'lock': '🔒',
+        'gitignore': '🚫',
+        'env': '🔐',
+        'log': '📋'
     };
     return iconMap[ext] || '📄';
 }
 
 function toggleFolder(item) {
     item.classList.toggle('expanded');
-    // TODO: Load folder contents when expanded
+    item.classList.toggle('collapsed');
+    
+    // Update icon rotation
+    const icon = item.querySelector('.tree-icon');
+    if (icon) {
+        if (item.classList.contains('expanded')) {
+            icon.style.transform = 'rotate(90deg)';
+        } else {
+            icon.style.transform = 'rotate(0deg)';
+        }
+    }
 }
+
+// File Tree Features: Search and Context Menu
+let currentContextFile = null;
+
+function initFileTreeFeatures() {
+    // File tree search
+    const searchInput = document.getElementById('fileTreeSearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            filterFileTree(e.target.value);
+        });
+        
+        // Clear search on Escape
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                e.target.value = '';
+                filterFileTree('');
+            }
+        });
+    }
+    
+    // Close context menu on click outside
+    document.addEventListener('click', (e) => {
+        const contextMenu = document.getElementById('fileTreeContextMenu');
+        if (contextMenu && !contextMenu.contains(e.target)) {
+            contextMenu.style.display = 'none';
+            currentContextFile = null;
+        }
+    });
+    
+    // Context menu actions
+    setupContextMenuActions();
+}
+
+function filterFileTree(searchTerm) {
+    const items = document.querySelectorAll('.tree-item');
+    const term = searchTerm.toLowerCase().trim();
+    
+    if (!term) {
+        items.forEach(item => {
+            item.classList.remove('hidden');
+            // Show parent folders if child matches
+            let parent = item.parentElement;
+            while (parent && parent.classList.contains('tree-children')) {
+                parent.style.display = '';
+                parent = parent.parentElement;
+            }
+        });
+        return;
+    }
+    
+    items.forEach(item => {
+        const name = (item.getAttribute('data-name') || '').toLowerCase();
+        const matches = name.includes(term);
+        
+        if (matches) {
+            item.classList.remove('hidden');
+            // Show parent folders
+            let parent = item.parentElement;
+            while (parent && parent.classList.contains('tree-children')) {
+                parent.style.display = '';
+                const parentItem = parent.parentElement;
+                if (parentItem && parentItem.classList.contains('tree-item')) {
+                    parentItem.classList.add('expanded');
+                    parentItem.classList.remove('collapsed');
+                    const icon = parentItem.querySelector('.tree-icon');
+                    if (icon) icon.style.transform = 'rotate(90deg)';
+                }
+                parent = parent.parentElement;
+            }
+        } else {
+            // Check if any children match
+            const children = item.querySelectorAll('.tree-item');
+            const hasMatchingChild = Array.from(children).some(child => {
+                const childName = (child.getAttribute('data-name') || '').toLowerCase();
+                return childName.includes(term);
+            });
+            
+            if (hasMatchingChild) {
+                item.classList.remove('hidden');
+                item.classList.add('expanded');
+                item.classList.remove('collapsed');
+                const icon = item.querySelector('.tree-icon');
+                if (icon) icon.style.transform = 'rotate(90deg)';
+            } else {
+                item.classList.add('hidden');
+            }
+        }
+    });
+}
+
+function showContextMenu(e, file) {
+    const contextMenu = document.getElementById('fileTreeContextMenu');
+    if (!contextMenu) return;
+    
+    currentContextFile = file;
+    
+    // Position menu
+    contextMenu.style.display = 'block';
+    contextMenu.style.left = e.pageX + 'px';
+    contextMenu.style.top = e.pageY + 'px';
+    
+    // Show/hide menu items based on file type
+    const newFileBtn = document.getElementById('ctxNewFile');
+    const newFolderBtn = document.getElementById('ctxNewFolder');
+    const renameBtn = document.getElementById('ctxRename');
+    const deleteBtn = document.getElementById('ctxDelete');
+    const copyPathBtn = document.getElementById('ctxCopyPath');
+    
+    if (file.type === 'folder') {
+        // For folders, show new file/folder options
+        if (newFileBtn) newFileBtn.style.display = 'flex';
+        if (newFolderBtn) newFolderBtn.style.display = 'flex';
+    } else {
+        // For files, hide new file/folder options
+        if (newFileBtn) newFileBtn.style.display = 'none';
+        if (newFolderBtn) newFolderBtn.style.display = 'none';
+    }
+}
+
+function setupContextMenuActions() {
+    const ctxNewFile = document.getElementById('ctxNewFile');
+    const ctxNewFolder = document.getElementById('ctxNewFolder');
+    const ctxRename = document.getElementById('ctxRename');
+    const ctxDelete = document.getElementById('ctxDelete');
+    const ctxCopyPath = document.getElementById('ctxCopyPath');
+    
+    if (ctxNewFile) {
+        ctxNewFile.addEventListener('click', () => {
+            handleNewFile();
+        });
+    }
+    
+    if (ctxNewFolder) {
+        ctxNewFolder.addEventListener('click', () => {
+            handleNewFolder();
+        });
+    }
+    
+    if (ctxRename) {
+        ctxRename.addEventListener('click', () => {
+            handleRenameFile();
+        });
+    }
+    
+    if (ctxDelete) {
+        ctxDelete.addEventListener('click', () => {
+            handleDeleteFile();
+        });
+    }
+    
+    if (ctxCopyPath) {
+        ctxCopyPath.addEventListener('click', () => {
+            handleCopyPath();
+        });
+    }
+}
+
+async function handleNewFile() {
+    if (!currentContextFile || !state.currentProject) return;
+    const folderPath = currentContextFile.type === 'folder' ? currentContextFile.path : 
+                      currentContextFile.path.split(/[/\\]/).slice(0, -1).join('/');
+    
+    const fileName = prompt('Enter file name:');
+    if (!fileName) return;
+    
+    // Normalize path separators
+    const normalizedFolderPath = folderPath.replace(/\\/g, '/');
+    const filePath = normalizedFolderPath + (normalizedFolderPath.endsWith('/') ? '' : '/') + fileName;
+    
+    try {
+        const result = await window.electronAPI.createFile(filePath, '');
+        if (result.success) {
+            showToast(`File "${fileName}" created!`, 'success');
+            // Refresh file tree
+            await loadProjectFiles(state.currentProject.path);
+        } else {
+            showToast(result.error || 'Failed to create file', 'error');
+        }
+    } catch (error) {
+        showToast('Failed to create file: ' + error.message, 'error');
+    }
+}
+
+async function handleNewFolder() {
+    if (!currentContextFile || !state.currentProject) return;
+    const folderPath = currentContextFile.type === 'folder' ? currentContextFile.path : 
+                      currentContextFile.path.split(/[/\\]/).slice(0, -1).join('/');
+    
+    const folderName = prompt('Enter folder name:');
+    if (!folderName) return;
+    
+    // Normalize path separators
+    const normalizedFolderPath = folderPath.replace(/\\/g, '/');
+    const newFolderPath = normalizedFolderPath + (normalizedFolderPath.endsWith('/') ? '' : '/') + folderName;
+    
+    try {
+        const result = await window.electronAPI.createFolder(newFolderPath);
+        if (result.success) {
+            showToast(`Folder "${folderName}" created!`, 'success');
+            // Refresh file tree
+            await loadProjectFiles(state.currentProject.path);
+        } else {
+            showToast(result.error || 'Failed to create folder', 'error');
+        }
+    } catch (error) {
+        showToast('Failed to create folder: ' + error.message, 'error');
+    }
+}
+
+async function handleRenameFile() {
+    if (!currentContextFile || !state.currentProject) return;
+    
+    const oldPath = currentContextFile.path;
+    const oldName = currentContextFile.name;
+    const parentPath = oldPath.split(/[/\\]/).slice(0, -1).join('/');
+    
+    const newName = prompt('Enter new name:', oldName);
+    if (!newName || newName === oldName) return;
+    
+    // Normalize path separators
+    const normalizedParentPath = parentPath.replace(/\\/g, '/');
+    const newPath = normalizedParentPath + (normalizedParentPath.endsWith('/') ? '' : '/') + newName;
+    
+    try {
+        const result = await window.electronAPI.renameFile(oldPath, newPath);
+        if (result.success) {
+            // Store undo operation
+            state.undoStack = [{
+                type: 'rename',
+                oldPath: oldPath,
+                newPath: newPath,
+                oldName: oldName,
+                newName: newName
+            }];
+            updateUndoUI();
+            
+            showToast(`Renamed "${oldName}" to "${newName}"`, 'success', 3000);
+            
+            // Close file if it was open in a tab
+            const tab = state.openTabs.find(t => t.path === oldPath);
+            if (tab) {
+                tab.path = newPath;
+                tab.name = newName;
+                renderTabs();
+            }
+            
+            // Refresh file tree
+            await loadProjectFiles(state.currentProject.path);
+        } else {
+            showToast(result.error || 'Failed to rename', 'error');
+        }
+    } catch (error) {
+        showToast('Failed to rename: ' + error.message, 'error');
+    }
+}
+
+async function handleDeleteFile() {
+    if (!currentContextFile || !state.currentProject) return;
+    
+    const filePath = currentContextFile.path;
+    const fileName = currentContextFile.name;
+    const isDirectory = currentContextFile.type === 'folder';
+    
+    const confirmMsg = isDirectory 
+        ? `Delete folder "${fileName}" and all its contents?`
+        : `Delete file "${fileName}"?`;
+    
+    if (!confirm(confirmMsg)) return;
+    
+    try {
+        // For files, read content before deleting for undo
+        let content = null;
+        if (!isDirectory) {
+            try {
+                const readResult = await window.electronAPI.readFile(filePath);
+                if (readResult.success) {
+                    content = readResult.content;
+                }
+            } catch (e) {
+                console.warn('Could not read file for undo:', e);
+            }
+        }
+        
+        const result = await window.electronAPI.deleteFile(filePath);
+        if (result.success) {
+            // Store undo operation
+            state.undoStack = [{
+                type: 'delete',
+                filePath: filePath,
+                fileName: fileName,
+                content: content,
+                isDirectory: isDirectory
+            }];
+            updateUndoUI();
+            
+            showToast(`${isDirectory ? 'Folder' : 'File'} "${fileName}" deleted`, 'success', 3000);
+            
+            // Close file if it was open in a tab
+            const tabIndex = state.openTabs.findIndex(t => t.path === filePath);
+            if (tabIndex !== -1) {
+                state.openTabs.splice(tabIndex, 1);
+                if (state.activeTab === filePath) {
+                    state.activeTab = state.openTabs.length > 0 ? state.openTabs[0].id : null;
+                }
+                renderTabs();
+                if (state.activeTab) {
+                    switchToTab(state.activeTab);
+                } else {
+                    document.getElementById('monacoEditor').style.display = 'none';
+                    document.getElementById('welcomeScreen').style.display = 'block';
+                }
+            }
+            
+            // Refresh file tree
+            await loadProjectFiles(state.currentProject.path);
+        } else {
+            showToast(result.error || 'Failed to delete', 'error');
+        }
+    } catch (error) {
+        showToast('Failed to delete: ' + error.message, 'error');
+    }
+}
+
+function handleCopyPath() {
+    if (!currentContextFile) return;
+    
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(currentContextFile.path).then(() => {
+            showToast('Path copied to clipboard!', 'success', 2000);
+        }).catch(() => {
+            showToast('Failed to copy path', 'error', 2000);
+        });
+    } else {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = currentContextFile.path;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            showToast('Path copied to clipboard!', 'success', 2000);
+        } catch (e) {
+            showToast('Failed to copy path', 'error', 2000);
+        }
+        document.body.removeChild(textArea);
+    }
+    
+    // Close context menu
+    const contextMenu = document.getElementById('fileTreeContextMenu');
+    if (contextMenu) {
+        contextMenu.style.display = 'none';
+        currentContextFile = null;
+    }
+}
+
+// Undo functionality
+function updateUndoUI() {
+    const undoBtn = document.getElementById('btnUndo');
+    if (!undoBtn) return;
+    
+    if (state.undoStack.length > 0) {
+        const lastOp = state.undoStack[0];
+        let tooltip = 'Undo: ';
+        if (lastOp.type === 'rename') {
+            tooltip += `Rename "${lastOp.newName}" back to "${lastOp.oldName}"`;
+        } else if (lastOp.type === 'delete') {
+            tooltip += `Restore ${lastOp.isDirectory ? 'folder' : 'file'} "${lastOp.fileName}"`;
+        }
+        undoBtn.disabled = false;
+        undoBtn.title = tooltip;
+    } else {
+        undoBtn.disabled = true;
+        undoBtn.title = 'No file operations to undo';
+    }
+}
+
+async function undoLastOperation() {
+    if (state.undoStack.length === 0 || !state.currentProject) {
+        showToast('Nothing to undo', 'info');
+        return;
+    }
+    
+    const operation = state.undoStack[0];
+    
+    try {
+        if (operation.type === 'rename') {
+            // Undo rename: rename newPath back to oldPath
+            const result = await window.electronAPI.renameFile(operation.newPath, operation.oldPath);
+            if (result.success) {
+                showToast(`Undone: Renamed "${operation.newName}" back to "${operation.oldName}"`, 'success');
+                
+                // Update tab if file was open
+                const tab = state.openTabs.find(t => t.path === operation.newPath);
+                if (tab) {
+                    tab.path = operation.oldPath;
+                    tab.name = operation.oldName;
+                    renderTabs();
+                }
+                
+                // Clear undo stack (can't undo an undo)
+                state.undoStack = [];
+                updateUndoUI();
+                
+                // Refresh file tree
+                await loadProjectFiles(state.currentProject.path);
+            } else {
+                showToast('Failed to undo: ' + (result.error || 'Unknown error'), 'error');
+            }
+        } else if (operation.type === 'delete') {
+            // Undo delete: restore file/folder
+            if (operation.isDirectory) {
+                // For folders, just recreate (content restoration would be complex)
+                const result = await window.electronAPI.createFolder(operation.filePath);
+                if (result.success) {
+                    showToast(`Undone: Restored folder "${operation.fileName}"`, 'success');
+                    state.undoStack = [];
+                    updateUndoUI();
+                    await loadProjectFiles(state.currentProject.path);
+                } else {
+                    showToast('Failed to undo: ' + (result.error || 'Unknown error'), 'error');
+                }
+            } else {
+                // For files, restore with saved content
+                if (operation.content !== null) {
+                    const result = await window.electronAPI.createFile(operation.filePath, operation.content);
+                    if (result.success) {
+                        showToast(`Undone: Restored file "${operation.fileName}"`, 'success');
+                        state.undoStack = [];
+                        updateUndoUI();
+                        await loadProjectFiles(state.currentProject.path);
+                    } else {
+                        showToast('Failed to undo: ' + (result.error || 'Unknown error'), 'error');
+                    }
+                } else {
+                    // Content wasn't saved, just create empty file
+                    const result = await window.electronAPI.createFile(operation.filePath, '');
+                    if (result.success) {
+                        showToast(`Undone: Restored file "${operation.fileName}" (content may be lost)`, 'warning');
+                        state.undoStack = [];
+                        updateUndoUI();
+                        await loadProjectFiles(state.currentProject.path);
+                    } else {
+                        showToast('Failed to undo: ' + (result.error || 'Unknown error'), 'error');
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        showToast('Failed to undo: ' + error.message, 'error');
+    }
+}
+
+// Expose globally for potential onclick handlers
+window.undoLastOperation = undoLastOperation;
 
 async function openFile(filePath, fileName) {
     // Check if file is already open
@@ -3304,6 +4814,9 @@ function parseSimpleMarkdown(text) {
     // Escape HTML first to prevent XSS
     let html = escapeHtml(text);
     
+    // GIF embeds ([GIF:url]) - must be done before other markdown
+    html = html.replace(/\[GIF:(https?:\/\/[^\]]+)\]/g, '<img src="$1" class="chat-gif" alt="GIF" style="max-width: 200px; border-radius: 4px; margin: 4px 0;" />');
+    
     // Code blocks (```code```) - must be done before inline code
     html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
     
@@ -3321,8 +4834,8 @@ function parseSimpleMarkdown(text) {
     
     // Line breaks (double newline = paragraph, single = <br>)
     html = html.split(/\n\n+/).map(para => {
-        if (para.trim().startsWith('<pre') || para.trim().startsWith('<code')) {
-            return para; // Don't wrap code blocks
+        if (para.trim().startsWith('<pre') || para.trim().startsWith('<code') || para.trim().startsWith('<img')) {
+            return para; // Don't wrap code blocks or images
         }
         return '<p>' + para.replace(/\n/g, '<br>') + '</p>';
     }).join('');
@@ -3373,6 +4886,9 @@ function initChatInterface() {
             });
         }
         
+        // GIF picker initialization
+        initGifPicker();
+        
         // Formatting buttons
         formatBtns.forEach(btn => {
             btn.addEventListener('click', () => {
@@ -3420,12 +4936,190 @@ function initChatInterface() {
             });
         }
         
+        // Toggle Cursy visualization
+        const toggleCursyViz = document.getElementById('toggleCursyViz');
+        const cursyVisualization = document.getElementById('cursyVisualization');
+        if (toggleCursyViz && cursyVisualization) {
+            // Load saved preference
+            const savedVisibility = localStorage.getItem('vibe-ide-cursy-viz-visible');
+            const isVisible = savedVisibility !== 'false'; // Default to visible
+            cursyVisualization.style.display = isVisible ? 'block' : 'none';
+            toggleCursyViz.textContent = isVisible ? '👁️' : '👁️‍🗨️';
+            toggleCursyViz.title = isVisible ? 'Hide Cursy Visualization' : 'Show Cursy Visualization';
+            
+            toggleCursyViz.addEventListener('click', () => {
+                const isCurrentlyVisible = cursyVisualization.style.display !== 'none';
+                cursyVisualization.style.display = isCurrentlyVisible ? 'none' : 'block';
+                toggleCursyViz.textContent = isCurrentlyVisible ? '👁️‍🗨️' : '👁️';
+                toggleCursyViz.title = isCurrentlyVisible ? 'Show Cursy Visualization' : 'Hide Cursy Visualization';
+                localStorage.setItem('vibe-ide-cursy-viz-visible', (!isCurrentlyVisible).toString());
+                
+                // Rebuild office when visualization is shown
+                if (!isCurrentlyVisible) {
+                    console.log('🔄 Rebuilding office when visualization shown...');
+                    buildCursyOffice();
+                }
+            });
+            
+            // Allow right-click context menu on visualization area for element inspection
+            cursyVisualization.addEventListener('contextmenu', (e) => {
+                // Allow default browser context menu (Inspect Element) on visualization area
+                e.stopPropagation(); // Don't let it bubble up to document level
+                // Default context menu will show (Inspect Element, etc.)
+            });
+        }
+        
         // Update welcome message with genre context if available
         updateChatWelcomeMessage();
+        
+        // Initialize Cursy visualization
+        initCursyVisualization();
         
         console.log('Chat interface initialized successfully');
     } catch (e) {
         console.error('Error initializing chat interface:', e);
+    }
+}
+
+// GIF Picker functionality
+function initGifPicker() {
+    const gifPickerBtn = document.getElementById('gifPickerBtn');
+    const gifPickerModal = document.getElementById('gifPickerModal');
+    const gifPickerClose = document.getElementById('gifPickerClose');
+    const gifSearchInput = document.getElementById('gifSearchInput');
+    const gifSearchBtn = document.getElementById('gifSearchBtn');
+    const gifPickerResults = document.getElementById('gifPickerResults');
+    const gifSuggestionBtns = document.querySelectorAll('.gif-suggestion-btn');
+    const chatInput = document.getElementById('chatInput');
+    
+    if (!gifPickerBtn || !gifPickerModal) return;
+    
+    // Open GIF picker
+    gifPickerBtn.addEventListener('click', () => {
+        gifPickerModal.style.display = 'flex';
+        gifSearchInput.focus();
+    });
+    
+    // Close GIF picker
+    const closeGifPicker = () => {
+        gifPickerModal.style.display = 'none';
+    };
+    
+    if (gifPickerClose) {
+        gifPickerClose.addEventListener('click', closeGifPicker);
+    }
+    
+    // Close on background click
+    gifPickerModal.addEventListener('click', (e) => {
+        if (e.target === gifPickerModal) {
+            closeGifPicker();
+        }
+    });
+    
+    // Close on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && gifPickerModal.style.display === 'flex') {
+            closeGifPicker();
+        }
+    });
+    
+    // Search button
+    if (gifSearchBtn) {
+        gifSearchBtn.addEventListener('click', () => {
+            const query = gifSearchInput.value.trim();
+            if (query) {
+                searchGifs(query);
+            }
+        });
+    }
+    
+    // Search on Enter key
+    if (gifSearchInput) {
+        gifSearchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const query = gifSearchInput.value.trim();
+                if (query) {
+                    searchGifs(query);
+                }
+            }
+        });
+    }
+    
+    // Suggestion buttons
+    gifSuggestionBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const term = btn.dataset.term;
+            gifSearchInput.value = term;
+            searchGifs(term);
+        });
+    });
+    
+    // GIF search function
+    async function searchGifs(query) {
+        if (!gifPickerResults) return;
+        
+        // Show loading state
+        gifPickerResults.innerHTML = '<div class="gif-loading">🔍 Searching GIFs...</div>';
+        
+        try {
+            const apiKey = state.giphyApiKey;
+            const url = `https://api.giphy.com/v1/gifs/search?api_key=${apiKey}&q=${encodeURIComponent(query)}&limit=20&rating=g`;
+            
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            if (data.data && data.data.length > 0) {
+                gifPickerResults.innerHTML = '';
+                data.data.forEach(gif => {
+                    const gifItem = document.createElement('div');
+                    gifItem.className = 'gif-result-item';
+                    gifItem.title = gif.title || 'GIF';
+                    
+                    const img = document.createElement('img');
+                    img.src = gif.images.fixed_height_small.url;
+                    img.alt = gif.title || 'GIF';
+                    img.loading = 'lazy';
+                    
+                    gifItem.appendChild(img);
+                    gifItem.addEventListener('click', () => {
+                        // Insert GIF into chat
+                        const gifUrl = gif.images.original.url;
+                        const gifMarkdown = `[GIF:${gifUrl}]`;
+                        insertTextAtCursor(chatInput, gifMarkdown);
+                        closeGifPicker();
+                        chatInput.focus();
+                    });
+                    
+                    gifPickerResults.appendChild(gifItem);
+                });
+            } else {
+                gifPickerResults.innerHTML = '<div class="gif-error">No GIFs found. Try a different search term!</div>';
+            }
+        } catch (error) {
+            console.error('Error searching GIFs:', error);
+            gifPickerResults.innerHTML = '<div class="gif-error">Error searching GIFs. Please try again later.</div>';
+        }
+    }
+}
+
+// Get a random GIF from GIPHY for a given search term
+async function getRandomGif(searchTerm) {
+    try {
+        const apiKey = state.giphyApiKey;
+        const url = `https://api.giphy.com/v1/gifs/search?api_key=${apiKey}&q=${encodeURIComponent(searchTerm)}&limit=10&rating=g`;
+        
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.data && data.data.length > 0) {
+            // Pick a random GIF from the results
+            const randomIndex = Math.floor(Math.random() * data.data.length);
+            return data.data[randomIndex].images.original.url;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error fetching GIF:', error);
+        return null;
     }
 }
 
@@ -3541,23 +5235,513 @@ function updateChatWelcomeMessage() {
             `;
         } else {
             // Default welcome message (already set in HTML, but update if needed)
+            const aiStatus = state.useOpenAI && state.openaiClient ? '🟢 **AI Enabled**' : '🟡 **Offline Mode**';
             welcomeDiv.innerHTML = `
                 <p>👋 Hey! I'm <strong>Cursy</strong>, your AI coding buddy!</p>
-                <p>I'm currently in <strong>offline mode</strong> - but I can still help with:</p>
+                <p>Status: ${aiStatus}</p>
+                <p>I can help with:</p>
                 <ul style="text-align: left; margin: 10px 0; padding-left: 20px;">
                     <li>Code explanations (functions, variables, loops, arrays)</li>
-                    <li>Debugging tips</li>
+                    <li>Debugging tips and error fixing</li>
                     <li>Getting started with projects</li>
-                    <li>Learning the basics</li>
+                    <li>Learning the basics and advanced topics</li>
+                    <li>Any coding questions you have!</li>
                 </ul>
                 <p>Try asking: <em>"How do I create a function?"</em> or <em>"What is a variable?"</em> 😊</p>
-                <p style="font-size: 0.9em; opacity: 0.7; margin-top: 10px;">💡 Full AI chat coming soon when API credits are configured!</p>
+                <p style="font-size: 0.9em; opacity: 0.7; margin-top: 10px;">💡 ${state.useOpenAI && state.openaiClient ? 'AI chat is active! Ask me anything!' : 'AI chat will be available when API is configured!'}</p>
             `;
         }
     }
 }
 
-// Mock AI Response System (Offline Mode)
+// ============================================
+// Agent Persona & Project Journal Management
+// ============================================
+
+// Load Agent_Persona.md from project
+async function loadAgentPersona(projectPath) {
+    try {
+        const personaPath = projectPath.replace(/[/\\]$/, '') + (projectPath.includes('\\') ? '\\' : '/') + 'Agent_Persona.md';
+        if (window.electronAPI && window.electronAPI.readFile) {
+            const result = await window.electronAPI.readFile(personaPath);
+            if (result.success) {
+                state.agentPersona = result.content;
+                console.log('✅ Loaded Agent_Persona.md');
+                return true;
+            }
+        }
+        state.agentPersona = null;
+        return false;
+    } catch (error) {
+        console.warn('Could not load Agent_Persona.md:', error);
+        state.agentPersona = null;
+        return false;
+    }
+}
+
+// Load PROJECT_JOURNAL.md from project
+async function loadProjectJournal(projectPath) {
+    try {
+        const journalPath = projectPath.replace(/[/\\]$/, '') + (projectPath.includes('\\') ? '\\' : '/') + 'PROJECT_JOURNAL.md';
+        if (window.electronAPI && window.electronAPI.readFile) {
+            const result = await window.electronAPI.readFile(journalPath);
+            if (result.success) {
+                state.projectJournal = result.content;
+                console.log('✅ Loaded PROJECT_JOURNAL.md');
+                return true;
+            }
+        }
+        state.projectJournal = null;
+        return false;
+    } catch (error) {
+        console.warn('Could not load PROJECT_JOURNAL.md:', error);
+        state.projectJournal = null;
+        return false;
+    }
+}
+
+// Update PROJECT_JOURNAL.md with AI-generated content
+async function updateProjectJournal(updates) {
+    if (!state.currentProject || !state.currentProject.path) {
+        console.warn('No project loaded, cannot update journal');
+        return { success: false, error: 'No project loaded' };
+    }
+    
+    try {
+        const projectPath = state.currentProject.path;
+        const journalPath = projectPath.replace(/[/\\]$/, '') + (projectPath.includes('\\') ? '\\' : '/') + 'PROJECT_JOURNAL.md';
+        if (window.electronAPI && window.electronAPI.writeFile) {
+            const result = await window.electronAPI.writeFile(journalPath, updates);
+            if (result.success) {
+                state.projectJournal = updates;
+                console.log('✅ Updated PROJECT_JOURNAL.md');
+                showToast('Project journal updated!', 'success');
+                return { success: true };
+            }
+            return { success: false, error: result.error };
+        }
+        return { success: false, error: 'File operations not available' };
+    } catch (error) {
+        console.error('Error updating PROJECT_JOURNAL.md:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// Extract code blocks and file paths from AI response for implementation
+async function handleCodeImplementation(responseText, originalMessage) {
+    if (!state.currentProject || !window.electronAPI) {
+        return;
+    }
+    
+    try {
+        // Extract code blocks with potential file paths
+        // Pattern: Optional "File: path" line, then ```language\ncode```
+        const codeBlockRegex = /(?:File:\s*([^\n]+)\s*\n)?```(\w+)?\n?([\s\S]*?)```/g;
+        const implementations = [];
+        let match;
+        
+        while ((match = codeBlockRegex.exec(responseText)) !== null) {
+            const filePathHint = match[1] ? match[1].trim() : null;
+            const language = match[2] || 'text';
+            const code = match[3].trim();
+            
+            if (code.length > 10) { // Only consider substantial code blocks
+                implementations.push({
+                    filePath: filePathHint,
+                    language: language,
+                    code: code
+                });
+            }
+        }
+        
+        // If we found code blocks, offer to implement them
+        if (implementations.length > 0) {
+            // Show implementation options
+            const chatMessages = document.getElementById('chatMessages');
+            if (chatMessages) {
+                const implDiv = document.createElement('div');
+                implDiv.className = 'chat-message assistant implementation-offer';
+                implDiv.style.cssText = 'margin-top: 10px; padding: 15px; background: rgba(0, 255, 136, 0.1); border-left: 3px solid #00ff88; border-radius: 4px;';
+                
+                let implHtml = '<strong>💻 Code Implementation Detected!</strong><br><br>';
+                implHtml += `I found ${implementations.length} code block(s) in my response. Would you like me to implement them?<br><br>`;
+                
+                implementations.forEach((impl, idx) => {
+                    const fileName = impl.filePath || `code-${idx + 1}.${getFileExtension(impl.language)}`;
+                    implHtml += `<div style="margin: 8px 0; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px;">`;
+                    implHtml += `<strong>📄 ${fileName}</strong> (${impl.language})<br>`;
+                    implHtml += `<button onclick="implementCode(${idx})" style="margin-top: 5px; padding: 5px 15px; background: #00ff88; color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Implement This</button>`;
+                    implHtml += `</div>`;
+                });
+                
+                implHtml += '<br><button onclick="implementAllCode()" style="padding: 8px 20px; background: #00d4ff; color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">✨ Implement All</button>';
+                
+                implDiv.innerHTML = implHtml;
+                chatMessages.appendChild(implDiv);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                
+                // Store implementations for button handlers
+                window.pendingImplementations = implementations;
+            }
+        }
+    } catch (err) {
+        console.error('Error handling code implementation:', err);
+    }
+}
+
+// Get file extension from language
+function getFileExtension(language) {
+    const extMap = {
+        'html': 'html',
+        'javascript': 'js',
+        'js': 'js',
+        'css': 'css',
+        'python': 'py',
+        'json': 'json',
+        'markdown': 'md',
+        'md': 'md',
+        'typescript': 'ts',
+        'ts': 'ts'
+    };
+    return extMap[language.toLowerCase()] || 'txt';
+}
+
+// Implement a specific code block
+window.implementCode = async function(index) {
+    if (!window.pendingImplementations || !window.pendingImplementations[index]) {
+        return;
+    }
+    
+    const impl = window.pendingImplementations[index];
+    const projectPath = state.currentProject.path;
+    
+    // Determine file path
+    let filePath = impl.filePath;
+    if (!filePath) {
+        // Try to infer from language
+        const ext = getFileExtension(impl.language);
+        filePath = `code-${index + 1}.${ext}`;
+    }
+    
+    // Make path relative to project
+    const isAbsolute = filePath.match(/^[A-Z]:[\\/]/) || filePath.startsWith('/');
+    if (!isAbsolute) {
+        filePath = projectPath.replace(/[/\\]$/, '') + (projectPath.includes('\\') ? '\\' : '/') + filePath;
+    }
+    
+    try {
+        // Check if file exists
+        const exists = await window.electronAPI.fileExists(filePath);
+        
+        if (exists) {
+            // Ask for confirmation to overwrite
+            const confirm = window.confirm(`File ${filePath.split(/[/\\]/).pop()} already exists. Overwrite?`);
+            if (!confirm) return;
+        }
+        
+        // Write the file
+        const result = await window.electronAPI.writeFile(filePath, impl.code);
+        if (result.success) {
+            showToast(`✅ Implemented: ${filePath.split(/[/\\]/).pop()}`, 'success');
+            
+            // Reload file tree
+            await loadProjectFiles(projectPath);
+            
+            // Open the file
+            openFileFromPath(filePath);
+            
+            // Remove the implementation offer
+            const offers = document.querySelectorAll('.implementation-offer');
+            offers.forEach(offer => offer.remove());
+            
+            // Clear pending implementations
+            window.pendingImplementations = null;
+        } else {
+            showToast(`❌ Failed to implement: ${result.error}`, 'error');
+        }
+    } catch (err) {
+        console.error('Error implementing code:', err);
+        showToast(`❌ Error: ${err.message}`, 'error');
+    }
+};
+
+// Implement all code blocks
+window.implementAllCode = async function() {
+    if (!window.pendingImplementations || window.pendingImplementations.length === 0) {
+        return;
+    }
+    
+    for (let i = 0; i < window.pendingImplementations.length; i++) {
+        await window.implementCode(i);
+        // Small delay between implementations
+        await new Promise(resolve => setTimeout(resolve, 300));
+    }
+};
+
+// Analyze project structure and generate journal update
+async function analyzeProjectForJournal() {
+    if (!state.currentProject || !state.currentProject.path) {
+        return null;
+    }
+    
+    try {
+        // Get project files
+        const result = await window.electronAPI.readDir(state.currentProject.path);
+        if (!result.success) {
+            return null;
+        }
+        
+        // Analyze file structure
+        const files = result.files.filter(f => f.type === 'file');
+        const fileTypes = {};
+        const keyFiles = [];
+        
+        files.forEach(file => {
+            const ext = file.path.split('.').pop().toLowerCase();
+            fileTypes[ext] = (fileTypes[ext] || 0) + 1;
+            
+            // Identify key files
+            const name = file.path.split(/[/\\]/).pop().toLowerCase();
+            if (name === 'package.json' || name === 'readme.md' || name === 'index.html' || 
+                name === 'main.js' || name === 'app.js' || name === 'game.js') {
+                keyFiles.push(file.path);
+            }
+        });
+        
+        return {
+            fileCount: files.length,
+            fileTypes: fileTypes,
+            keyFiles: keyFiles,
+            projectName: state.currentProject.config?.projectName || state.currentProject.path.split(/[/\\]/).pop()
+        };
+    } catch (error) {
+        console.error('Error analyzing project:', error);
+        return null;
+    }
+}
+
+// ============================================
+// OpenAI Integration (Phase 2)
+// ============================================
+
+// Initialize OpenAI client (via IPC)
+async function initOpenAI() {
+    try {
+        console.log('🔧 Checking OpenAI status via IPC...');
+        
+        // Wait a bit for electronAPI to be available
+        if (!window.electronAPI) {
+            console.warn('⚠️ electronAPI not yet available, retrying in 500ms...');
+            setTimeout(() => initOpenAI(), 500);
+            return false;
+        }
+        
+        if (window.electronAPI.openaiCheckStatus) {
+            const status = await window.electronAPI.openaiCheckStatus();
+            console.log('OpenAI status:', status);
+            
+            if (status.initialized) {
+                state.useOpenAI = true;
+                state.openaiClient = true; // Mark as available (actual client is in main process)
+                console.log('✅ OpenAI client is available via IPC');
+                console.log('✅ AI mode: ENABLED');
+                
+                // Update welcome message if it exists
+                setTimeout(() => {
+                    if (typeof updateWelcomeMessage === 'function') {
+                        updateWelcomeMessage();
+                    }
+                }, 100);
+                
+                return true;
+            } else {
+                console.warn('⚠️ OpenAI client not initialized in main process');
+                state.useOpenAI = false;
+                return false;
+            }
+        } else {
+            console.warn('⚠️ OpenAI IPC methods not available, retrying in 500ms...');
+            setTimeout(() => initOpenAI(), 500);
+            return false;
+        }
+    } catch (error) {
+        console.error('❌ Failed to check OpenAI status:', error);
+        console.error('Error details:', error.message);
+        // Retry once after error
+        setTimeout(() => {
+            console.log('🔄 Retrying OpenAI initialization...');
+            initOpenAI();
+        }, 1000);
+        state.useOpenAI = false;
+        return false;
+    }
+}
+
+// Update welcome message to reflect AI status
+function updateWelcomeMessage() {
+    const welcomeDiv = document.querySelector('.chat-welcome');
+    if (welcomeDiv) {
+        const aiStatus = state.useOpenAI && state.openaiClient ? '🟢 **AI Enabled**' : '🟡 **Offline Mode**';
+        // Update status in welcome message
+        const currentHtml = welcomeDiv.innerHTML;
+        if (currentHtml.includes('Status:')) {
+            welcomeDiv.innerHTML = currentHtml.replace(/Status:.*?<br>/i, `Status: ${aiStatus}<br>`);
+        }
+    }
+}
+
+// Expose test function to console for debugging
+window.testOpenAI = async function() {
+    console.log('🧪 Testing OpenAI initialization...');
+    console.log('Current state:', {
+        useOpenAI: state.useOpenAI,
+        hasClient: !!state.openaiClient,
+        hasApiKey: !!state.openaiApiKey,
+        hasIPC: !!(window.electronAPI && window.electronAPI.openaiChat)
+    });
+    
+    if (!state.useOpenAI) {
+        console.log('🔄 Attempting to initialize...');
+        await initOpenAI();
+    } else {
+        console.log('✅ OpenAI client is available');
+    }
+    
+    // Test status check
+    if (window.electronAPI && window.electronAPI.openaiCheckStatus) {
+        const status = await window.electronAPI.openaiCheckStatus();
+        console.log('Main process status:', status);
+    }
+    
+    return {
+        useOpenAI: state.useOpenAI,
+        hasClient: !!state.openaiClient,
+        hasApiKey: !!state.openaiApiKey,
+        hasIPC: !!(window.electronAPI && window.electronAPI.openaiChat)
+    };
+};
+
+// Call OpenAI API for chat completion (via IPC)
+async function callOpenAI(message) {
+    if (!state.useOpenAI || !window.electronAPI || !window.electronAPI.openaiChat) {
+        return null;
+    }
+
+    try {
+        // Build conversation context with persona and journal
+        let systemPrompt = `You are Cursy, a friendly and enthusiastic AI coding assistant for VIBE IDE. You help beginners learn to code with patience, encouragement, and clear explanations. You use emojis naturally, support markdown formatting, and can suggest GIFs when appropriate. Be conversational, supportive, and educational. Always maintain a positive, helpful tone.`;
+        
+        // Add Agent Persona if available
+        if (state.agentPersona) {
+            systemPrompt += `\n\n## Your Persona Guidelines:\n${state.agentPersona}\n\nFollow these persona guidelines to maintain consistency with the project's expectations.`;
+        }
+        
+        // Add Project Journal context if available
+        if (state.projectJournal) {
+            // Extract key sections from journal for context
+            const journalLines = state.projectJournal.split('\n');
+            const relevantSections = [];
+            let currentSection = null;
+            let inSection = false;
+            
+            for (let i = 0; i < journalLines.length; i++) {
+                const line = journalLines[i];
+                if (line.startsWith('##')) {
+                    if (inSection && currentSection) {
+                        relevantSections.push(currentSection);
+                    }
+                    currentSection = line + '\n';
+                    inSection = line.includes('Overview') || line.includes('Status') || line.includes('Next Steps') || line.includes('Structure');
+                } else if (inSection && currentSection && line.trim()) {
+                    currentSection += line + '\n';
+                    if (currentSection.length > 1000) break; // Limit context size
+                }
+            }
+            if (inSection && currentSection) {
+                relevantSections.push(currentSection);
+            }
+            
+            if (relevantSections.length > 0) {
+                systemPrompt += `\n\n## Project Context (from PROJECT_JOURNAL.md):\n${relevantSections.join('\n')}\n\nUse this context to provide relevant, project-aware assistance.`;
+            }
+        }
+        
+        // Build messages array (without system message, it's passed separately)
+        const messages = [];
+
+        // Add conversation history (last 10 messages for context)
+        const recentHistory = state.conversationContext.slice(-10);
+        messages.push(...recentHistory);
+
+        // Add current user message
+        messages.push({
+            role: 'user',
+            content: message
+        });
+
+        // Call OpenAI API via IPC
+        const response = await window.electronAPI.openaiChat(messages, systemPrompt);
+        
+        if (!response.success) {
+            console.error('OpenAI API error:', response.error);
+            
+            // Handle specific error types
+            if (response.status === 401) {
+                console.error('Invalid API key');
+                state.useOpenAI = false;
+                return null;
+            } else if (response.status === 429) {
+                console.error('Rate limit exceeded');
+                return null;
+            } else if (response.status === 500) {
+                console.error('OpenAI server error');
+                return null;
+            }
+            
+            return null;
+        }
+
+        const aiResponse = response.content;
+
+        // Update conversation context
+        state.conversationContext.push(
+            { role: 'user', content: message },
+            { role: 'assistant', content: aiResponse }
+        );
+
+        // Keep context manageable (last 20 messages)
+        if (state.conversationContext.length > 20) {
+            state.conversationContext = state.conversationContext.slice(-20);
+        }
+
+        return aiResponse;
+    } catch (error) {
+        console.error('OpenAI IPC call error:', error);
+        return null;
+    }
+}
+
+// Initialize OpenAI on load
+function initializeOpenAIClient() {
+    // Try to initialize immediately if DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                initOpenAI();
+            }, 500);
+        });
+    } else {
+        // DOM already loaded, initialize now
+        setTimeout(() => {
+            initOpenAI();
+        }, 500);
+    }
+}
+
+// Initialize immediately
+initializeOpenAIClient();
+
+// Mock AI Response System (Offline Mode / Fallback)
 function getMockResponse(message) {
     const lowerMessage = message.toLowerCase();
     
@@ -3565,7 +5749,8 @@ function getMockResponse(message) {
     if (lowerMessage.match(/\b(hi|hello|hey|howdy|greetings)\b/)) {
         return {
             text: "👋 Hey there! I'm Cursy, your AI coding buddy! I'm here to help you learn and code. What would you like to work on today?",
-            emoji: "👋"
+            emoji: "👋",
+            gifTerm: "happy coding"
         };
     }
     
@@ -3595,25 +5780,63 @@ function getMockResponse(message) {
                 emoji: "📦"
             };
         }
+        if (lowerMessage.match(/\b(object|obj|property|key|value)\b/)) {
+            return {
+                text: "📋 **Objects:**\n\nObjects store data as key-value pairs:\n\n```javascript\nconst person = {\n    name: 'Cursy',\n    age: 1,\n    role: 'AI Assistant'\n};\n\n// Access properties\nconsole.log(person.name); // 'Cursy'\n\n// Add properties\nperson.location = 'VIBE IDE';\n\n// Loop through\nfor (let key in person) {\n    console.log(key, person[key]);\n}\n```\n\nObjects are perfect for organizing related data!",
+                emoji: "📋"
+            };
+        }
+        if (lowerMessage.match(/\b(class|constructor|instance|new)\b/)) {
+            return {
+                text: "🏗️ **Classes:**\n\nClasses are blueprints for creating objects:\n\n```javascript\nclass Person {\n    constructor(name, age) {\n        this.name = name;\n        this.age = age;\n    }\n    \n    greet() {\n        return `Hi, I'm ${this.name}!`;\n    }\n}\n\n// Create an instance\nconst person = new Person('Cursy', 1);\nconsole.log(person.greet());\n```\n\nClasses help organize code and create reusable structures!",
+                emoji: "🏗️"
+            };
+        }
+        if (lowerMessage.match(/\b(if|else|conditional|condition|switch)\b/)) {
+            return {
+                text: "🔀 **Conditionals:**\n\nConditionals make decisions:\n\n```javascript\n// If/else\nif (age >= 18) {\n    console.log('Adult');\n} else {\n    console.log('Minor');\n}\n\n// Switch\nswitch (day) {\n    case 'Monday':\n        console.log('Start of week!');\n        break;\n    case 'Friday':\n        console.log('Weekend!');\n        break;\n    default:\n        console.log('Midweek');\n}\n```\n\nConditionals let your code make choices!",
+                emoji: "🔀"
+            };
+        }
+        if (lowerMessage.match(/\b(async|await|promise|then|fetch)\b/)) {
+            return {
+                text: "⏳ **Async/Await:**\n\nHandle asynchronous operations:\n\n```javascript\n// Using async/await\nasync function fetchData() {\n    try {\n        const response = await fetch('https://api.example.com/data');\n        const data = await response.json();\n        console.log(data);\n    } catch (error) {\n        console.error('Error:', error);\n    }\n}\n\n// Using promises\nfetch('https://api.example.com/data')\n    .then(response => response.json())\n    .then(data => console.log(data))\n    .catch(error => console.error('Error:', error));\n```\n\nAsync/await makes asynchronous code easier to read!",
+                emoji: "⏳"
+            };
+        }
+        if (lowerMessage.match(/\b(import|export|module|require)\b/)) {
+            return {
+                text: "📦 **Modules:**\n\nOrganize code into separate files:\n\n```javascript\n// Export from file.js\nexport function greet(name) {\n    return `Hello, ${name}!`;\n}\n\nexport const PI = 3.14159;\n\n// Import in another file\nimport { greet, PI } from './file.js';\n\nconsole.log(greet('Cursy'));\n```\n\nModules help keep your code organized and reusable!",
+                emoji: "📦"
+            };
+        }
+        if (lowerMessage.match(/\b(callback|map|filter|reduce)\b/)) {
+            return {
+                text: "🔄 **Array Methods:**\n\nPowerful array operations:\n\n```javascript\nconst numbers = [1, 2, 3, 4, 5];\n\n// Map - transform each item\nconst doubled = numbers.map(n => n * 2);\n// [2, 4, 6, 8, 10]\n\n// Filter - keep only matching items\nconst evens = numbers.filter(n => n % 2 === 0);\n// [2, 4]\n\n// Reduce - combine all items\nconst sum = numbers.reduce((acc, n) => acc + n, 0);\n// 15\n```\n\nThese methods make working with arrays super powerful!",
+                emoji: "🔄"
+            };
+        }
+        if (lowerMessage.match(/\b(dom|element|queryselector|getelementbyid)\b/)) {
+            return {
+                text: "🌐 **DOM Manipulation:**\n\nInteract with HTML elements:\n\n```javascript\n// Get elements\nconst button = document.getElementById('myButton');\nconst div = document.querySelector('.myDiv');\n\n// Change content\nbutton.textContent = 'Click me!';\ndiv.innerHTML = '<p>New content</p>';\n\n// Add event listeners\nbutton.addEventListener('click', () => {\n    console.log('Button clicked!');\n});\n\n// Change styles\ndiv.style.color = 'blue';\ndiv.classList.add('active');\n```\n\nThe DOM lets you make your web pages interactive!",
+                emoji: "🌐"
+            };
+        }
         return {
-            text: "🤔 I'd love to help! Could you be more specific? Try asking:\n\n• \"How do I create a function?\"\n• \"What is a variable?\"\n• \"How do I use a loop?\"\n• \"Explain arrays\"\n\nOr just describe what you're trying to build! 😊",
+            text: "🤔 I'd love to help! Could you be more specific? Try asking:\n\n• \"How do I create a function?\"\n• \"What is a variable?\"\n• \"How do I use a loop?\"\n• \"Explain arrays\"\n• \"What are objects?\"\n• \"How do classes work?\"\n• \"Explain async/await\"\n\nOr just describe what you're trying to build! 😊",
             emoji: "🤔"
         };
     }
     
-    // Error/debugging
-    if (lowerMessage.match(/\b(error|bug|broken|not working|doesn't work|why|fix)\b/)) {
-        return {
-            text: "🐛 **Debugging Tips:**\n\n1. **Check the console** - Press F12 to see error messages\n2. **Read the error** - It usually tells you what's wrong!\n3. **Check your syntax** - Missing brackets, quotes, or semicolons?\n4. **Use console.log()** - Add `console.log('here!')` to see where your code runs\n\nPaste your error message here and I can help more! 🔍",
-            emoji: "🐛"
-        };
-    }
+    // Error/debugging (specific error types handled above, this is general)
+    // This section is now handled by the earlier error/debugging section with GIF support
     
-    // Code explanation
-    if (lowerMessage.match(/\b(explain|what does|mean|understand|confused)\b/)) {
+    // Code explanation / Thinking
+    if (lowerMessage.match(/\b(explain|what does|mean|understand|confused|how|why|think|thinking)\b/)) {
         return {
             text: "📚 I'd be happy to explain! Try:\n\n• Select some code in the editor\n• Click \"Explain this code\"\n• Or paste the code here and ask me to explain it\n\nI can break down functions, loops, variables, and more! 😊",
-            emoji: "📚"
+            emoji: "📚",
+            gifTerm: "thinking"
         };
     }
     
@@ -3625,17 +5848,37 @@ function getMockResponse(message) {
         };
     }
     
-    // Thank you
-    if (lowerMessage.match(/\b(thanks|thank you|ty|appreciate|cheers)\b/)) {
+    // Thank you / Success / Celebration
+    if (lowerMessage.match(/\b(thanks|thank you|ty|appreciate|cheers|great|awesome|perfect|excellent|well done|good job|success|it works|working|solved|fixed)\b/)) {
         return {
             text: "😊 You're welcome! Happy to help! Keep coding and learning - you're doing great! 💪\n\nNeed anything else? Just ask!",
-            emoji: "😊"
+            emoji: "😊",
+            gifTerm: "celebration"
         };
     }
     
-    // Default response
+    // Error / Frustration
+    if (lowerMessage.match(/\b(error|bug|broken|not working|doesn't work|why|fix|debug|stuck|confused|help)\b/)) {
+        return {
+            text: "🐛 **Debugging Tips:**\n\n1. **Check the console** - Press F12 to see error messages\n2. **Read the error** - It usually tells you what's wrong!\n3. **Check your syntax** - Missing brackets, quotes, or semicolons?\n4. **Use console.log()** - Add `console.log('here!')` to see where your code runs\n5. **Use breakpoints** - Pause execution to inspect variables\n6. **Check variable values** - Log them to see what they actually contain\n\nPaste your error message here and I can help more! 🔍",
+            emoji: "🐛",
+            gifTerm: "debugging"
+        };
+    }
+    
+    // Python-specific questions
+    if (lowerMessage.match(/\b(python|py|pip|import|def|print)\b/)) {
+        return {
+            text: "🐍 **Python Basics:**\n\n```python\n# Variables\nname = 'Cursy'\nage = 1\n\n# Functions\ndef greet(name):\n    return f'Hello, {name}!'\n\n# Lists (like arrays)\nfruits = ['apple', 'banana', 'orange']\n\n# Loops\nfor fruit in fruits:\n    print(fruit)\n\n# Conditionals\nif age >= 18:\n    print('Adult')\nelse:\n    print('Minor')\n```\n\nPython is great for beginners - clean and readable!",
+            emoji: "🐍"
+        };
+    }
+    
+    // Default response (fallback when OpenAI is unavailable)
+    const aiStatus = state.useOpenAI && state.openaiClient ? '🟢 **AI Enabled**' : '🟡 **Offline Mode**';
+    const journalHint = state.currentProject ? '\n• **Project Journal** - Type "update journal" to have me analyze and update PROJECT_JOURNAL.md!' : '';
     return {
-        text: `🤖 I'm Cursy, your AI coding assistant! I'm currently in **offline mode** (AI integration coming soon!).\n\nI can help with:\n• **Code explanations** - Ask "what does this do?"\n• **Learning basics** - Functions, variables, loops, arrays\n• **Debugging** - Share errors and I'll help!\n• **Getting started** - Project templates and setup\n\nTry asking: "How do I create a function?" or "What is a variable?"\n\n*Note: Full AI chat will be available when API credits are configured!* 🚀`,
+        text: `🤖 I'm Cursy, your AI coding assistant! Status: ${aiStatus}\n\nI can help with:\n• **Code explanations** - Ask "what does this do?"\n• **Learning basics** - Functions, variables, loops, arrays, objects, classes\n• **Advanced topics** - Async/await, modules, DOM manipulation\n• **Debugging** - Share errors and I'll help!\n• **Getting started** - Project templates and setup${journalHint}\n\nTry asking:\n• "How do I create a function?"\n• "What are objects?"\n• "Explain async/await"\n• "How do classes work?"\n• "Update journal" (if you have a project open)\n\n${state.useOpenAI && state.openaiClient ? '*AI chat is active! Ask me anything!* 🚀' : '*Note: Full AI chat will be available when API credits are configured!* 🚀'}`,
         emoji: "🤖"
     };
 }
@@ -3654,10 +5897,27 @@ function loadChatHistory() {
         if (saved) {
             state.chatHistory = JSON.parse(saved);
             renderChatHistory();
+            
+            // Populate conversation context for OpenAI from chat history
+            state.conversationContext = [];
+            state.chatHistory.forEach(msg => {
+                if (msg.role === 'user' || msg.role === 'assistant') {
+                    state.conversationContext.push({
+                        role: msg.role,
+                        content: msg.content
+                    });
+                }
+            });
+            
+            // Keep context manageable (last 20 messages)
+            if (state.conversationContext.length > 20) {
+                state.conversationContext = state.conversationContext.slice(-20);
+            }
         }
     } catch (e) {
         console.warn('Failed to load chat history:', e);
         state.chatHistory = [];
+        state.conversationContext = [];
     }
 }
 
@@ -3771,8 +6031,8 @@ function sendChatMessage() {
     // Scroll to bottom
     chatMessages.scrollTop = chatMessages.scrollHeight;
     
-    // Get mock response
-    const mockResponse = getMockResponse(message);
+    // Update Cursy to thinking state
+    updateCursyState('thinking', 'Thinking...');
     
     // Show typing indicator
     const typingDiv = document.createElement('div');
@@ -3781,24 +6041,240 @@ function sendChatMessage() {
     chatMessages.appendChild(typingDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
     
-    // Simulate AI thinking time (300-800ms)
-    const delay = 300 + Math.random() * 500;
-    
+    // Update to typing state after a short delay
     setTimeout(() => {
+        updateCursyState('typing', 'Typing response...');
+    }, 300);
+    
+    // Check for special commands (use message directly to avoid duplicate declaration)
+    const messageLower = message.toLowerCase().trim();
+    if (messageLower === 'update journal' || messageLower === 'update project journal' || messageLower.startsWith('cursy, update journal')) {
+        // Trigger journal update
+        typingDiv.innerHTML = '<p>🤖 Cursy is analyzing the project and updating the journal...</p>';
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        (async () => {
+            try {
+                const analysis = await analyzeProjectForJournal();
+                if (analysis && state.useOpenAI && window.electronAPI && window.electronAPI.openaiChat) {
+                    // Use AI to generate journal update with a very specific prompt
+                    const journalPrompt = `You are updating a PROJECT_JOURNAL.md file. IMPORTANT: Return ONLY the complete markdown content of the updated journal file. Do NOT include any commentary, explanations, or text outside the markdown. Start directly with the markdown content.
+
+Based on the following project analysis, update the PROJECT_JOURNAL.md file. Focus on:
+1. Current project structure and key files
+2. Recent work (if any changes detected)
+3. Next steps and priorities
+
+Project Analysis:
+- Project Name: ${analysis.projectName}
+- Total Files: ${analysis.fileCount}
+- File Types: ${JSON.stringify(analysis.fileTypes)}
+- Key Files: ${analysis.keyFiles.map(f => f.split(/[/\\]/).pop()).join(', ')}
+
+${state.projectJournal ? `Current Journal Content (first 2000 chars):\n${state.projectJournal.substring(0, 2000)}...` : 'No existing journal found - create a new one with the template structure.'}
+
+CRITICAL: Return ONLY the complete updated PROJECT_JOURNAL.md markdown content. No explanations, no "here's the updated journal", just the raw markdown starting with "# 🚀 Project Journal"`;
+
+                    // Call OpenAI directly via IPC (bypass conversation context for this)
+                    try {
+                        const systemPrompt = `You are Cursy, an AI assistant. When asked to update a project journal, return ONLY the complete markdown file content with no additional commentary.`;
+                        const messages = [{ role: 'user', content: journalPrompt }];
+                        
+                        const response = await window.electronAPI.openaiChat(messages, systemPrompt);
+                        
+                        if (response.success && response.content) {
+                            let journalContent = response.content.trim();
+                            
+                            // Remove any leading/trailing commentary
+                            // Look for markdown code blocks first
+                            if (journalContent.includes('```markdown')) {
+                                const match = journalContent.match(/```markdown\s*\n([\s\S]*?)\n```/);
+                                if (match) journalContent = match[1].trim();
+                            } else if (journalContent.includes('```')) {
+                                const match = journalContent.match(/```\s*\n([\s\S]*?)\n```/);
+                                if (match) journalContent = match[1].trim();
+                            }
+                            
+                            // Remove any text before the first # heading
+                            const firstHeading = journalContent.indexOf('#');
+                            if (firstHeading > 0) {
+                                journalContent = journalContent.substring(firstHeading);
+                            }
+                            
+                            // Ensure it starts with the journal header
+                            if (!journalContent.startsWith('# 🚀 Project Journal') && !journalContent.startsWith('# Project Journal')) {
+                                // Try to find where the actual journal starts
+                                const journalStart = journalContent.search(/#\s*[🚀]*\s*Project Journal/i);
+                                if (journalStart > 0) {
+                                    journalContent = journalContent.substring(journalStart);
+                                }
+                            }
+                            
+                            // Only proceed if we have substantial content
+                            if (journalContent.length > 100) {
+                                console.log('📝 Writing journal content, length:', journalContent.length);
+                                console.log('📝 First 200 chars:', journalContent.substring(0, 200));
+                                
+                                const result = await updateProjectJournal(journalContent);
+                                if (result.success) {
+                                    // Reload the journal to verify it was written
+                                    await loadProjectJournal(state.currentProject.path);
+                                    
+                                    // Verify the content was actually written
+                                    if (state.projectJournal && state.projectJournal.length > 100) {
+                                        typingDiv.remove();
+                                        const responseDiv = document.createElement('div');
+                                        responseDiv.className = 'chat-message assistant';
+                                        responseDiv.innerHTML = parseSimpleMarkdown('✅ **Project journal updated!**\n\nI\'ve analyzed your project structure and updated the PROJECT_JOURNAL.md file with current information. Check it out! 📝');
+                                        chatMessages.appendChild(responseDiv);
+                                        addMessageToHistory('assistant', 'Project journal updated successfully!');
+                                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                                        updateCursyState('celebrating', 'Journal updated!');
+                                        setTimeout(() => updateCursyState('idle', 'Ready to help!'), 2000);
+                                        return;
+                                    } else {
+                                        console.error('Journal was written but reload failed or content is empty');
+                                        throw new Error('Journal update verification failed');
+                                    }
+                                } else {
+                                    console.error('Failed to update journal file:', result.error);
+                                    throw new Error(result.error || 'Failed to write journal file');
+                                }
+                            } else {
+                                console.warn('Extracted journal content too short:', journalContent.length);
+                                console.warn('Content preview:', journalContent.substring(0, 200));
+                                throw new Error('Extracted journal content is too short or invalid');
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Error calling OpenAI for journal update:', err);
+                        throw err;
+                    }
+                } else {
+                    throw new Error('AI not available or project not loaded');
+                }
+                
+                // Fallback response (shouldn't reach here if everything worked)
+                typingDiv.remove();
+                const responseDiv = document.createElement('div');
+                responseDiv.className = 'chat-message assistant';
+                responseDiv.innerHTML = parseSimpleMarkdown('I can help update the project journal! However, I need AI access to analyze and update it properly. The journal file is located at `PROJECT_JOURNAL.md` in your project root. You can also manually update it, or ask me specific questions about what to add! 📝');
+                chatMessages.appendChild(responseDiv);
+                addMessageToHistory('assistant', responseDiv.textContent);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                updateCursyState('idle', 'Ready to help!');
+            } catch (err) {
+                console.error('Journal update error:', err);
+                console.error('Error stack:', err.stack);
+                typingDiv.remove();
+                const responseDiv = document.createElement('div');
+                responseDiv.className = 'chat-message assistant';
+                const errorMsg = err.message || 'Unknown error';
+                responseDiv.innerHTML = parseSimpleMarkdown(`❌ Sorry, I encountered an error while updating the journal: ${errorMsg}\n\nYou can manually edit \`PROJECT_JOURNAL.md\` in your project root, or check the console for more details!`);
+                chatMessages.appendChild(responseDiv);
+                addMessageToHistory('assistant', `Error updating journal: ${errorMsg}`);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                updateCursyState('error', 'Update failed');
+                setTimeout(() => updateCursyState('idle', 'Ready to help!'), 2000);
+            }
+        })();
+        return;
+    }
+    
+    // Check if this is an implementation request (using message directly since lowerMessage already declared above)
+    const isImplementationRequest = message.toLowerCase().match(/\b(implement|create|write|add to|update|modify|change|edit|build|make|generate)\b/) && 
+                                    (message.toLowerCase().includes('file') || message.toLowerCase().includes('code') || message.toLowerCase().includes('script') || 
+                                     message.toLowerCase().includes('html') || message.toLowerCase().includes('css') || message.toLowerCase().includes('js'));
+    
+    // Try OpenAI first, fall back to mock if unavailable
+    (async () => {
+        let responseText = null;
+        let gifTerm = null;
+        
+        // Try OpenAI API
+        if (state.useOpenAI && state.openaiClient) {
+            try {
+                // Enhance prompt for implementation requests
+                let enhancedMessage = message;
+                if (isImplementationRequest && state.currentProject) {
+                    enhancedMessage = `${message}\n\nIMPORTANT: If you provide code, please format it clearly with file paths. For example: "File: index.html" followed by the code block. I will implement the changes automatically.`;
+                }
+                
+                responseText = await callOpenAI(enhancedMessage);
+                if (responseText) {
+                    // Check if response suggests a GIF (simple heuristic)
+                    const lowerResponseText = responseText.toLowerCase();
+                    if (lowerResponseText.includes('celebrat') || lowerResponseText.includes('🎉') || lowerResponseText.includes('success')) {
+                        gifTerm = 'celebration';
+                    } else if (lowerResponseText.includes('think') || lowerResponseText.includes('🤔')) {
+                        gifTerm = 'thinking';
+                    } else if (lowerResponseText.includes('error') || lowerResponseText.includes('bug') || lowerResponseText.includes('🐛')) {
+                        gifTerm = 'debugging';
+                    }
+                    
+                    // Check if response contains code blocks that should be implemented
+                    if (isImplementationRequest && state.currentProject && responseText.includes('```')) {
+                        await handleCodeImplementation(responseText, message);
+                    }
+                }
+            } catch (err) {
+                console.error('OpenAI call failed:', err);
+                responseText = null;
+            }
+        }
+        
+        // Fall back to mock response if OpenAI failed or unavailable
+        if (!responseText) {
+            const mockResponse = getMockResponse(message);
+            responseText = mockResponse.text;
+            gifTerm = mockResponse.gifTerm;
+        }
+        
         // Remove typing indicator
         typingDiv.remove();
         
         // Create assistant response
         const responseDiv = document.createElement('div');
         responseDiv.className = 'chat-message assistant';
-        responseDiv.innerHTML = parseSimpleMarkdown(mockResponse.text);
+        
+        // Get GIF if needed
+        if (gifTerm) {
+            try {
+                const gifUrl = await getRandomGif(gifTerm);
+                if (gifUrl) {
+                    responseText += `\n\n[GIF:${gifUrl}]`;
+                }
+            } catch (err) {
+                console.warn('Failed to get GIF:', err);
+            }
+        }
+        
+        responseDiv.innerHTML = parseSimpleMarkdown(responseText);
         chatMessages.appendChild(responseDiv);
         
         // Add to history
-        addMessageToHistory('assistant', mockResponse.text);
+        addMessageToHistory('assistant', responseText);
         
         // Scroll to bottom
         chatMessages.scrollTop = chatMessages.scrollHeight;
-    }, delay);
+        
+        // Update Cursy state based on response
+        if (responseText.toLowerCase().includes('error') || responseText.toLowerCase().includes('bug')) {
+            updateCursyState('error', 'Error detected');
+            setTimeout(() => {
+                updateCursyState('idle', 'Ready to help!');
+            }, 2000);
+        } else if (responseText.toLowerCase().includes('celebrat') || responseText.toLowerCase().includes('success')) {
+            updateCursyState('celebrating', 'Success!');
+            setTimeout(() => {
+                updateCursyState('idle', 'Ready to help!');
+            }, 2000);
+        } else {
+            // Return to idle state
+            setTimeout(() => {
+                updateCursyState('idle', 'Ready to help!');
+            }, 500);
+        }
+    })();
 }
 

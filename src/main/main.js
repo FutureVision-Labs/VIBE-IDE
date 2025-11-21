@@ -3,6 +3,59 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 
+// Initialize OpenAI client in main process
+let openaiClient = null;
+let openaiApiKey = null;
+
+function loadOpenAIKey() {
+  try {
+    // Try to load from config file first
+    const configPath = path.join(app.getPath('userData'), 'openai-config.json');
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      if (config.apiKey) {
+        openaiApiKey = config.apiKey;
+        return true;
+      }
+    }
+    
+    // Fall back to environment variable
+    if (process.env.OPENAI_API_KEY) {
+      openaiApiKey = process.env.OPENAI_API_KEY;
+      return true;
+    }
+    
+    console.warn('⚠️ OpenAI API key not found. Create openai-config.json in userData or set OPENAI_API_KEY env var.');
+    return false;
+  } catch (error) {
+    console.error('❌ Error loading OpenAI key:', error);
+    return false;
+  }
+}
+
+function initOpenAIClient() {
+  try {
+    if (!openaiApiKey) {
+      if (!loadOpenAIKey()) {
+        return false;
+      }
+    }
+    
+    const { OpenAI } = require('openai');
+    openaiClient = new OpenAI({
+      apiKey: openaiApiKey
+    });
+    console.log('✅ OpenAI client initialized in main process');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to initialize OpenAI in main process:', error);
+    return false;
+  }
+}
+
+// Initialize on startup
+initOpenAIClient();
+
 let mainWindow;
 let splashWindow;
 const windowStateFile = path.join(app.getPath('userData'), 'window-state.json');
@@ -517,11 +570,34 @@ ipcMain.handle('fs:delete', async (event, filePath) => {
   }
 });
 
+ipcMain.handle('fs:rename', async (event, oldPath, newPath) => {
+  try {
+    // Check if new path already exists
+    if (fs.existsSync(newPath)) {
+      return { success: false, error: 'A file or folder with that name already exists' };
+    }
+    
+    // Ensure parent directory exists
+    const parentDir = path.dirname(newPath);
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
+    
+    fs.renameSync(oldPath, newPath);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('project:create', async (event, template, projectPath, genre = null) => {
   try {
     // Template to genre mapping (infer genre from template if not specified)
     const templateToGenre = {
       blank: null,
+      'web-app': null,
+      'python-beginner': null,
+      'data-analysis': null,
       platformer: 'platformer',
       shooter: 'shooter',
       puzzle: 'puzzle',
@@ -534,13 +610,278 @@ ipcMain.handle('project:create', async (event, template, projectPath, genre = nu
     // Create project structure based on template
     const templates = {
       blank: {
+        name: 'Blank Project',
+        description: 'Start from scratch with a clean slate',
+        icon: '📄',
         files: {
-          'game.js': `// Your Phaser.js game code here\nfunction preload() {\n    // Load assets\n}\n\nfunction create() {\n    // Initialize game objects\n}\n\nfunction update() {\n    // Game loop\n}`
+          'index.html': `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Project</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <h1>Hello, World!</h1>
+    <p>Start coding here!</p>
+    <script>
+        console.log('Welcome to VIBE IDE!');
+    </script>
+</body>
+</html>`
+        }
+      },
+      'web-app': {
+        name: 'Web App',
+        description: 'HTML, CSS, and JavaScript web application',
+        icon: '🌐',
+        files: {
+          'index.html': `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Web App</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to My Web App!</h1>
+        <button id="myButton">Click Me!</button>
+        <p id="output"></p>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>`,
+          'styles.css': `* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.container {
+    background: white;
+    padding: 40px;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    text-align: center;
+}
+
+h1 {
+    color: #333;
+    margin-bottom: 20px;
+}
+
+button {
+    background: #667eea;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    font-size: 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+button:hover {
+    background: #5568d3;
+}
+
+#output {
+    margin-top: 20px;
+    color: #666;
+}`,
+          'script.js': `// Your JavaScript code here
+document.getElementById('myButton').addEventListener('click', function() {
+    const output = document.getElementById('output');
+    output.textContent = 'Button clicked! 🎉';
+    output.style.color = '#667eea';
+});`
+        }
+      },
+      'python-beginner': {
+        name: 'Python Beginner',
+        description: 'Simple Python script to learn the basics',
+        icon: '🐍',
+        files: {
+          'main.py': `# Welcome to Python!
+# This is a comment - Python ignores these lines
+
+# Variables store information
+name = "World"
+age = 10
+
+# Print to the console
+print(f"Hello, {name}!")
+print(f"You are {age} years old!")
+
+# Functions are reusable blocks of code
+def greet(name):
+    return f"Hello, {name}! Welcome to Python!"
+
+# Call the function
+message = greet("Cursy")
+print(message)
+
+# Lists store multiple items
+fruits = ["apple", "banana", "orange"]
+print("My favorite fruits:", fruits)
+
+# Loops repeat code
+print("\\nCounting to 5:")
+for i in range(1, 6):
+    print(i)
+
+# Conditionals make decisions
+number = 7
+if number > 5:
+    print(f"{number} is greater than 5!")
+else:
+    print(f"{number} is not greater than 5!")`
         }
       },
       platformer: {
+        name: 'Platformer Game',
+        description: '2D platformer game with Phaser.js',
+        icon: '🎮',
         files: {
-          'game.js': `// Platformer Template\nfunction preload() {\n    this.add.graphics()\n        .fillStyle(0x00ff00)\n        .fillRect(0, 0, 64, 64)\n        .generateTexture('player', 64, 64);\n}\n\nfunction create() {\n    this.player = this.physics.add.sprite(400, 300, 'player');\n    this.player.setCollideWorldBounds(true);\n    this.player.setGravityY(800);\n    \n    this.cursors = this.input.keyboard.createCursorKeys();\n}\n\nfunction update() {\n    if (this.cursors.left.isDown) {\n        this.player.setVelocityX(-200);\n    } else if (this.cursors.right.isDown) {\n        this.player.setVelocityX(200);\n    } else {\n        this.player.setVelocityX(0);\n    }\n    \n    if (this.cursors.up.isDown && this.player.body.touching.down) {\n        this.player.setVelocityY(-600);\n    }\n}`
+          'index.html': `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Platformer Game</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+</head>
+<body>
+    <script src="game.js"></script>
+</body>
+</html>`,
+          'game.js': `// Platformer Template
+const config = {
+    type: Phaser.AUTO,
+    width: 800,
+    height: 600,
+    physics: {
+        default: 'arcade',
+        arcade: {
+            gravity: { y: 800 },
+            debug: false
+        }
+    },
+    scene: {
+        preload: preload,
+        create: create,
+        update: update
+    }
+};
+
+const game = new Phaser.Game(config);
+
+function preload() {
+    // Create a simple colored rectangle as player sprite
+    this.add.graphics()
+        .fillStyle(0x00ff00)
+        .fillRect(0, 0, 64, 64)
+        .generateTexture('player', 64, 64);
+    
+    // Create platform sprite
+    this.add.graphics()
+        .fillStyle(0x8b4513)
+        .fillRect(0, 0, 200, 32)
+        .generateTexture('platform', 200, 32);
+}
+
+function create() {
+    // Add player
+    this.player = this.physics.add.sprite(100, 100, 'player');
+    this.player.setCollideWorldBounds(true);
+    
+    // Add platforms
+    this.platforms = this.physics.add.staticGroup();
+    this.platforms.create(400, 500, 'platform');
+    this.platforms.create(200, 400, 'platform');
+    this.platforms.create(600, 300, 'platform');
+    
+    // Collision between player and platforms
+    this.physics.add.collider(this.player, this.platforms);
+    
+    // Keyboard controls
+    this.cursors = this.input.keyboard.createCursorKeys();
+}
+
+function update() {
+    // Left/Right movement
+    if (this.cursors.left.isDown) {
+        this.player.setVelocityX(-200);
+    } else if (this.cursors.right.isDown) {
+        this.player.setVelocityX(200);
+    } else {
+        this.player.setVelocityX(0);
+    }
+    
+    // Jump (only when touching ground)
+    if (this.cursors.up.isDown && this.player.body.touching.down) {
+        this.player.setVelocityY(-600);
+    }
+}`
+        }
+      },
+      'data-analysis': {
+        name: 'Data Analysis',
+        description: 'Python project for analyzing data',
+        icon: '📊',
+        files: {
+          'main.py': `# Data Analysis Project
+import json
+
+# Sample data
+data = [
+    {"name": "Alice", "age": 25, "score": 85},
+    {"name": "Bob", "age": 30, "score": 92},
+    {"name": "Charlie", "age": 28, "score": 78},
+    {"name": "Diana", "age": 35, "score": 95}
+]
+
+# Calculate average score
+total_score = sum(person["score"] for person in data)
+average_score = total_score / len(data)
+
+print(f"Average Score: {average_score:.2f}")
+
+# Find highest scorer
+highest = max(data, key=lambda x: x["score"])
+print(f"\\nHighest Scorer: {highest['name']} with {highest['score']} points")
+
+# Group by age ranges
+age_groups = {"20-29": [], "30-39": []}
+for person in data:
+    if 20 <= person["age"] < 30:
+        age_groups["20-29"].append(person)
+    elif 30 <= person["age"] < 40:
+        age_groups["30-39"].append(person)
+
+print("\\nAge Groups:")
+for group, people in age_groups.items():
+    print(f"{group}: {len(people)} people")`
         }
       }
     };
@@ -588,34 +929,43 @@ ipcMain.handle('project:create', async (event, template, projectPath, genre = nu
       fs.writeFileSync(filePath, content, 'utf-8');
     }
 
-    // Create package.json
-    const packageJson = {
-      name: path.basename(projectPath),
-      version: '1.0.0',
-      description: 'Project created with VIBE IDE',
-      main: 'game.js',
-      scripts: {
-        start: 'npx http-server -p 8080'
-      },
-      dependencies: {
-        phaser: '^3.90.0'
-      }
-    };
-
-    const pkgPath = path.join(projectPath, 'package.json');
-    if (fs.existsSync(pkgPath)) {
-      try {
-        const ts = new Date().toISOString().replace(/[:.]/g, '-');
-        const bakPath = path.join(projectPath, `package.json.${ts}.bak`);
-        const existing = fs.readFileSync(pkgPath);
-        fs.writeFileSync(bakPath, existing);
-        console.log('🗂️ Backup created (package.json):', bakPath);
-      } catch (e) {
-        console.warn('Backup failed for package.json:', e.message);
+    // Create package.json (only for web-based projects)
+    let packageJson = null;
+    if (template === 'platformer' || template === 'web-app' || template === 'blank') {
+      packageJson = {
+        name: path.basename(projectPath),
+        version: '1.0.0',
+        description: 'Project created with VIBE IDE',
+        main: template === 'platformer' ? 'game.js' : 'index.html',
+        scripts: {
+          start: 'npx http-server -p 8080'
+        }
+      };
+      
+      // Only add Phaser for game templates
+      if (template === 'platformer') {
+        packageJson.dependencies = {
+          phaser: '^3.90.0'
+        };
       }
     }
 
-    fs.writeFileSync(pkgPath, JSON.stringify(packageJson, null, 2), 'utf-8');
+    // Only create package.json for web-based projects
+    if (packageJson) {
+      const pkgPath = path.join(projectPath, 'package.json');
+      if (fs.existsSync(pkgPath)) {
+        try {
+          const ts = new Date().toISOString().replace(/[:.]/g, '-');
+          const bakPath = path.join(projectPath, `package.json.${ts}.bak`);
+          const existing = fs.readFileSync(pkgPath);
+          fs.writeFileSync(bakPath, existing);
+          console.log('🗂️ Backup created (package.json):', bakPath);
+        } catch (e) {
+          console.warn('Backup failed for package.json:', e.message);
+        }
+      }
+      fs.writeFileSync(pkgPath, JSON.stringify(packageJson, null, 2), 'utf-8');
+    }
 
     // Create .vibeide directory and config.json
     const vibeideDir = path.join(projectPath, '.vibeide');
@@ -635,6 +985,200 @@ ipcMain.handle('project:create', async (event, template, projectPath, genre = nu
     const configPath = path.join(vibeideDir, 'config.json');
     fs.writeFileSync(configPath, JSON.stringify(configJson, null, 2), 'utf-8');
     console.log('✅ Created .vibeide/config.json with genre:', selectedGenre);
+
+    // Copy Agent_Persona.md to new project (if source exists)
+    const personaSourcePath = path.join(__dirname, '..', '..', '..', 'Phaser', 'The Final Attack - Resurgence', 'Agent_Persona.md');
+    const personaDestPath = path.join(projectPath, 'Agent_Persona.md');
+    if (fs.existsSync(personaSourcePath)) {
+      try {
+        const personaContent = fs.readFileSync(personaSourcePath, 'utf-8');
+        fs.writeFileSync(personaDestPath, personaContent, 'utf-8');
+        console.log('✅ Copied Agent_Persona.md to project');
+      } catch (error) {
+        console.warn('⚠️ Failed to copy Agent_Persona.md:', error.message);
+      }
+    } else {
+      // Create a default Agent_Persona.md if source doesn't exist
+      const defaultPersona = `# Agent Persona — "Cursy"
+
+## Snapshot
+- **Role:** Hyper-enthusiastic copilot for the FutureVision / Forge universe
+- **Vibe:** Futurist arcade DJ meets collaborative project lead
+- **Mission:** Keep momentum high, surface smart trade-offs, celebrate wins
+
+## Voice & Tone
+- Energetic, emoji-friendly, but always actionable (\`Let's rocket 🛠️🚀\`)
+- Mirrors the user's hype; matches informality without losing clarity
+- Drops quick summaries before diving into detail; confident but never bossy
+
+## Interaction Principles
+1. **Momentum First** – Offer the next micro-step ("Here's the tweak + quick test idea").
+2. **Context Glue** – Cross-reference previous work so decisions feel connected.
+3. **Default Optimism** – Assume the build can be awesome; flag risks calmly.
+4. **Transparent Reasoning** – Share the "why," especially when making judgement calls.
+5. **Celebrate Progress** – Highlight shiny wins ("Boss launch looks savage now!").
+
+## Signature Moves & Phrases
+- "gooooooooooooo!" / "Let's rocket!" for launch moments
+- "Small tweak time!" for incremental changes
+- "Vibe check:" to introduce quick status bullets
+- Emojis as seasoning, not filler (sparingly in technical blocks)
+
+Keep this page updated whenever the tone evolves so future sessions keep the same co-op groove.
+`;
+      fs.writeFileSync(personaDestPath, defaultPersona, 'utf-8');
+      console.log('✅ Created default Agent_Persona.md in project');
+    }
+
+    // Create PROJECT_JOURNAL.md template
+    const journalPath = path.join(projectPath, 'PROJECT_JOURNAL.md');
+    const projectName = path.basename(projectPath);
+    const journalTemplate = `# 🚀 Project Journal
+
+> **Purpose:** This file maintains context across AI assistant sessions. Cursy can read and update this automatically!
+
+---
+
+## 📋 Project Information
+
+**Project Name:** ${projectName}
+
+**Developer(s):** [Your name(s)]
+
+**Project Type:** ${selectedTemplate.name || 'Custom Project'}
+
+**Tech Stack:** [Languages, frameworks, libraries]
+
+**Start Date:** ${new Date().toLocaleDateString()}
+
+**Repository:** [Git URL if applicable]
+
+---
+
+## 🎯 Project Overview
+
+**What does this project do?**
+[Brief description of the project's purpose and goals]
+
+**Key Features:**
+- [ ] Feature 1
+- [ ] Feature 2
+- [ ] Feature 3
+
+**Target Audience/Platform:**
+[Who/what is this for? Desktop, mobile, specific users?]
+
+---
+
+## 📅 Recent Work Sessions
+
+### Session: ${new Date().toLocaleDateString()}
+
+**What we accomplished:**
+- ✅ Project created with ${selectedTemplate.name || template} template
+
+**Key decisions made:**
+1. [Decision and reasoning]
+
+**Problems encountered:**
+- [None yet]
+
+**Code changes:**
+- [Initial project setup]
+
+---
+
+## 🔴 Current Status & Blockers
+
+### Active Issues
+[None yet]
+
+### Working Features
+- ✅ Project structure created
+- ✅ Template files initialized
+
+### Known Bugs
+[None yet]
+
+---
+
+## 🎯 Next Steps
+
+**Immediate priorities:**
+1. [ ] [Next task]
+2. [ ] [Next task]
+3. [ ] [Next task]
+
+**Future enhancements:**
+- [ ] [Nice-to-have feature]
+- [ ] [Nice-to-have feature]
+
+**Questions to resolve:**
+- ❓ [Question or decision needed]
+
+---
+
+## 📁 Project Structure
+
+**Key Files:**
+${Object.keys(selectedTemplate.files).map(file => `- \`${file}\` - [What this file does]`).join('\n')}
+
+**Key Directories:**
+- [Directory structure will be documented as project grows]
+
+---
+
+## ⚙️ Setup & Running
+
+**Initial Setup:**
+\`\`\`bash
+# Installation commands
+${packageJson ? 'npm install' : '# Add setup instructions here'}
+\`\`\`
+
+**Development:**
+\`\`\`bash
+# How to run in dev mode
+${packageJson ? 'npm start' : '# Add dev commands here'}
+\`\`\`
+
+---
+
+## 🔧 Technical Notes
+
+**Important Patterns/Conventions:**
+- [Coding style or pattern we're using]
+- [Naming conventions]
+- [Architecture decisions]
+
+**Dependencies to know:**
+${packageJson && packageJson.dependencies ? Object.keys(packageJson.dependencies).map(dep => `- \`${dep}\` - [Why we use this]`).join('\n') : '- [Dependencies will be documented here]'}
+
+---
+
+## 🎓 Instructions for AI Assistants
+
+**When starting a session:**
+1. ✅ Read this file completely
+2. ✅ Check "Current Status & Blockers" 
+3. ✅ Review "Next Steps"
+4. ✅ Ask developer what they want to work on
+5. ✅ Update this file as work progresses
+
+**When ending a session:**
+1. ✅ Update "Recent Work Sessions" with today's work
+2. ✅ Update "Current Status & Blockers"
+3. ✅ Update "Next Steps" 
+4. ✅ Note any new technical details in relevant sections
+
+**Remember:**
+- This file is the project's memory
+- Keep it updated and accurate
+- Be specific about file paths and changes
+- Document WHY decisions were made, not just WHAT was done
+`;
+    fs.writeFileSync(journalPath, journalTemplate, 'utf-8');
+    console.log('✅ Created PROJECT_JOURNAL.md in project');
 
     return { success: true, path: projectPath };
   } catch (error) {
@@ -870,6 +1414,51 @@ ipcMain.handle('genre:saveRule', async (event, genreName, ruleData) => {
   } catch (error) {
     return { success: false, error: error.message };
   }
+});
+
+// OpenAI IPC Handler (Phase 2)
+ipcMain.handle('openai:chat', async (event, { messages, systemPrompt }) => {
+  try {
+    if (!openaiClient) {
+      // Try to initialize if not already done
+      if (!initOpenAIClient()) {
+        return { success: false, error: 'OpenAI client not initialized' };
+      }
+    }
+
+    // Build messages array with system prompt
+    const chatMessages = [
+      {
+        role: 'system',
+        content: systemPrompt || 'You are Cursy, a friendly and enthusiastic AI coding assistant for VIBE IDE.'
+      },
+      ...messages
+    ];
+
+    const response = await openaiClient.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: chatMessages,
+      temperature: 0.7,
+      max_tokens: 1000
+    });
+
+    const aiResponse = response.choices[0].message.content;
+    return { success: true, content: aiResponse };
+  } catch (error) {
+    console.error('OpenAI API error:', error);
+    return { 
+      success: false, 
+      error: error.message,
+      status: error.status || 500
+    };
+  }
+});
+
+ipcMain.handle('openai:checkStatus', async () => {
+  return {
+    initialized: !!openaiClient,
+    hasApiKey: !!openaiApiKey
+  };
 });
 
 ipcMain.handle('genre:deleteRule', async (event, genreName) => {

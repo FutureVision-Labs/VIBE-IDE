@@ -1,0 +1,96 @@
+{
+  "genre": "ecommerce",
+  "version": "1.0.0",
+  "frameworkVersion": "Framework-agnostic",
+  "description": "E-commerce web application patterns and best practices",
+  "author": "VIBE IDE Team",
+  "isBundled": true,
+  "commonPatterns": {
+    "productCatalog": {
+      "pattern": "Product listing with filtering and pagination",
+      "codeSnippet": "// Product listing with filters\nconst [products, setProducts] = useState([]);\nconst [filters, setFilters] = useState({ category: '', price: '' });\n\nconst filteredProducts = products.filter(product => {\n  return (!filters.category || product.category === filters.category) &&\n         (!filters.price || product.price <= filters.price);\n});"
+    },
+    "shoppingCart": {
+      "pattern": "Cart state management with add/remove/update",
+      "codeSnippet": "// Shopping cart state\nconst [cart, setCart] = useState([]);\n\nconst addToCart = (product) => {\n  setCart(prev => {\n    const existing = prev.find(item => item.id === product.id);\n    if (existing) {\n      return prev.map(item =>\n        item.id === product.id\n          ? { ...item, quantity: item.quantity + 1 }\n          : item\n      );\n    }\n    return [...prev, { ...product, quantity: 1 }];\n  });\n};"
+    },
+    "checkout": {
+      "pattern": "Multi-step checkout process",
+      "codeSnippet": "// Checkout steps\nconst [step, setStep] = useState(1);\nconst [checkoutData, setCheckoutData] = useState({\n  shipping: {},\n  payment: {},\n  review: {}\n});\n\nconst steps = ['Shipping', 'Payment', 'Review', 'Confirmation'];"
+    },
+    "payment": {
+      "pattern": "Payment integration (Stripe, PayPal, etc.)",
+      "codeSnippet": "// Payment processing\nconst handlePayment = async (paymentData) => {\n  try {\n    const response = await fetch('/api/payment', {\n      method: 'POST',\n      headers: { 'Content-Type': 'application/json' },\n      body: JSON.stringify(paymentData)\n    });\n    const result = await response.json();\n    // Handle success/error\n  } catch (error) {\n    // Handle error\n  }\n};"
+    },
+    "userAuthentication": {
+      "pattern": "User login/register with session management",
+      "codeSnippet": "// Authentication state\nconst [user, setUser] = useState(null);\nconst [isAuthenticated, setIsAuthenticated] = useState(false);\n\nconst login = async (credentials) => {\n  const response = await fetch('/api/login', {\n    method: 'POST',\n    body: JSON.stringify(credentials)\n  });\n  const data = await response.json();\n  setUser(data.user);\n  setIsAuthenticated(true);\n  localStorage.setItem('token', data.token);\n};"
+    }
+  },
+  "aiSuggestions": {
+    "context": "You are helping create an e-commerce web application. Common patterns include: product catalog with filtering/search, shopping cart functionality, user authentication, checkout process, payment integration, order management, inventory tracking, user reviews/ratings, wishlist functionality, product recommendations. Security is critical - never store payment info client-side, always use HTTPS, validate all inputs, use secure authentication. Performance matters - optimize images, lazy load products, cache frequently accessed data. Always handle errors gracefully, especially for payment and checkout flows.",
+    "codeExamples": [
+      {
+        "title": "Product Filtering",
+        "description": "Filter products by category, price, etc.",
+        "code": "const filteredProducts = products.filter(product => {\n  const matchesCategory = !filters.category || product.category === filters.category;\n  const matchesPrice = !filters.maxPrice || product.price <= filters.maxPrice;\n  return matchesCategory && matchesPrice;\n});",
+        "docLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/filter"
+      },
+      {
+        "title": "Add to Cart",
+        "description": "Add product to shopping cart with quantity",
+        "code": "const addToCart = (product) => {\n  setCart(prev => {\n    const existing = prev.find(item => item.id === product.id);\n    if (existing) {\n      return prev.map(item =>\n        item.id === product.id\n          ? { ...item, quantity: item.quantity + 1 }\n          : item\n      );\n    }\n    return [...prev, { ...product, quantity: 1 }];\n  });\n};",
+        "docLink": ""
+      },
+      {
+        "title": "Calculate Cart Total",
+        "description": "Calculate total price of items in cart",
+        "code": "const cartTotal = cart.reduce((total, item) => {\n  return total + (item.price * item.quantity);\n}, 0);",
+        "docLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/reduce"
+      },
+      {
+        "title": "Form Validation",
+        "description": "Validate checkout form inputs",
+        "code": "const validateForm = (formData) => {\n  const errors = {};\n  if (!formData.email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(formData.email)) {\n    errors.email = 'Valid email required';\n  }\n  if (!formData.cardNumber || formData.cardNumber.length !== 16) {\n    errors.cardNumber = 'Valid card number required';\n  }\n  return errors;\n};",
+        "docLink": ""
+      }
+    ],
+    "commonBugs": [
+      "Cart state not persisting - Use localStorage or sessionStorage",
+      "Payment info stored client-side - Never store sensitive payment data",
+      "Missing form validation - Always validate inputs before submission",
+      "Race conditions in cart updates - Use functional setState",
+      "Image loading performance - Optimize and lazy load product images",
+      "Missing error handling - Always handle payment/checkout errors",
+      "CSRF vulnerabilities - Use CSRF tokens for forms",
+      "XSS vulnerabilities - Sanitize user input, especially in reviews"
+    ],
+    "performanceTips": [
+      "Lazy load product images - Use loading='lazy' attribute",
+      "Implement pagination or infinite scroll for product lists",
+      "Cache product data - Use localStorage or service workers",
+      "Optimize images - Use WebP format, responsive images",
+      "Debounce search inputs - Prevent excessive API calls",
+      "Use virtual scrolling for long product lists",
+      "Implement product image preloading for better UX"
+    ]
+  },
+  "validationRules": {
+    "requiredFeatures": ["product catalog", "shopping cart", "checkout", "user authentication"],
+    "recommendedFeatures": ["payment integration", "order management", "reviews", "wishlist"],
+    "securityRequirements": {
+      "authentication": "Secure login/logout, session management",
+      "payment": "Never store payment info client-side, use payment gateway",
+      "validation": "Validate all inputs, sanitize user data",
+      "https": "Always use HTTPS in production"
+    },
+    "commonPatterns": ["product listing", "cart management", "checkout flow", "user accounts"],
+    "bestPractices": {
+      "cart": "Persist cart in localStorage, sync with server",
+      "products": "Implement search, filtering, sorting",
+      "checkout": "Multi-step process with validation",
+      "payment": "Use established payment gateways (Stripe, PayPal)"
+    }
+  }
+}
+

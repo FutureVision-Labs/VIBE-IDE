@@ -1,0 +1,94 @@
+{
+  "genre": "vue-spa",
+  "version": "1.0.0",
+  "frameworkVersion": "Vue 3.x",
+  "description": "Vue.js Single Page Application patterns and best practices",
+  "author": "VIBE IDE Team",
+  "isBundled": true,
+  "commonPatterns": {
+    "componentStructure": {
+      "pattern": "Single File Components (SFC) with Composition API",
+      "codeSnippet": "<template>\n  <div>\n    <h1>{{ title }}</h1>\n    <button @click=\"increment\">Count: {{ count }}</button>\n  </div>\n</template>\n\n<script setup>\nimport { ref } from 'vue';\n\nconst title = ref('Hello Vue');\nconst count = ref(0);\n\nconst increment = () => {\n  count.value++;\n};\n</script>\n\n<style scoped>\n/* Component styles */\n</style>"
+    },
+    "stateManagement": {
+      "local": "ref/reactive for component state",
+      "global": "Pinia or Vuex for app-wide state",
+      "codeSnippet": "// Local reactive state\nimport { ref, reactive } from 'vue';\n\nconst count = ref(0);\nconst user = reactive({ name: '', email: '' });\n\n// Pinia store (global)\nimport { defineStore } from 'pinia';\n\nexport const useUserStore = defineStore('user', {\n  state: () => ({ name: '', email: '' }),\n  actions: {\n    setUser(user) { this.name = user.name; }\n  }\n});"
+    },
+    "routing": {
+      "library": "Vue Router",
+      "pattern": "Declarative routing with router-view",
+      "codeSnippet": "import { createRouter, createWebHistory } from 'vue-router';\n\nconst routes = [\n  { path: '/', component: Home },\n  { path: '/about', component: About }\n];\n\nconst router = createRouter({\n  history: createWebHistory(),\n  routes\n});"
+    },
+    "dataFetching": {
+      "pattern": "onMounted with async/await or composables",
+      "codeSnippet": "import { ref, onMounted } from 'vue';\n\nconst data = ref(null);\nconst loading = ref(true);\n\nonMounted(async () => {\n  try {\n    const response = await fetch('/api/data');\n    data.value = await response.json();\n  } catch (error) {\n    console.error(error);\n  } finally {\n    loading.value = false;\n  }\n});"
+    },
+    "forms": {
+      "pattern": "v-model for two-way binding",
+      "codeSnippet": "<template>\n  <form @submit.prevent=\"handleSubmit\">\n    <input v-model=\"form.name\" placeholder=\"Name\" />\n    <input v-model=\"form.email\" placeholder=\"Email\" />\n    <button type=\"submit\">Submit</button>\n  </form>\n</template>\n\n<script setup>\nimport { reactive } from 'vue';\n\nconst form = reactive({ name: '', email: '' });\n\nconst handleSubmit = () => {\n  // Submit logic\n};\n</script>"
+    }
+  },
+  "aiSuggestions": {
+    "context": "You are helping create a Vue.js Single Page Application. Common patterns include: Single File Components (SFC) with <template>, <script setup>, and <style>, Composition API with ref/reactive, Vue Router for navigation, v-model for two-way binding, computed properties, watchers, lifecycle hooks (onMounted, onUnmounted), Pinia for state management, props and emits for parent-child communication, slots for content projection. Use Composition API (script setup) instead of Options API. Remember .value when accessing ref values in script, but not in template. Use v-if/v-show for conditional rendering, v-for for lists with keys.",
+    "codeExamples": [
+      {
+        "title": "Reactive State with ref",
+        "description": "Creating reactive state with ref",
+        "code": "import { ref } from 'vue';\n\nconst count = ref(0);\n\n// In script: use .value\ncount.value++;\n\n// In template: no .value needed\n// {{ count }}",
+        "docLink": "https://vuejs.org/api/reactivity-core.html#ref"
+      },
+      {
+        "title": "Computed Properties",
+        "description": "Derived reactive values",
+        "code": "import { ref, computed } from 'vue';\n\nconst firstName = ref('John');\nconst lastName = ref('Doe');\n\nconst fullName = computed(() => {\n  return `${firstName.value} ${lastName.value}`;\n});",
+        "docLink": "https://vuejs.org/api/reactivity-core.html#computed"
+      },
+      {
+        "title": "Watchers",
+        "description": "React to state changes",
+        "code": "import { ref, watch } from 'vue';\n\nconst count = ref(0);\n\nwatch(count, (newVal, oldVal) => {\n  console.log(`Count changed from ${oldVal} to ${newVal}`);\n});",
+        "docLink": "https://vuejs.org/api/reactivity-core.html#watch"
+      },
+      {
+        "title": "List Rendering with Keys",
+        "description": "Render lists with proper keys",
+        "code": "<template>\n  <div v-for=\"item in items\" :key=\"item.id\">\n    {{ item.name }}\n  </div>\n</template>",
+        "docLink": "https://vuejs.org/guide/essentials/list.html"
+      }
+    ],
+    "commonBugs": [
+      "Forgetting .value when accessing ref in script - refs need .value in script, not template",
+      "Mutating props directly - Props are read-only, use emits to update parent",
+      "Missing keys in v-for - Causes rendering issues and performance problems",
+      "Memory leaks from watchers - Always clean up watchers in onUnmounted",
+      "v-if vs v-show confusion - v-if removes from DOM, v-show just hides",
+      "Reactive object mutation - Use reactive() or ensure proper reactivity",
+      "Async state updates - Be careful with timing of reactive updates"
+    ],
+    "performanceTips": [
+      "Use v-show instead of v-if for frequently toggled elements",
+      "Use computed instead of methods for derived values",
+      "Lazy load routes with dynamic imports",
+      "Use v-memo for expensive list rendering",
+      "Avoid creating functions in template - use computed or methods",
+      "Use keep-alive for component caching",
+      "Code split with dynamic imports"
+    ]
+  },
+  "validationRules": {
+    "requiredFiles": ["package.json", "src/App.vue", "src/main.js"],
+    "requiredDependencies": ["vue"],
+    "recommendedDependencies": ["vue-router", "pinia"],
+    "fileStructure": {
+      "src/": ["components/", "views/", "composables/", "stores/", "App.vue", "main.js"]
+    },
+    "commonPatterns": ["SFC components", "Composition API", "routing", "state management"],
+    "bestPractices": {
+      "components": "One component per .vue file, PascalCase naming",
+      "composables": "Reusable logic in composables/ folder, prefix with 'use'",
+      "state": "Use Pinia for global state, ref/reactive for local"
+    }
+  }
+}
+
