@@ -3136,24 +3136,34 @@ async function switchToTab(tabId) {
                     console.log('   Editor display:', editorEl.style.display);
                     console.log('   Preview display before:', previewEl.style.display);
                     
+                    // Hide editor first
                     editorEl.style.display = 'none';
+                    
+                    // Show preview and make it editable
                     previewEl.style.display = 'block';
+                    previewEl.style.visibility = 'visible';
                     previewEl.contentEditable = 'true'; // Make preview editable for WYSIWYG!
                     previewEl.setAttribute('spellcheck', 'true');
+                    previewEl.setAttribute('tabindex', '0'); // Make it focusable
                     
                     console.log('   Preview display after:', previewEl.style.display);
+                    console.log('   Preview visibility:', previewEl.style.visibility);
                     console.log('   Preview contentEditable:', previewEl.contentEditable);
                     
-                    // Update preview content from markdown
+                    // Update preview content from markdown - force update
                     updateMarkdownPreview();
                     
+                    // Force a reflow to ensure display changes take effect
+                    previewEl.offsetHeight; // Force reflow
+                    
                     console.log('   Preview innerHTML length:', previewEl.innerHTML.length);
+                    console.log('   Preview computed display:', window.getComputedStyle(previewEl).display);
                     
                     // Focus the preview after a short delay
                     setTimeout(() => {
                         previewEl.focus();
-                        console.log('   Preview focused');
-                    }, 100);
+                        console.log('   Preview focused, activeElement:', document.activeElement?.id);
+                    }, 150);
                 } else {
                     // Show editor, hide preview
                     const previewEl = document.getElementById('mdPreview');
