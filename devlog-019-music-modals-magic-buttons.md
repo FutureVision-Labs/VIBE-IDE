@@ -75,6 +75,8 @@ Remember Cursy's Corner? That cozy office space where Cursy lives? Well, we've b
 - **Search for images** to replace wall decorations in Cursy's office
 - **Search for videos** to watch on the TV
 - **Search for music** (see Section 1 above!)
+- **Cursy's Notes** - Click on the corkboard to open an interactive notes modal where you can jot down ideas, reminders, or project notes
+- **Cursy's Bookshelf** - Click on the bookcase to browse through a curated collection of coding resources, tutorials, and helpful links
 - **All royalty-free** - no licensing headaches!
 
 ### The Technical Side
@@ -110,6 +112,8 @@ What's coming next? Who knows! But we're having fun building it, and that's what
 - **Music & SFX Panel:** Click the button at the bottom of your file browser
 - **Implement Buttons:** Ask Cursy to create or modify a file, then click the buttons!
 - **Pixabay Assets:** Click around Cursy's Corner and explore!
+- **Cursy's Notes:** Click the corkboard to open your personal notes modal
+- **Cursy's Bookshelf:** Click the bookcase to browse coding resources
 
 As always, **report bugs, suggest features, and join our Discord** - we love hearing from you! 💬
 
