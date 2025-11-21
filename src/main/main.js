@@ -102,10 +102,13 @@ function loadPixabayKey() {
 
 async function searchPixabayImages(query, options = {}) {
   if (!pixabayApiKey) {
+    console.log('⚠️ Pixabay key not loaded, attempting to load...');
     if (!loadPixabayKey()) {
+      console.error('❌ Failed to load Pixabay key');
       return { success: false, error: 'Pixabay API key not configured' };
     }
   }
+  console.log('✅ Using Pixabay key (length:', pixabayApiKey.length, ')');
   
   try {
     const https = require('https');
@@ -159,10 +162,13 @@ async function searchPixabayImages(query, options = {}) {
 
 async function searchPixabayVideos(query, options = {}) {
   if (!pixabayApiKey) {
+    console.log('⚠️ Pixabay key not loaded, attempting to load...');
     if (!loadPixabayKey()) {
+      console.error('❌ Failed to load Pixabay key');
       return { success: false, error: 'Pixabay API key not configured' };
     }
   }
+  console.log('✅ Using Pixabay key (length:', pixabayApiKey.length, ')');
   
   try {
     const https = require('https');
@@ -1621,9 +1627,14 @@ ipcMain.handle('pixabay:searchVideos', async (event, { query, options }) => {
 
 ipcMain.handle('pixabay:checkStatus', async () => {
   if (!pixabayApiKey) {
-    loadPixabayKey();
+    const loaded = loadPixabayKey();
+    console.log('🔍 Pixabay key check - loaded:', loaded, 'key exists:', !!pixabayApiKey);
   }
-  return { available: !!pixabayApiKey };
+  return { 
+    available: !!pixabayApiKey,
+    hasKey: !!pixabayApiKey,
+    keyLength: pixabayApiKey ? pixabayApiKey.length : 0
+  };
 });
 
 ipcMain.handle('openai:checkStatus', async () => {
