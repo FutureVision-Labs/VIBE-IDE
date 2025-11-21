@@ -889,6 +889,54 @@ ipcMain.handle('fs:rename', async (event, oldPath, newPath) => {
   }
 });
 
+// Download file from URL
+ipcMain.handle('fs:downloadFile', async (event, url, filePath) => {
+  try {
+    const https = require('https');
+    const http = require('http');
+    const urlModule = require('url');
+    
+    // Ensure directory exists
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    const parsedUrl = urlModule.parse(url);
+    const protocol = parsedUrl.protocol === 'https:' ? https : http;
+    
+    return new Promise((resolve) => {
+      const file = fs.createWriteStream(filePath);
+      
+      protocol.get(url, (response) => {
+        if (response.statusCode !== 200) {
+          file.close();
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath); // Delete the file on error
+          }
+          resolve({ success: false, error: `HTTP ${response.statusCode}: ${response.statusMessage || 'Download failed'}` });
+          return;
+        }
+        
+        response.pipe(file);
+        
+        file.on('finish', () => {
+          file.close();
+          resolve({ success: true, path: filePath });
+        });
+      }).on('error', (error) => {
+        file.close();
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+        resolve({ success: false, error: error.message });
+      });
+    });
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('project:create', async (event, template, projectPath, genre = null) => {
   try {
     // Template to genre mapping (infer genre from template if not specified)
