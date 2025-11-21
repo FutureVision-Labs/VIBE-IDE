@@ -6127,20 +6127,23 @@ function setupMarkdownToolbar() {
         btn.parentNode.replaceChild(newBtn, btn);
     });
     
-    // Make sure preview toggle button exists (it should, but just in case)
+    // ALWAYS ensure preview toggle button exists - create it fresh if missing
     let previewToggle = document.getElementById('mdPreviewToggle');
     if (!previewToggle) {
-        // Button was somehow removed, recreate it
-        const separator = toolbar.querySelector('.md-toolbar-separator:last-of-type');
-        if (separator) {
-            previewToggle = document.createElement('button');
-            previewToggle.id = 'mdPreviewToggle';
-            previewToggle.className = 'md-toolbar-btn';
-            previewToggle.title = 'Toggle Preview/Editor';
-            previewToggle.innerHTML = '👁️ Preview';
-            toolbar.appendChild(previewToggle);
-        }
+        console.log('🔧 Creating missing mdPreviewToggle button...');
+        previewToggle = document.createElement('button');
+        previewToggle.id = 'mdPreviewToggle';
+        previewToggle.className = 'md-toolbar-btn';
+        previewToggle.innerHTML = '👁️ Preview';
+        previewToggle.title = 'Toggle Preview';
+        toolbar.appendChild(previewToggle);
+        console.log('✅ mdPreviewToggle button created');
     }
+    
+    // Always attach the click handler
+    previewToggle.onclick = () => {
+        toggleMarkdownPreview();
+    };
     
     // Setup heading dropdown
     const headingBtn = document.getElementById('headingBtn');
@@ -6194,15 +6197,9 @@ function setupMarkdownToolbar() {
         });
     });
     
-    // Setup preview toggle button (reuse the variable declared above)
+    // Preview toggle button handler is already set above with onclick
+    // Just update the button state
     if (previewToggle) {
-        previewToggle.addEventListener('click', (e) => {
-            e.preventDefault();
-            toggleMarkdownPreview();
-            // Update button text
-            updatePreviewToggleButton();
-        });
-        // Set initial button state
         updatePreviewToggleButton();
     }
 }
