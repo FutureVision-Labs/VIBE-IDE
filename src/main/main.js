@@ -68,6 +68,110 @@ function initOpenAIClient() {
 // Don't initialize here - wait for app to be ready
 // initOpenAIClient() will be called in app.whenReady()
 
+// Pixabay API
+let pixabayApiKey = null;
+
+function loadPixabayKey() {
+  try {
+    const userDataPath = app.getPath('userData');
+    const configPath = path.join(userDataPath, 'pixabay-config.json');
+    console.log('🔍 Looking for Pixabay config at:', configPath);
+    
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      if (config.apiKey) {
+        pixabayApiKey = config.apiKey;
+        console.log('✅ Pixabay API key loaded from config file');
+        return true;
+      }
+    }
+    
+    if (process.env.PIXABAY_API_KEY) {
+      pixabayApiKey = process.env.PIXABAY_API_KEY;
+      console.log('✅ Pixabay API key loaded from environment variable');
+      return true;
+    }
+    
+    console.warn('⚠️ Pixabay API key not found. Create pixabay-config.json in:', userDataPath);
+    return false;
+  } catch (error) {
+    console.error('❌ Error loading Pixabay key:', error);
+    return false;
+  }
+}
+
+async function searchPixabayImages(query, options = {}) {
+  if (!pixabayApiKey) {
+    if (!loadPixabayKey()) {
+      return { success: false, error: 'Pixabay API key not configured' };
+    }
+  }
+  
+  try {
+    const https = require('https');
+    const url = new URL('https://pixabay.com/api/');
+    url.searchParams.set('key', pixabayApiKey);
+    url.searchParams.set('q', query);
+    url.searchParams.set('image_type', options.imageType || 'all');
+    url.searchParams.set('orientation', options.orientation || 'all');
+    url.searchParams.set('safesearch', options.safesearch !== false ? 'true' : 'false');
+    url.searchParams.set('per_page', options.perPage || 20);
+    url.searchParams.set('page', options.page || 1);
+    
+    return new Promise((resolve, reject) => {
+      https.get(url.toString(), (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const result = JSON.parse(data);
+            resolve({ success: true, data: result });
+          } catch (error) {
+            reject(error);
+          }
+        });
+      }).on('error', reject);
+    });
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+async function searchPixabayVideos(query, options = {}) {
+  if (!pixabayApiKey) {
+    if (!loadPixabayKey()) {
+      return { success: false, error: 'Pixabay API key not configured' };
+    }
+  }
+  
+  try {
+    const https = require('https');
+    const url = new URL('https://pixabay.com/api/videos/');
+    url.searchParams.set('key', pixabayApiKey);
+    url.searchParams.set('q', query);
+    url.searchParams.set('safesearch', options.safesearch !== false ? 'true' : 'false');
+    url.searchParams.set('per_page', options.perPage || 20);
+    url.searchParams.set('page', options.page || 1);
+    
+    return new Promise((resolve, reject) => {
+      https.get(url.toString(), (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const result = JSON.parse(data);
+            resolve({ success: true, data: result });
+          } catch (error) {
+            reject(error);
+          }
+        });
+      }).on('error', reject);
+    });
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
 let mainWindow;
 let splashWindow;
 const windowStateFile = path.join(app.getPath('userData'), 'window-state.json');
@@ -1464,6 +1568,22 @@ ipcMain.handle('openai:chat', async (event, { messages, systemPrompt, maxTokens 
       status: error.status || 500
     };
   }
+});
+
+// Pixabay API IPC handlers
+ipcMain.handle('pixabay:searchImages', async (event, { query, options }) => {
+  return await searchPixabayImages(query, options);
+});
+
+ipcMain.handle('pixabay:searchVideos', async (event, { query, options }) => {
+  return await searchPixabayVideos(query, options);
+});
+
+ipcMain.handle('pixabay:checkStatus', async () => {
+  if (!pixabayApiKey) {
+    loadPixabayKey();
+  }
+  return { available: !!pixabayApiKey };
 });
 
 ipcMain.handle('openai:checkStatus', async () => {

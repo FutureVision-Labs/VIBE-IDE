@@ -1100,11 +1100,15 @@ function buildCursyOffice() {
     bookcase.style.position = 'absolute';
     bookcase.style.top = '79px'; // User specified
     bookcase.style.right = '120px'; // User specified
+    bookcase.classList.add('clickable-element');
+    bookcase.dataset.elementType = 'bookshelf';
+    bookcase.style.cursor = 'pointer';
+    bookcase.addEventListener('click', () => openBookshelf());
     bookcase.onerror = () => {
         bookcase.style.display = 'none';
     };
     furnitureLayer.appendChild(bookcase);
-    console.log('✅ Bookcase added to furniture layer');
+    console.log('✅ Bookcase added to furniture layer (clickable)');
     
     // Second desk with laptop and printer on the right side
     const desk2 = document.createElement('img');
@@ -1179,11 +1183,15 @@ function buildCursyOffice() {
     recordPlayer.style.position = 'absolute';
     recordPlayer.style.bottom = '25%'; // User specified
     recordPlayer.style.left = '1%'; // User specified
+    recordPlayer.classList.add('clickable-element');
+    recordPlayer.dataset.elementType = 'music';
+    recordPlayer.style.cursor = 'pointer';
+    recordPlayer.addEventListener('click', () => openMusicPlayer());
     recordPlayer.onerror = () => {
         recordPlayer.style.display = 'none';
     };
     furnitureLayer.appendChild(recordPlayer);
-    console.log('✅ Record player added to furniture layer');
+    console.log('✅ Record player added to furniture layer (clickable)');
     
     // Table in the middle of the room
     const table = document.createElement('img');
@@ -1207,11 +1215,15 @@ function buildCursyOffice() {
     oldTV.style.bottom = '67px'; // User specified
     oldTV.style.left = '55%'; // User specified
     oldTV.style.transform = 'translateX(-50%)'; // Center it
+    oldTV.classList.add('clickable-element');
+    oldTV.dataset.elementType = 'video';
+    oldTV.style.cursor = 'pointer';
+    oldTV.addEventListener('click', () => openVideoPlayer());
     oldTV.onerror = () => {
         oldTV.style.display = 'none';
     };
     furnitureLayer.appendChild(oldTV);
-    console.log('✅ Old TV added to furniture layer');
+    console.log('✅ Old TV added to furniture layer (clickable)');
     
     // Note: Main desk/computer is part of the character animation sprites, no separate asset needed
     
@@ -1223,6 +1235,10 @@ function buildCursyOffice() {
     corkboard.style.position = 'absolute';
     corkboard.style.top = '95px'; // Adjusted for 270px room height
     corkboard.style.left = '10px'; // User specified
+    corkboard.classList.add('clickable-element');
+    corkboard.dataset.elementType = 'notes';
+    corkboard.style.cursor = 'pointer';
+    corkboard.addEventListener('click', () => openCursysNotes());
     corkboard.onerror = () => {
         corkboard.style.display = 'none';
     };
@@ -1235,6 +1251,11 @@ function buildCursyOffice() {
     poster.style.position = 'absolute';
     poster.style.top = '81px'; // Adjusted for 270px room height
     poster.style.left = '40px'; // User specified
+    poster.classList.add('clickable-element');
+    poster.dataset.elementType = 'image';
+    poster.dataset.searchQuery = 'abstract art';
+    poster.style.cursor = 'pointer';
+    poster.addEventListener('click', () => openImageGallery(poster));
     poster.onerror = () => {
         poster.style.display = 'none';
     };
@@ -1249,6 +1270,11 @@ function buildCursyOffice() {
     wallFrame.style.left = '82px'; // User specified
     wallFrame.style.width = '24px'; // Double size (12x24 → 24x48)
     wallFrame.style.height = '48px';
+    wallFrame.classList.add('clickable-element');
+    wallFrame.dataset.elementType = 'image';
+    wallFrame.dataset.searchQuery = 'painting art';
+    wallFrame.style.cursor = 'pointer';
+    wallFrame.addEventListener('click', () => openImageGallery(wallFrame));
     wallFrame.onerror = () => {
         wallFrame.style.display = 'none';
     };
@@ -1361,6 +1387,10 @@ function buildCursyOffice() {
     pinnedNote01.style.position = 'absolute';
     pinnedNote01.style.top = '58px'; // User specified
     pinnedNote01.style.right = '90px'; // User specified
+    pinnedNote01.classList.add('clickable-element');
+    pinnedNote01.dataset.elementType = 'notes';
+    pinnedNote01.style.cursor = 'pointer';
+    pinnedNote01.addEventListener('click', () => openCursysNotes());
     pinnedNote01.onerror = () => {
         pinnedNote01.style.display = 'none';
     };
@@ -1378,6 +1408,472 @@ function initCursyVisualization() {
     }
     updateCursyState('idle', 'Ready to help!');
 }
+
+// ============================================
+// Cursy Corner Interactive Features
+// ============================================
+
+// Modal functions
+function openCursyCornerModal(title, content) {
+    const modal = document.getElementById('cursyCornerModal');
+    const modalTitle = document.getElementById('modalTitleCursy');
+    const modalBody = document.getElementById('modalBodyCursy');
+    
+    if (modal && modalTitle && modalBody) {
+        modalTitle.textContent = title;
+        modalBody.innerHTML = content;
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeCursyCornerModal() {
+    const modal = document.getElementById('cursyCornerModal');
+    if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+}
+
+// Make close function globally available
+window.closeCursyCornerModal = closeCursyCornerModal;
+
+// Music Player
+async function openMusicPlayer() {
+    const defaultQueries = ['lofi', 'coding music', 'ambient'];
+    const randomQuery = defaultQueries[Math.floor(Math.random() * defaultQueries.length)];
+    
+    let content = `
+        <div class="music-player-container">
+            <div class="music-search">
+                <input type="text" id="musicSearchInput" placeholder="Search for music..." value="${randomQuery}">
+                <button onclick="searchMusic()">🔍 Search</button>
+            </div>
+            <div id="musicResults" class="music-results">
+                <p>Loading music...</p>
+            </div>
+            <div id="musicControls" class="music-controls" style="display: none;">
+                <button id="musicPlayPause" onclick="toggleMusic()">▶️</button>
+                <div class="music-info">
+                    <h4 id="musicTitle">No music selected</h4>
+                    <p id="musicArtist">Select a track to play</p>
+                </div>
+            </div>
+            <audio id="musicPlayer" style="display: none;"></audio>
+        </div>
+    `;
+    
+    openCursyCornerModal('🎵 Music Player', content);
+    
+    // Auto-search on open
+    setTimeout(() => {
+        searchMusic();
+    }, 100);
+}
+
+// Make music functions globally available
+window.searchMusic = async function() {
+    const input = document.getElementById('musicSearchInput');
+    const query = input ? input.value : 'lofi';
+    const resultsDiv = document.getElementById('musicResults');
+    
+    if (!resultsDiv) return;
+    
+    resultsDiv.innerHTML = '<p>Searching for music...</p>';
+    
+    try {
+        // Note: Pixabay videos API can be used for music/audio content
+        const response = await window.electronAPI.pixabaySearchVideos(query, { perPage: 20 });
+        
+        if (response.success && response.data.hits && response.data.hits.length > 0) {
+            let html = '';
+            response.data.hits.forEach((video, index) => {
+                const thumbnail = video.videos.small.thumbnail;
+                html += `
+                    <div class="music-item" onclick="playMusic(${index})" data-video='${JSON.stringify(video).replace(/'/g, "&apos;")}'>
+                        <img src="${thumbnail}" alt="${video.tags}">
+                        <h4>${video.tags.split(',')[0]}</h4>
+                        <p>${video.user}</p>
+                    </div>
+                `;
+            });
+            resultsDiv.innerHTML = html;
+            window.musicVideos = response.data.hits;
+        } else {
+            resultsDiv.innerHTML = '<p>No music found. Try a different search term.</p>';
+        }
+    } catch (error) {
+        resultsDiv.innerHTML = `<p>Error searching music: ${error.message}</p>`;
+    }
+};
+
+window.playMusic = function(index) {
+    if (!window.musicVideos || !window.musicVideos[index]) return;
+    
+    const video = window.musicVideos[index];
+    const audio = document.getElementById('musicPlayer');
+    const controls = document.getElementById('musicControls');
+    const title = document.getElementById('musicTitle');
+    const artist = document.getElementById('musicArtist');
+    const playPause = document.getElementById('musicPlayPause');
+    
+    if (audio && controls && title && artist && playPause) {
+        // Use the small video URL as audio source
+        audio.src = video.videos.small.url;
+        title.textContent = video.tags.split(',')[0];
+        artist.textContent = `By ${video.user}`;
+        controls.style.display = 'flex';
+        audio.play();
+        playPause.textContent = '⏸️';
+        
+        // Update all music items to remove 'playing' class
+        document.querySelectorAll('.music-item').forEach(item => {
+            item.classList.remove('playing');
+        });
+        
+        // Add 'playing' class to current item
+        const items = document.querySelectorAll('.music-item');
+        if (items[index]) {
+            items[index].classList.add('playing');
+        }
+    }
+};
+
+window.toggleMusic = function() {
+    const audio = document.getElementById('musicPlayer');
+    const playPause = document.getElementById('musicPlayPause');
+    
+    if (audio && playPause) {
+        if (audio.paused) {
+            audio.play();
+            playPause.textContent = '⏸️';
+        } else {
+            audio.pause();
+            playPause.textContent = '▶️';
+        }
+    }
+};
+
+// Image Gallery
+async function openImageGallery(element) {
+    const searchQuery = element.dataset.searchQuery || 'art';
+    
+    let content = `
+        <div class="image-gallery-container">
+            <div class="music-search">
+                <input type="text" id="imageSearchInput" placeholder="Search for images..." value="${searchQuery}">
+                <button onclick="searchImages()">🔍 Search</button>
+            </div>
+            <div id="imageResults" class="image-gallery-grid">
+                <p>Loading images...</p>
+            </div>
+            <p style="margin-top: 15px; font-size: 12px; color: #999;">Click an image to replace the wall decoration</p>
+        </div>
+    `;
+    
+    openCursyCornerModal('🖼️ Image Gallery', content);
+    
+    // Store reference to element for replacement
+    window.currentImageElement = element;
+    
+    // Auto-search on open
+    setTimeout(() => {
+        searchImages();
+    }, 100);
+}
+
+window.searchImages = async function() {
+    const input = document.getElementById('imageSearchInput');
+    const query = input ? input.value : 'art';
+    const resultsDiv = document.getElementById('imageResults');
+    
+    if (!resultsDiv) return;
+    
+    resultsDiv.innerHTML = '<p>Searching for images...</p>';
+    
+    try {
+        const response = await window.electronAPI.pixabaySearchImages(query, { perPage: 30 });
+        
+        if (response.success && response.data.hits && response.data.hits.length > 0) {
+            let html = '';
+            response.data.hits.forEach((image) => {
+                html += `
+                    <div class="image-gallery-item" onclick="selectImage('${image.webformatURL.replace(/'/g, "\\'")}')">
+                        <img src="${image.previewURL}" alt="${image.tags}">
+                        <div class="image-overlay">${image.tags}</div>
+                    </div>
+                `;
+            });
+            resultsDiv.innerHTML = html;
+        } else {
+            resultsDiv.innerHTML = '<p>No images found. Try a different search term.</p>';
+        }
+    } catch (error) {
+        resultsDiv.innerHTML = `<p>Error searching images: ${error.message}</p>`;
+    }
+};
+
+window.selectImage = function(imageUrl) {
+    if (window.currentImageElement) {
+        window.currentImageElement.src = imageUrl;
+        showToast('✅ Wall decoration updated!', 'success');
+        closeCursyCornerModal();
+    }
+};
+
+// Video Player
+async function openVideoPlayer() {
+    let content = `
+        <div class="video-player-container">
+            <div class="video-search">
+                <input type="text" id="videoSearchInput" placeholder="Search for videos..." value="coding tutorial">
+                <button onclick="searchVideos()">🔍 Search</button>
+            </div>
+            <div id="videoResults" class="video-results">
+                <p>Loading videos...</p>
+            </div>
+            <div id="videoPlayerWrapper" class="video-player-wrapper" style="display: none;">
+                <video id="videoPlayer" controls></video>
+            </div>
+        </div>
+    `;
+    
+    openCursyCornerModal('📺 Video Player', content);
+    
+    // Auto-search on open
+    setTimeout(() => {
+        searchVideos();
+    }, 100);
+}
+
+window.searchVideos = async function() {
+    const input = document.getElementById('videoSearchInput');
+    const query = input ? input.value : 'coding tutorial';
+    const resultsDiv = document.getElementById('videoResults');
+    
+    if (!resultsDiv) return;
+    
+    resultsDiv.innerHTML = '<p>Searching for videos...</p>';
+    
+    try {
+        const response = await window.electronAPI.pixabaySearchVideos(query, { perPage: 20 });
+        
+        if (response.success && response.data.hits && response.data.hits.length > 0) {
+            let html = '';
+            response.data.hits.forEach((video) => {
+                const thumbnail = video.videos.small.thumbnail;
+                html += `
+                    <div class="video-item" onclick="playVideo('${video.videos.medium.url.replace(/'/g, "\\'")}')">
+                        <img src="${thumbnail}" alt="${video.tags}">
+                        <h4>${video.tags.split(',')[0]}</h4>
+                        <p>${video.user} • ${Math.floor(video.duration)}s</p>
+                    </div>
+                `;
+            });
+            resultsDiv.innerHTML = html;
+        } else {
+            resultsDiv.innerHTML = '<p>No videos found. Try a different search term.</p>';
+        }
+    } catch (error) {
+        resultsDiv.innerHTML = `<p>Error searching videos: ${error.message}</p>`;
+    }
+};
+
+window.playVideo = function(videoUrl) {
+    const player = document.getElementById('videoPlayer');
+    const wrapper = document.getElementById('videoPlayerWrapper');
+    
+    if (player && wrapper) {
+        player.src = videoUrl;
+        wrapper.style.display = 'block';
+        player.play();
+    }
+};
+
+// Cursy's Notes
+async function openCursysNotes() {
+    // Load notes from project or create default
+    let cursyNotes = '';
+    let userNotes = '';
+    
+    if (state.currentProject) {
+        try {
+            const notesPath = state.currentProject.path.replace(/[/\\]$/, '') + (state.currentProject.path.includes('\\') ? '\\' : '/') + 'CURSYS_NOTES.md';
+            const notesContent = await window.electronAPI.readFile(notesPath);
+            if (notesContent.success) {
+                cursyNotes = notesContent.content;
+            }
+        } catch (error) {
+            console.log('No existing Cursy notes found, starting fresh');
+        }
+        
+        try {
+            const userNotesPath = state.currentProject.path.replace(/[/\\]$/, '') + (state.currentProject.path.includes('\\') ? '\\' : '/') + 'USER_NOTES.md';
+            const userNotesContent = await window.electronAPI.readFile(userNotesPath);
+            if (userNotesContent.success) {
+                userNotes = userNotesContent.content;
+            }
+        } catch (error) {
+            console.log('No existing user notes found, starting fresh');
+        }
+    }
+    
+    let content = `
+        <div class="notes-container">
+            <div class="notes-tabs">
+                <button class="notes-tab active" onclick="switchNotesTab('cursy')">Cursy's Notes</button>
+                <button class="notes-tab" onclick="switchNotesTab('user')">Your Notes</button>
+            </div>
+            <div class="notes-content">
+                <div id="cursyNotesContent" class="notes-editor">
+                    <textarea id="cursyNotesEditor" placeholder="Cursy's notes will appear here...">${cursyNotes}</textarea>
+                </div>
+                <div id="userNotesContent" class="notes-editor" style="display: none;">
+                    <textarea id="userNotesEditor" placeholder="Write your notes here...">${userNotes}</textarea>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button onclick="saveNotes()" style="padding: 10px 20px; background: #00ff88; color: #000; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">💾 Save Notes</button>
+                <button onclick="generateCursyNotes()" style="padding: 10px 20px; background: #00d4ff; color: #000; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">✨ Generate Cursy Notes</button>
+            </div>
+        </div>
+    `;
+    
+    openCursyCornerModal('📝 Cursy\'s Notes', content);
+    window.currentNotesTab = 'cursy';
+}
+
+window.switchNotesTab = function(tab) {
+    const cursyContent = document.getElementById('cursyNotesContent');
+    const userContent = document.getElementById('userNotesContent');
+    const tabs = document.querySelectorAll('.notes-tab');
+    
+    tabs.forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    if (tab === 'cursy') {
+        if (cursyContent) cursyContent.style.display = 'flex';
+        if (userContent) userContent.style.display = 'none';
+        window.currentNotesTab = 'cursy';
+    } else {
+        if (cursyContent) cursyContent.style.display = 'none';
+        if (userContent) userContent.style.display = 'flex';
+        window.currentNotesTab = 'user';
+    }
+};
+
+window.saveNotes = async function() {
+    if (!state.currentProject) {
+        showToast('❌ No project loaded', 'error');
+        return;
+    }
+    
+    const cursyEditor = document.getElementById('cursyNotesEditor');
+    const userEditor = document.getElementById('userNotesEditor');
+    
+    if (cursyEditor) {
+        const cursyPath = state.currentProject.path.replace(/[/\\]$/, '') + (state.currentProject.path.includes('\\') ? '\\' : '/') + 'CURSYS_NOTES.md';
+        await window.electronAPI.writeFile(cursyPath, cursyEditor.value);
+    }
+    
+    if (userEditor) {
+        const userPath = state.currentProject.path.replace(/[/\\]$/, '') + (state.currentProject.path.includes('\\') ? '\\' : '/') + 'USER_NOTES.md';
+        await window.electronAPI.writeFile(userPath, userEditor.value);
+    }
+    
+    showToast('✅ Notes saved!', 'success');
+};
+
+window.generateCursyNotes = async function() {
+    if (!state.currentProject) {
+        showToast('❌ No project loaded', 'error');
+        return;
+    }
+    
+    const editor = document.getElementById('cursyNotesEditor');
+    if (!editor) return;
+    
+    editor.value = 'Generating notes...';
+    
+    // Use Cursy to generate notes based on project context
+    const message = 'Generate helpful notes about this project, including tips, reminders, and best practices. Format as markdown.';
+    // This would call the chat system - for now, just show a placeholder
+    editor.value = '# Project Notes\n\n*Notes will be generated based on your project context...*\n\n## Tips\n- Keep your code organized\n- Test frequently\n- Document your work\n\n## Reminders\n- Update PROJECT_JOURNAL.md regularly\n- Commit changes to git';
+    showToast('✨ Notes generated! (This will use AI in the future)', 'success');
+};
+
+// Bookshelf
+function openBookshelf() {
+    const books = [
+        { title: 'The VIBE IDE Chronicles: Book One', icon: '📖', type: 'flipbook', url: 'https://heyzine.com/flip-book/...' },
+        { title: 'Eloquent JavaScript', icon: '📚', type: 'link', url: 'https://eloquentjavascript.net/' },
+        { title: 'You Don\'t Know JS', icon: '📚', type: 'link', url: 'https://github.com/getify/You-Dont-Know-JS' },
+        { title: 'MDN Web Docs', icon: '📚', type: 'link', url: 'https://developer.mozilla.org/' },
+        { title: 'JavaScript.info', icon: '📚', type: 'link', url: 'https://javascript.info/' },
+        { title: 'FreeCodeCamp', icon: '📚', type: 'link', url: 'https://www.freecodecamp.org/' },
+    ];
+    
+    let content = `
+        <div class="bookshelf-container">
+            <div class="bookshelf-search">
+                <input type="text" id="bookSearchInput" placeholder="Search books..." onkeyup="filterBooks()">
+            </div>
+            <div id="bookshelfGrid" class="bookshelf-grid">
+    `;
+    
+    books.forEach((book, index) => {
+        content += `
+            <div class="book-item" onclick="openBook(${index})" data-title="${book.title.toLowerCase()}">
+                <div class="book-icon">${book.icon}</div>
+                <h4>${book.title}</h4>
+                <p>Click to read</p>
+            </div>
+        `;
+    });
+    
+    content += `
+            </div>
+            <div id="bookFlipbookWrapper" class="book-flipbook-wrapper" style="display: none;">
+                <iframe id="bookFlipbook" src="" frameborder="0"></iframe>
+            </div>
+        </div>
+    `;
+    
+    openCursyCornerModal('📚 Cursy\'s Bookshelf', content);
+    window.bookshelfBooks = books;
+}
+
+window.filterBooks = function() {
+    const input = document.getElementById('bookSearchInput');
+    const filter = input ? input.value.toLowerCase() : '';
+    const items = document.querySelectorAll('.book-item');
+    
+    items.forEach(item => {
+        const title = item.dataset.title || '';
+        if (title.includes(filter)) {
+            item.style.display = 'flex';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+};
+
+window.openBook = function(index) {
+    const book = window.bookshelfBooks[index];
+    if (!book) return;
+    
+    const grid = document.getElementById('bookshelfGrid');
+    const wrapper = document.getElementById('bookFlipbookWrapper');
+    const iframe = document.getElementById('bookFlipbook');
+    
+    if (book.type === 'flipbook' && wrapper && iframe) {
+        iframe.src = book.url;
+        grid.style.display = 'none';
+        wrapper.style.display = 'block';
+    } else if (book.type === 'link') {
+        window.open(book.url, '_blank');
+    }
+};
 
 // ============================================
 // Toast Notification System

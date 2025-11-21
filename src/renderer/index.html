@@ -632,6 +632,20 @@
     <!-- Toast Notifications -->
     <div id="toastContainer" class="toast-container"></div>
     
+    <!-- Cursy Corner Modal -->
+    <div id="cursyCornerModal" class="cursy-corner-modal" style="display: none;">
+        <div class="modal-overlay" onclick="closeCursyCornerModal()"></div>
+        <div class="modal-content-cursy">
+            <div class="modal-header-cursy">
+                <h2 id="modalTitleCursy">Cursy's Corner</h2>
+                <button class="modal-close-cursy" onclick="closeCursyCornerModal()" title="Close">×</button>
+            </div>
+            <div class="modal-body-cursy" id="modalBodyCursy">
+                <!-- Dynamic content will be inserted here -->
+            </div>
+        </div>
+    </div>
+    
     <script src="renderer.js"></script>
 </body>
 </html>

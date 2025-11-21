@@ -52,7 +52,12 @@ window.electronAPI = {
   
   // OpenAI (Phase 2)
   openaiChat: (messages, systemPrompt, maxTokens) => ipcRenderer.invoke('openai:chat', { messages, systemPrompt, maxTokens }),
-  openaiCheckStatus: () => ipcRenderer.invoke('openai:checkStatus')
+  openaiCheckStatus: () => ipcRenderer.invoke('openai:checkStatus'),
+  
+  // Pixabay API (Cursy's Corner)
+  pixabaySearchImages: (query, options) => ipcRenderer.invoke('pixabay:searchImages', { query, options }),
+  pixabaySearchVideos: (query, options) => ipcRenderer.invoke('pixabay:searchVideos', { query, options }),
+  pixabayCheckStatus: () => ipcRenderer.invoke('pixabay:checkStatus')
 };
 
 console.log('VIBE IDE Preload Script Loaded');
