@@ -319,45 +319,6 @@ async function searchPixabayAudio(query, options = {}) {
     return { success: false, error: error.message };
   }
 }
-    
-    return new Promise((resolve, reject) => {
-      https.get(url.toString(), (res) => {
-        let data = '';
-        
-        // Check for HTTP errors
-        if (res.statusCode !== 200) {
-          res.on('data', () => {}); // Drain response
-          res.on('end', () => {
-            resolve({ success: false, error: `HTTP ${res.statusCode}: ${res.statusMessage || 'Request failed'}` });
-          });
-          return;
-        }
-        
-        res.on('data', (chunk) => { data += chunk; });
-        res.on('end', () => {
-          try {
-            const result = JSON.parse(data);
-            // Check if Pixabay returned an error
-            if (result.error) {
-              resolve({ success: false, error: result.error });
-            } else {
-              resolve({ success: true, data: result });
-            }
-          } catch (error) {
-            console.error('❌ Error parsing Pixabay response:', error);
-            console.error('Response data:', data.substring(0, 500));
-            resolve({ success: false, error: `Parse error: ${error.message}` });
-          }
-        });
-      }).on('error', (error) => {
-        console.error('❌ HTTPS request error:', error);
-        resolve({ success: false, error: error.message });
-      });
-    });
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-}
 
 let mainWindow;
 let splashWindow;
