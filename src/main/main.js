@@ -76,78 +76,38 @@ function initOpenAIClient() {
 let pixabayApiKey = null;
 
 function loadPixabayKey() {
-  console.log('═══════════════════════════════════════════════════════');
-  console.log('🔑 loadPixabayKey() FUNCTION CALLED');
-  console.log('═══════════════════════════════════════════════════════');
   try {
-    // app.getPath('userData') should be available after app.whenReady()
+    // Try to load from config file first
     const userDataPath = app.getPath('userData');
-    console.log('📁 User data path:', userDataPath);
-    
-    // Check both possible locations (vibe-ide and VIBE IDE)
-    const configPath1 = path.join(userDataPath, 'pixabay-config.json');
-    const configPath2 = path.join(path.dirname(userDataPath), 'VIBE IDE', 'pixabay-config.json');
-    
-    let configPath = configPath1;
-    // If default path doesn't exist, try the VIBE IDE folder
-    if (!fs.existsSync(configPath1)) {
-      console.log('⚠️ Config not found in default location, trying VIBE IDE folder...');
-      if (fs.existsSync(configPath2)) {
-        configPath = configPath2;
-        console.log('✅ Found config in VIBE IDE folder');
-      }
-    }
-    
+    const configPath = path.join(userDataPath, 'pixabay-config.json');
     console.log('🔍 Looking for Pixabay config at:', configPath);
-    console.log('   File exists:', fs.existsSync(configPath));
     
     if (fs.existsSync(configPath)) {
-      const fileContent = fs.readFileSync(configPath, 'utf-8');
-      console.log('   File content length:', fileContent.length);
-      console.log('   File content preview:', fileContent.substring(0, 100));
-      const config = JSON.parse(fileContent);
-      console.log('   Parsed config keys:', Object.keys(config));
-      console.log('   apiKey exists:', !!config.apiKey);
-      console.log('   apiKey value preview:', config.apiKey ? config.apiKey.substring(0, 10) + '...' : 'null');
-      
-      if (config.apiKey && config.apiKey.trim()) {
-        const trimmedKey = config.apiKey.trim();
-        pixabayApiKey = trimmedKey;
-        console.log('✅ Pixabay API key loaded from config file (length:', pixabayApiKey.length, ')');
-        console.log('   Key value:', pixabayApiKey);
-        console.log('   Global pixabayApiKey variable set:', !!pixabayApiKey);
-        console.log('   Variable type:', typeof pixabayApiKey);
-        // Force verify it's actually set
-        if (pixabayApiKey && pixabayApiKey.length > 0) {
-          console.log('✅ VERIFIED: Key is loaded and ready!');
-        } else {
-          console.error('❌ CRITICAL: Key assignment failed!');
-        }
+      console.log('✅ Found config file');
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      if (config.apiKey) {
+        pixabayApiKey = config.apiKey.trim();
+        console.log('✅ Pixabay API key loaded from config file');
         return true;
       } else {
-        console.warn('⚠️ Config file exists but apiKey is empty or missing');
-        console.warn('   Config object:', JSON.stringify(config, null, 2));
+        console.warn('⚠️ Config file exists but no apiKey found');
       }
     } else {
       console.warn('⚠️ Config file not found at:', configPath);
     }
     
+    // Fall back to environment variable
     if (process.env.PIXABAY_API_KEY) {
       pixabayApiKey = process.env.PIXABAY_API_KEY.trim();
-      console.log('✅ Pixabay API key loaded from environment variable (length:', pixabayApiKey.length, ')');
+      console.log('✅ Pixabay API key loaded from environment variable');
       return true;
     }
     
     console.warn('⚠️ Pixabay API key not found. Create pixabay-config.json in:', userDataPath);
-    console.log('═══════════════════════════════════════════════════════');
     return false;
   } catch (error) {
     console.error('❌ Error loading Pixabay key:', error);
     console.error('   Error details:', error.message);
-    if (error.stack) {
-      console.error('   Stack:', error.stack);
-    }
-    console.log('═══════════════════════════════════════════════════════');
     return false;
   }
 }
@@ -1804,70 +1764,21 @@ ipcMain.handle('pixabay:searchAudio', async (event, { query, options }) => {
 });
 
 ipcMain.handle('pixabay:checkStatus', async () => {
-  try {
-    console.log('═══════════════════════════════════════════════════════');
-    console.log('🔍 PIXABAY STATUS CHECK CALLED');
-    console.log('═══════════════════════════════════════════════════════');
-    console.log('Current key state:', !!pixabayApiKey);
-    console.log('Key variable type:', typeof pixabayApiKey);
-    console.log('Key value:', pixabayApiKey ? pixabayApiKey.substring(0, 10) + '...' : 'null');
-    
-    // ALWAYS try to load the key - don't trust the variable state
-    console.log('🔄 Force reloading key...');
-    const loaded = loadPixabayKey();
-    console.log('🔍 loadPixabayKey() returned:', loaded);
-    console.log('🔍 Key exists after load:', !!pixabayApiKey);
-    console.log('🔍 Key length after load:', pixabayApiKey ? pixabayApiKey.length : 0);
-    if (loaded && pixabayApiKey) {
-      console.log('✅ Key loaded successfully, length:', pixabayApiKey.length);
-      console.log('✅ Key value (first 10):', pixabayApiKey.substring(0, 10) + '...');
-    } else {
-      console.error('❌ Failed to load key');
-      console.error('   loaded return value:', loaded);
-      console.error('   pixabayApiKey after load:', pixabayApiKey);
-    }
-    
-    // Get paths (ensure app is ready)
-    let userDataPath = 'unknown';
-    let configPath = 'unknown';
-    try {
-      userDataPath = app.getPath('userData');
-      configPath = path.join(userDataPath, 'pixabay-config.json');
-      console.log('📁 User data path:', userDataPath);
-      console.log('📁 Config path:', configPath);
-      console.log('📁 Config file exists:', fs.existsSync(configPath));
-    } catch (error) {
-      console.error('❌ Error getting paths:', error);
-      console.error('   Error message:', error.message);
-      console.error('   Error stack:', error.stack);
-    }
-    
-    const result = { 
-      available: !!pixabayApiKey,
-      hasKey: !!pixabayApiKey,
-      keyLength: pixabayApiKey ? pixabayApiKey.length : 0,
-      userDataPath: userDataPath,
-      configPath: configPath,
-      fileExists: fs.existsSync ? fs.existsSync(configPath) : false
-    };
-    
-    console.log('Returning result:', JSON.stringify(result, null, 2));
-    console.log('═══════════════════════════════════════════════════════');
-    
-    return result;
-  } catch (error) {
-    console.error('❌ ERROR in pixabay:checkStatus handler:', error);
-    console.error('   Error message:', error.message);
-    console.error('   Error stack:', error.stack);
-    return {
-      available: false,
-      hasKey: false,
-      keyLength: 0,
-      userDataPath: 'error',
-      configPath: 'error',
-      error: error.message
-    };
+  // Always try to load if not already loaded
+  if (!pixabayApiKey) {
+    loadPixabayKey();
   }
+  
+  const userDataPath = app.getPath('userData');
+  const configPath = path.join(userDataPath, 'pixabay-config.json');
+  
+  return {
+    available: !!pixabayApiKey,
+    hasKey: !!pixabayApiKey,
+    keyLength: pixabayApiKey ? pixabayApiKey.length : 0,
+    userDataPath: userDataPath,
+    configPath: configPath
+  };
 });
 
 ipcMain.handle('openai:checkStatus', async () => {
@@ -1979,23 +1890,7 @@ app.whenReady().then(() => {
   initOpenAIClient();
   
   // Load Pixabay API key now that app is ready
-  console.log('═══════════════════════════════════════════════════════');
-  console.log('🚀 APP READY - Loading Pixabay key on startup');
-  console.log('═══════════════════════════════════════════════════════');
-  console.log('BEFORE loadPixabayKey() - pixabayApiKey:', pixabayApiKey);
-  const pixabayLoaded = loadPixabayKey();
-  console.log('Pixabay key loaded on startup:', pixabayLoaded);
-  console.log('AFTER loadPixabayKey() - pixabayApiKey:', pixabayApiKey);
-  console.log('Key exists after startup load:', !!pixabayApiKey);
-  console.log('Key length:', pixabayApiKey ? pixabayApiKey.length : 0);
-  console.log('Key value (first 10 chars):', pixabayApiKey ? pixabayApiKey.substring(0, 10) + '...' : 'null');
-  // FORCE verify the key is actually set
-  if (pixabayApiKey && pixabayApiKey.length > 0) {
-    console.log('✅✅✅ PIXABAY KEY IS LOADED AND READY! ✅✅✅');
-  } else {
-    console.error('❌❌❌ PIXABAY KEY FAILED TO LOAD! ❌❌❌');
-  }
-  console.log('═══════════════════════════════════════════════════════');
+  loadPixabayKey();
   
   // Create splash window first, then main window
   createSplashWindow();
