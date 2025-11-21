@@ -2433,6 +2433,22 @@ async function switchToTab(tabId) {
                 if (toolbar) {
                     toolbar.style.display = 'flex';
                     setupMarkdownToolbar();
+                    // Double-check preview toggle button exists and is visible
+                    const previewToggle = document.getElementById('mdPreviewToggle');
+                    if (!previewToggle) {
+                        console.warn('⚠️ Preview toggle button missing, recreating...');
+                        // Recreate button if missing
+                        const separator = toolbar.querySelector('.md-toolbar-separator:last-of-type');
+                        if (separator && separator.nextSibling) {
+                            const btn = document.createElement('button');
+                            btn.id = 'mdPreviewToggle';
+                            btn.className = 'md-toolbar-btn';
+                            btn.title = 'Toggle Preview/Editor';
+                            btn.innerHTML = '👁️ Preview';
+                            toolbar.insertBefore(btn, separator.nextSibling);
+                            setupMarkdownToolbar(); // Re-setup to attach event listener
+                        }
+                    }
                 }
                 
                 if (state.mdPreviewMode) {
@@ -5249,11 +5265,27 @@ function setupMarkdownToolbar() {
     if (!toolbar) return;
     
     // Remove existing listeners to avoid duplicates
-    const buttons = toolbar.querySelectorAll('.md-toolbar-btn');
+    // BUT preserve the preview toggle button - don't clone it
+    const buttons = toolbar.querySelectorAll('.md-toolbar-btn:not(#mdPreviewToggle)');
     buttons.forEach(btn => {
         const newBtn = btn.cloneNode(true);
         btn.parentNode.replaceChild(newBtn, btn);
     });
+    
+    // Make sure preview toggle button exists (it should, but just in case)
+    let previewToggle = document.getElementById('mdPreviewToggle');
+    if (!previewToggle) {
+        // Button was somehow removed, recreate it
+        const separator = toolbar.querySelector('.md-toolbar-separator:last-of-type');
+        if (separator) {
+            previewToggle = document.createElement('button');
+            previewToggle.id = 'mdPreviewToggle';
+            previewToggle.className = 'md-toolbar-btn';
+            previewToggle.title = 'Toggle Preview/Editor';
+            previewToggle.innerHTML = '👁️ Preview';
+            toolbar.appendChild(previewToggle);
+        }
+    }
     
     // Setup heading dropdown
     const headingBtn = document.getElementById('headingBtn');
