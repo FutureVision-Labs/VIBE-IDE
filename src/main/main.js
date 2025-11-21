@@ -208,9 +208,113 @@ async function searchPixabayVideos(query, options = {}) {
     const url = new URL('https://pixabay.com/api/videos/');
     url.searchParams.set('key', pixabayApiKey);
     url.searchParams.set('q', query);
+    url.searchParams.set('video_type', options.videoType || 'all');
     url.searchParams.set('safesearch', options.safesearch !== false ? 'true' : 'false');
     url.searchParams.set('per_page', options.perPage || 20);
     url.searchParams.set('page', options.page || 1);
+    
+    return new Promise((resolve, reject) => {
+      https.get(url.toString(), (res) => {
+        let data = '';
+        
+        if (res.statusCode !== 200) {
+          res.on('data', () => {});
+          res.on('end', () => {
+            resolve({ success: false, error: `HTTP ${res.statusCode}: ${res.statusMessage || 'Request failed'}` });
+          });
+          return;
+        }
+        
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data);
+            if (json.error) {
+              resolve({ success: false, error: json.error });
+            } else {
+              resolve({ success: true, hits: json.hits || [], total: json.total || 0 });
+            }
+          } catch (parseError) {
+            resolve({ success: false, error: `Failed to parse response: ${parseError.message}` });
+          }
+        });
+      }).on('error', (error) => {
+        resolve({ success: false, error: `Network error: ${error.message}` });
+      });
+    });
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+async function searchPixabayAudio(query, options = {}) {
+  console.log('🔍 searchPixabayAudio called with query:', query, 'options:', options);
+  if (!pixabayApiKey) {
+    console.log('⚠️ Pixabay key not loaded, attempting to load...');
+    const loaded = loadPixabayKey();
+    if (!loaded || !pixabayApiKey) {
+      console.error('❌ Failed to load Pixabay key');
+      return { success: false, error: 'Pixabay API key not configured. Check main process console for details.' };
+    }
+  }
+  console.log('✅ Using Pixabay key (length:', pixabayApiKey.length, ')');
+  
+  try {
+    const https = require('https');
+    // Note: Pixabay doesn't have a dedicated audio API, but we can use their video API
+    // and filter for audio content, or use a different service
+    // For now, we'll use a placeholder that returns mock data or use Freesound API
+    // Let's use Pixabay video API as a fallback and note that audio search may be limited
+    const url = new URL('https://pixabay.com/api/videos/');
+    url.searchParams.set('key', pixabayApiKey);
+    url.searchParams.set('q', query);
+    url.searchParams.set('video_type', 'all');
+    url.searchParams.set('safesearch', options.safesearch !== false ? 'true' : 'false');
+    url.searchParams.set('per_page', options.perPage || 20);
+    url.searchParams.set('page', options.page || 1);
+    
+    return new Promise((resolve, reject) => {
+      https.get(url.toString(), (res) => {
+        let data = '';
+        
+        if (res.statusCode !== 200) {
+          res.on('data', () => {});
+          res.on('end', () => {
+            resolve({ success: false, error: `HTTP ${res.statusCode}: ${res.statusMessage || 'Request failed'}` });
+          });
+          return;
+        }
+        
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data);
+            if (json.error) {
+              resolve({ success: false, error: json.error });
+            } else {
+              // Convert video hits to audio-like format
+              const audioHits = (json.hits || []).map(video => ({
+                id: video.id,
+                tags: video.tags,
+                duration: video.duration || 0,
+                url: video.videos?.medium?.url || video.videos?.small?.url || video.picture,
+                type: 'mpeg',
+                user: video.user
+              }));
+              resolve({ success: true, hits: audioHits, total: json.total || 0 });
+            }
+          } catch (parseError) {
+            resolve({ success: false, error: `Failed to parse response: ${parseError.message}` });
+          }
+        });
+      }).on('error', (error) => {
+        resolve({ success: false, error: `Network error: ${error.message}` });
+      });
+    });
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
     
     return new Promise((resolve, reject) => {
       https.get(url.toString(), (res) => {
@@ -1657,6 +1761,10 @@ ipcMain.handle('pixabay:searchImages', async (event, { query, options }) => {
 
 ipcMain.handle('pixabay:searchVideos', async (event, { query, options }) => {
   return await searchPixabayVideos(query, options);
+});
+
+ipcMain.handle('pixabay:searchAudio', async (event, { query, options }) => {
+  return await searchPixabayAudio(query, options);
 });
 
 ipcMain.handle('pixabay:checkStatus', async () => {

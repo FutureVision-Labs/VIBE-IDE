@@ -94,6 +94,39 @@
                         </div>
                     </div>
                 </div>
+                <!-- Music & SFX Button -->
+                <div class="file-tree-footer">
+                    <button class="music-sfx-toggle" id="musicSfxToggle" title="Music & Sound Effects">
+                        🎵 Music & SFX
+                    </button>
+                </div>
+                <!-- Music & SFX Panel -->
+                <div class="music-sfx-panel" id="musicSfxPanel">
+                    <div class="music-sfx-header">
+                        <h3>🎵 Music & Sound Effects</h3>
+                        <button class="music-sfx-close" id="musicSfxClose" title="Close">×</button>
+                    </div>
+                    <div class="music-sfx-tabs">
+                        <button class="music-sfx-tab active" data-tab="music">🎵 Music</button>
+                        <button class="music-sfx-tab" data-tab="sfx">🔊 Sound Effects</button>
+                    </div>
+                    <div class="music-sfx-content">
+                        <div class="music-sfx-tab-content active" id="musicTab">
+                            <div class="music-sfx-search">
+                                <input type="text" id="musicSearch" placeholder="🔍 Search for music..." class="music-sfx-search-input">
+                                <button class="music-sfx-search-btn" id="musicSearchBtn">Search</button>
+                            </div>
+                            <div class="music-sfx-results" id="musicResults"></div>
+                        </div>
+                        <div class="music-sfx-tab-content" id="sfxTab">
+                            <div class="music-sfx-search">
+                                <input type="text" id="sfxSearch" placeholder="🔍 Search for sound effects..." class="music-sfx-search-input">
+                                <button class="music-sfx-search-btn" id="sfxSearchBtn">Search</button>
+                            </div>
+                            <div class="music-sfx-results" id="sfxResults"></div>
+                        </div>
+                    </div>
+                </div>
                 <!-- Context Menu -->
                 <div class="context-menu" id="fileTreeContextMenu" style="display: none;">
                     <div class="context-menu-item" id="ctxNewFile">📄 New File</div>

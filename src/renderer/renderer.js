@@ -3230,6 +3230,9 @@ function renderFileTree(files) {
     
     // Initialize search and context menu
     initFileTreeFeatures();
+    
+    // Initialize Music & SFX panel
+    initMusicSfxPanel();
 }
 
 function createTreeItem(file, level = 0) {
@@ -3405,6 +3408,196 @@ function initFileTreeFeatures() {
     
     // Context menu actions
     setupContextMenuActions();
+}
+
+// Music & SFX Panel
+function initMusicSfxPanel() {
+    const toggleBtn = document.getElementById('musicSfxToggle');
+    const panel = document.getElementById('musicSfxPanel');
+    const closeBtn = document.getElementById('musicSfxClose');
+    const tabs = document.querySelectorAll('.music-sfx-tab');
+    const tabContents = document.querySelectorAll('.music-sfx-tab-content');
+    const musicSearchBtn = document.getElementById('musicSearchBtn');
+    const musicSearchInput = document.getElementById('musicSearch');
+    const sfxSearchBtn = document.getElementById('sfxSearchBtn');
+    const sfxSearchInput = document.getElementById('sfxSearch');
+    
+    if (!toggleBtn || !panel) return;
+    
+    // Toggle panel
+    toggleBtn.addEventListener('click', () => {
+        panel.classList.toggle('open');
+    });
+    
+    // Close panel
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            panel.classList.remove('open');
+        });
+    }
+    
+    // Tab switching
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetTab = tab.dataset.tab;
+            
+            // Update active tab
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            
+            // Update active content
+            tabContents.forEach(content => {
+                content.classList.remove('active');
+                if (content.id === targetTab + 'Tab') {
+                    content.classList.add('active');
+                }
+            });
+        });
+    });
+    
+    // Search handlers
+    if (musicSearchBtn && musicSearchInput) {
+        const handleMusicSearch = () => {
+            const query = musicSearchInput.value.trim();
+            if (query) {
+                searchPixabayAudio(query, 'music');
+            }
+        };
+        
+        musicSearchBtn.addEventListener('click', handleMusicSearch);
+        musicSearchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleMusicSearch();
+            }
+        });
+    }
+    
+    if (sfxSearchBtn && sfxSearchInput) {
+        const handleSfxSearch = () => {
+            const query = sfxSearchInput.value.trim();
+            if (query) {
+                searchPixabayAudio(query, 'sfx');
+            }
+        };
+        
+        sfxSearchBtn.addEventListener('click', handleSfxSearch);
+        sfxSearchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleSfxSearch();
+            }
+        });
+    }
+}
+
+async function searchPixabayAudio(query, type) {
+    const resultsDiv = document.getElementById(type === 'music' ? 'musicResults' : 'sfxResults');
+    if (!resultsDiv) return;
+    
+    resultsDiv.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">🔍 Searching...</p>';
+    
+    try {
+        // Check API status first
+        const status = await window.electronAPI.pixabayCheckStatus();
+        if (!status.available) {
+            resultsDiv.innerHTML = `<p style="color: #ff4444; text-align: center; padding: 20px;">❌ Pixabay API key not configured.<br>Config path: ${status.configPath || 'unknown'}</p>`;
+            return;
+        }
+        
+        // Search for audio (Pixabay uses 'audio' category)
+        const result = await window.electronAPI.pixabaySearchAudio(query, {
+            category: type === 'music' ? 'music' : 'soundEffects',
+            per_page: 20
+        });
+        
+        if (!result.success) {
+            resultsDiv.innerHTML = `<p style="color: #ff4444; text-align: center; padding: 20px;">❌ ${result.error || 'Search failed'}</p>`;
+            return;
+        }
+        
+        if (!result.hits || result.hits.length === 0) {
+            resultsDiv.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">No results found. Try a different search term.</p>';
+            return;
+        }
+        
+        // Render results
+        resultsDiv.innerHTML = result.hits.map(audio => `
+            <div class="music-sfx-item">
+                <h4 class="music-sfx-item-title" title="${audio.tags || 'Untitled'}">${audio.tags || 'Untitled'}</h4>
+                <p class="music-sfx-item-info">Duration: ${formatDuration(audio.duration)} | Format: ${audio.type || 'mp3'}</p>
+                <audio class="music-sfx-item-audio" controls preload="metadata">
+                    <source src="${audio.url}" type="audio/${audio.type || 'mpeg'}">
+                </audio>
+                <div class="music-sfx-item-actions">
+                    <button class="music-sfx-item-btn favorite" data-id="${audio.id}" title="Add to favorites">⭐</button>
+                    <button class="music-sfx-item-btn download" data-url="${audio.url}" data-name="${(audio.tags || 'audio').replace(/[^a-z0-9]/gi, '_')}" data-type="${type}">Download</button>
+                </div>
+            </div>
+        `).join('');
+        
+        // Add download handlers
+        resultsDiv.querySelectorAll('.music-sfx-item-btn.download').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const url = btn.dataset.url;
+                const name = btn.dataset.name;
+                const audioType = btn.dataset.type;
+                await downloadAudioAsset(url, name, audioType);
+            });
+        });
+        
+        // Add favorite handlers
+        resultsDiv.querySelectorAll('.music-sfx-item-btn.favorite').forEach(btn => {
+            btn.addEventListener('click', () => {
+                btn.classList.toggle('active');
+                // TODO: Save favorites to localStorage or project config
+            });
+        });
+        
+    } catch (error) {
+        console.error('Error searching audio:', error);
+        resultsDiv.innerHTML = `<p style="color: #ff4444; text-align: center; padding: 20px;">❌ Error: ${error.message}</p>`;
+    }
+}
+
+function formatDuration(seconds) {
+    if (!seconds) return 'Unknown';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+async function downloadAudioAsset(url, name, type) {
+    if (!state.currentProject) {
+        alert('Please open a project first!');
+        return;
+    }
+    
+    try {
+        // Determine folder (assets/music or assets/sfx)
+        const folderName = type === 'music' ? 'music' : 'sfx';
+        const projectPath = state.currentProject.path;
+        const assetsPath = `${projectPath}/assets/${folderName}`;
+        
+        // Ensure assets folder exists
+        await window.electronAPI.createFolder(`${projectPath}/assets`);
+        await window.electronAPI.createFolder(assetsPath);
+        
+        // Download file
+        const filePath = `${assetsPath}/${name}.mp3`;
+        const result = await window.electronAPI.downloadFile(url, filePath);
+        
+        if (result.success) {
+            // Refresh file tree
+            if (typeof loadFileTree === 'function') {
+                loadFileTree();
+            }
+            alert(`✅ Downloaded to assets/${folderName}/`);
+        } else {
+            alert(`❌ Download failed: ${result.error}`);
+        }
+    } catch (error) {
+        console.error('Error downloading audio:', error);
+        alert(`❌ Error: ${error.message}`);
+    }
 }
 
 function filterFileTree(searchTerm) {

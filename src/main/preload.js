@@ -57,7 +57,11 @@ window.electronAPI = {
   // Pixabay API (Cursy's Corner)
   pixabaySearchImages: (query, options) => ipcRenderer.invoke('pixabay:searchImages', { query, options }),
   pixabaySearchVideos: (query, options) => ipcRenderer.invoke('pixabay:searchVideos', { query, options }),
-  pixabayCheckStatus: () => ipcRenderer.invoke('pixabay:checkStatus')
+  pixabaySearchAudio: (query, options) => ipcRenderer.invoke('pixabay:searchAudio', { query, options }),
+  pixabayCheckStatus: () => ipcRenderer.invoke('pixabay:checkStatus'),
+  
+  // File download
+  downloadFile: (url, filePath) => ipcRenderer.invoke('fs:downloadFile', url, filePath)
 };
 
 console.log('VIBE IDE Preload Script Loaded');
