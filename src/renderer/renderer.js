@@ -1036,11 +1036,12 @@ function buildCursyOffice() {
     const wallLayer = document.getElementById('roomWallLayer');
     const furnitureLayer = document.getElementById('roomFurnitureLayer');
     const propsLayer = document.getElementById('roomPropsLayer');
+    const hotspotLayer = document.getElementById('roomHotspotLayer');
     
-    console.log('Layers:', { floorLayer, wallLayer, furnitureLayer, propsLayer });
+    console.log('Layers:', { floorLayer, wallLayer, furnitureLayer, propsLayer, hotspotLayer });
     
-    if (!floorLayer || !wallLayer || !furnitureLayer || !propsLayer) {
-        console.error('❌ Missing layers!', { floorLayer, wallLayer, furnitureLayer, propsLayer });
+    if (!floorLayer || !wallLayer || !furnitureLayer || !propsLayer || !hotspotLayer) {
+        console.error('❌ Missing layers!', { floorLayer, wallLayer, furnitureLayer, propsLayer, hotspotLayer });
         return;
     }
     
@@ -1051,6 +1052,36 @@ function buildCursyOffice() {
     wallLayer.innerHTML = '';
     furnitureLayer.innerHTML = '';
     propsLayer.innerHTML = '';
+    hotspotLayer.innerHTML = '';
+    
+    // Helper function to create hotspots
+    function createHotspot(name, top, right, bottom, left, width, height, onClick) {
+        const hotspot = document.createElement('div');
+        hotspot.className = 'hotspot';
+        hotspot.dataset.hotspotName = name;
+        hotspot.title = `Click to interact with ${name}`;
+        
+        if (top !== undefined) hotspot.style.top = typeof top === 'string' ? top : `${top}px`;
+        if (right !== undefined) hotspot.style.right = typeof right === 'string' ? right : `${right}px`;
+        if (bottom !== undefined) hotspot.style.bottom = typeof bottom === 'string' ? bottom : `${bottom}px`;
+        if (left !== undefined) hotspot.style.left = typeof left === 'string' ? left : `${left}px`;
+        if (width) hotspot.style.width = typeof width === 'string' ? width : `${width}px`;
+        if (height) hotspot.style.height = typeof height === 'string' ? height : `${height}px`;
+        
+        // Center transform if needed
+        if (left === '50%' || right === '50%') {
+            hotspot.style.transform = 'translateX(-50%)';
+        }
+        
+        hotspot.addEventListener('click', (e) => {
+            e.stopPropagation();
+            console.log(`🔥 Hotspot clicked: ${name}`);
+            if (onClick) onClick();
+        });
+        
+        hotspotLayer.appendChild(hotspot);
+        return hotspot;
+    }
     
     // Use larger corner piece (lvngroom_wall02_COL03 - 150x135px, larger than COL02)
     // This single image includes both walls and floor, perfectly aligned
@@ -1100,10 +1131,12 @@ function buildCursyOffice() {
     bookcase.style.position = 'absolute';
     bookcase.style.top = '79px'; // User specified
     bookcase.style.right = '120px'; // User specified
-    bookcase.classList.add('clickable-element');
-    bookcase.dataset.elementType = 'bookshelf';
-    bookcase.style.cursor = 'pointer';
-    bookcase.addEventListener('click', () => {
+    bookcase.onerror = () => {
+        bookcase.style.display = 'none';
+    };
+    furnitureLayer.appendChild(bookcase);
+    // Create hotspot for bookcase (approximate size: 40x60px)
+    createHotspot('bookcase', '79px', '120px', undefined, undefined, '40px', '60px', () => {
         console.log('📚 Bookcase clicked!');
         if (window.openBookshelf) {
             window.openBookshelf();
@@ -1111,11 +1144,7 @@ function buildCursyOffice() {
             console.error('❌ openBookshelf not found!');
         }
     });
-    bookcase.onerror = () => {
-        bookcase.style.display = 'none';
-    };
-    furnitureLayer.appendChild(bookcase);
-    console.log('✅ Bookcase added to furniture layer (clickable)');
+    console.log('✅ Bookcase added to furniture layer');
     
     // Second desk with laptop and printer on the right side
     const desk2 = document.createElement('img');
@@ -1190,10 +1219,12 @@ function buildCursyOffice() {
     recordPlayer.style.position = 'absolute';
     recordPlayer.style.bottom = '25%'; // User specified
     recordPlayer.style.left = '1%'; // User specified
-    recordPlayer.classList.add('clickable-element');
-    recordPlayer.dataset.elementType = 'music';
-    recordPlayer.style.cursor = 'pointer';
-    recordPlayer.addEventListener('click', () => {
+    recordPlayer.onerror = () => {
+        recordPlayer.style.display = 'none';
+    };
+    furnitureLayer.appendChild(recordPlayer);
+    // Create hotspot for record player (approximate size: 50x40px)
+    createHotspot('recordPlayer', undefined, undefined, '25%', '1%', '50px', '40px', () => {
         console.log('🎵 Record player clicked!');
         if (window.openMusicPlayer) {
             window.openMusicPlayer();
@@ -1201,11 +1232,7 @@ function buildCursyOffice() {
             console.error('❌ openMusicPlayer not found!');
         }
     });
-    recordPlayer.onerror = () => {
-        recordPlayer.style.display = 'none';
-    };
-    furnitureLayer.appendChild(recordPlayer);
-    console.log('✅ Record player added to furniture layer (clickable)');
+    console.log('✅ Record player added to furniture layer');
     
     // Table in the middle of the room
     const table = document.createElement('img');
@@ -1229,10 +1256,12 @@ function buildCursyOffice() {
     oldTV.style.bottom = '67px'; // User specified
     oldTV.style.left = '55%'; // User specified
     oldTV.style.transform = 'translateX(-50%)'; // Center it
-    oldTV.classList.add('clickable-element');
-    oldTV.dataset.elementType = 'video';
-    oldTV.style.cursor = 'pointer';
-    oldTV.addEventListener('click', () => {
+    oldTV.onerror = () => {
+        oldTV.style.display = 'none';
+    };
+    furnitureLayer.appendChild(oldTV);
+    // Create hotspot for TV (approximate size: 30x25px)
+    createHotspot('tv', undefined, undefined, '67px', '50%', '30px', '25px', () => {
         console.log('📺 TV clicked!');
         if (window.openVideoPlayer) {
             window.openVideoPlayer();
@@ -1240,11 +1269,7 @@ function buildCursyOffice() {
             console.error('❌ openVideoPlayer not found!');
         }
     });
-    oldTV.onerror = () => {
-        oldTV.style.display = 'none';
-    };
-    furnitureLayer.appendChild(oldTV);
-    console.log('✅ Old TV added to furniture layer (clickable)');
+    console.log('✅ Old TV added to furniture layer');
     
     // Note: Main desk/computer is part of the character animation sprites, no separate asset needed
     
@@ -1256,10 +1281,12 @@ function buildCursyOffice() {
     corkboard.style.position = 'absolute';
     corkboard.style.top = '95px'; // Adjusted for 270px room height
     corkboard.style.left = '10px'; // User specified
-    corkboard.classList.add('clickable-element');
-    corkboard.dataset.elementType = 'notes';
-    corkboard.style.cursor = 'pointer';
-    corkboard.addEventListener('click', () => {
+    corkboard.onerror = () => {
+        corkboard.style.display = 'none';
+    };
+    propsLayer.appendChild(corkboard);
+    // Create hotspot for corkboard (approximate size: 25x30px)
+    createHotspot('corkboard', '95px', undefined, undefined, '10px', '25px', '30px', () => {
         console.log('📝 Corkboard clicked!');
         if (window.openCursysNotes) {
             window.openCursysNotes();
@@ -1267,10 +1294,6 @@ function buildCursyOffice() {
             console.error('❌ openCursysNotes not found!');
         }
     });
-    corkboard.onerror = () => {
-        corkboard.style.display = 'none';
-    };
-    propsLayer.appendChild(corkboard);
     
     // Abstract poster
     const poster = document.createElement('img');
@@ -1279,11 +1302,13 @@ function buildCursyOffice() {
     poster.style.position = 'absolute';
     poster.style.top = '81px'; // Adjusted for 270px room height
     poster.style.left = '40px'; // User specified
-    poster.classList.add('clickable-element');
-    poster.dataset.elementType = 'image';
     poster.dataset.searchQuery = 'abstract art';
-    poster.style.cursor = 'pointer';
-    poster.addEventListener('click', () => {
+    poster.onerror = () => {
+        poster.style.display = 'none';
+    };
+    propsLayer.appendChild(poster);
+    // Create hotspot for poster (approximate size: 20x25px)
+    createHotspot('poster', '81px', undefined, undefined, '40px', '20px', '25px', () => {
         console.log('🖼️ Poster clicked!');
         if (window.openImageGallery) {
             window.openImageGallery(poster);
@@ -1291,10 +1316,6 @@ function buildCursyOffice() {
             console.error('❌ openImageGallery not found!');
         }
     });
-    poster.onerror = () => {
-        poster.style.display = 'none';
-    };
-    propsLayer.appendChild(poster);
     
     // Framed painting - wallFrame03 (double sized: 12x24 → 24x48)
     const wallFrame = document.createElement('img');
@@ -1305,11 +1326,13 @@ function buildCursyOffice() {
     wallFrame.style.left = '82px'; // User specified
     wallFrame.style.width = '24px'; // Double size (12x24 → 24x48)
     wallFrame.style.height = '48px';
-    wallFrame.classList.add('clickable-element');
-    wallFrame.dataset.elementType = 'image';
     wallFrame.dataset.searchQuery = 'painting art';
-    wallFrame.style.cursor = 'pointer';
-    wallFrame.addEventListener('click', () => {
+    wallFrame.onerror = () => {
+        wallFrame.style.display = 'none';
+    };
+    propsLayer.appendChild(wallFrame);
+    // Create hotspot for wall frame (24x48px)
+    createHotspot('wallFrame', '64px', undefined, undefined, '82px', '24px', '48px', () => {
         console.log('🖼️ Wall frame clicked!');
         if (window.openImageGallery) {
             window.openImageGallery(wallFrame);
@@ -1317,10 +1340,6 @@ function buildCursyOffice() {
             console.error('❌ openImageGallery not found!');
         }
     });
-    wallFrame.onerror = () => {
-        wallFrame.style.display = 'none';
-    };
-    propsLayer.appendChild(wallFrame);
     
     // Framed painting - caretakerframe03
     const caretakerFrame = document.createElement('img');
@@ -1429,10 +1448,12 @@ function buildCursyOffice() {
     pinnedNote01.style.position = 'absolute';
     pinnedNote01.style.top = '58px'; // User specified
     pinnedNote01.style.right = '90px'; // User specified
-    pinnedNote01.classList.add('clickable-element');
-    pinnedNote01.dataset.elementType = 'notes';
-    pinnedNote01.style.cursor = 'pointer';
-    pinnedNote01.addEventListener('click', () => {
+    pinnedNote01.onerror = () => {
+        pinnedNote01.style.display = 'none';
+    };
+    propsLayer.appendChild(pinnedNote01);
+    // Create hotspot for pinned note (approximate size: 15x20px)
+    createHotspot('pinnedNote', '58px', '90px', undefined, undefined, '15px', '20px', () => {
         console.log('📝 Pinned note clicked!');
         if (window.openCursysNotes) {
             window.openCursysNotes();
@@ -1440,10 +1461,6 @@ function buildCursyOffice() {
             console.error('❌ openCursysNotes not found!');
         }
     });
-    pinnedNote01.onerror = () => {
-        pinnedNote01.style.display = 'none';
-    };
-    propsLayer.appendChild(pinnedNote01);
     
     console.log('✅ Props added:', propsLayer.children.length);
 }
