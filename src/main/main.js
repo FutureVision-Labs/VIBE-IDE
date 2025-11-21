@@ -73,24 +73,25 @@ let pixabayApiKey = null;
 
 function loadPixabayKey() {
   try {
-    // Ensure app is ready before accessing userData path
-    if (!app.isReady()) {
-      console.warn('⚠️ App not ready, cannot load Pixabay key yet');
-      return false;
-    }
-    
+    // app.getPath('userData') should be available after app.whenReady()
     const userDataPath = app.getPath('userData');
     const configPath = path.join(userDataPath, 'pixabay-config.json');
     console.log('🔍 Looking for Pixabay config at:', configPath);
+    console.log('   File exists:', fs.existsSync(configPath));
     
     if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      const fileContent = fs.readFileSync(configPath, 'utf-8');
+      console.log('   File content length:', fileContent.length);
+      const config = JSON.parse(fileContent);
+      console.log('   Parsed config keys:', Object.keys(config));
+      
       if (config.apiKey && config.apiKey.trim()) {
         pixabayApiKey = config.apiKey.trim();
         console.log('✅ Pixabay API key loaded from config file (length:', pixabayApiKey.length, ')');
         return true;
       } else {
         console.warn('⚠️ Config file exists but apiKey is empty or missing');
+        console.warn('   Config object:', config);
       }
     } else {
       console.warn('⚠️ Config file not found at:', configPath);
@@ -106,7 +107,10 @@ function loadPixabayKey() {
     return false;
   } catch (error) {
     console.error('❌ Error loading Pixabay key:', error);
-    console.error('   Error details:', error.message, error.stack);
+    console.error('   Error details:', error.message);
+    if (error.stack) {
+      console.error('   Stack:', error.stack);
+    }
     return false;
   }
 }
