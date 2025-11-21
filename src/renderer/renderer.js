@@ -1542,15 +1542,21 @@ window.openMusicPlayer = async function() {
     
     // Check API status first
     setTimeout(async () => {
-        const status = await window.electronAPI.pixabayCheckStatus();
-        console.log('🔍 Pixabay API status:', status);
-        if (!status.available) {
-            const resultsDiv = document.getElementById('musicResults');
-            if (resultsDiv) {
-                resultsDiv.innerHTML = '<p style="color: #ff4444;">❌ Pixabay API key not configured. Please check the main process console for details.</p>';
+        console.log('🔍 RENDERER: About to call pixabayCheckStatus...');
+        try {
+            const status = await window.electronAPI.pixabayCheckStatus();
+            console.log('🔍 RENDERER: Pixabay API status received:', status);
+            console.log('🔍 RENDERER: Status details:', JSON.stringify(status, null, 2));
+            if (!status.available) {
+                const resultsDiv = document.getElementById('musicResults');
+                if (resultsDiv) {
+                    resultsDiv.innerHTML = `<p style="color: #ff4444;">❌ Pixabay API key not configured.<br>Config path: ${status.configPath || 'unknown'}<br>Key length: ${status.keyLength || 0}</p>`;
+                }
+            } else {
+                searchMusic();
             }
-        } else {
-            searchMusic();
+        } catch (error) {
+            console.error('❌ RENDERER: Error calling pixabayCheckStatus:', error);
         }
     }, 100);
 }
