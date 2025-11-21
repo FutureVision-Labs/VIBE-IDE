@@ -3061,8 +3061,6 @@ body.light-theme ::-webkit-scrollbar-thumb:hover {
     display: flex;
     align-items: center;
     justify-content: center;
-    backdrop-filter: none !important; /* Explicitly disable blur */
-    -webkit-backdrop-filter: none !important;
 }
 
 .modal-overlay {
@@ -3072,8 +3070,9 @@ body.light-theme ::-webkit-scrollbar-thumb:hover {
     width: 100%;
     height: 100%;
     background: rgba(0, 0, 0, 0.8);
-    backdrop-filter: none !important; /* Explicitly disable blur */
-    -webkit-backdrop-filter: none !important;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 10000; /* Behind modal content */
 }
 
 .modal-content-cursy {
@@ -3087,8 +3086,10 @@ body.light-theme ::-webkit-scrollbar-thumb:hover {
     width: 800px;
     display: flex;
     flex-direction: column;
-    z-index: 10001;
+    z-index: 10001; /* On top of overlay */
     animation: modalFadeIn 0.3s ease-out;
+    pointer-events: auto; /* Allow clicks on modal content */
+    /* Clicks on modal content won't bubble to overlay */
 }
 
 @keyframes modalFadeIn {

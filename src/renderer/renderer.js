@@ -1485,12 +1485,20 @@ function openCursyCornerModal(title, content) {
     const modal = document.getElementById('cursyCornerModal');
     const modalTitle = document.getElementById('modalTitleCursy');
     const modalBody = document.getElementById('modalBodyCursy');
+    const modalContent = modal ? modal.querySelector('.modal-content-cursy') : null;
     
     if (modal && modalTitle && modalBody) {
         modalTitle.textContent = title;
         modalBody.innerHTML = content;
         modal.style.display = 'flex';
         document.body.style.overflow = 'hidden';
+        
+        // Prevent clicks on modal content from closing the modal
+        if (modalContent) {
+            modalContent.addEventListener('click', (e) => {
+                e.stopPropagation(); // Don't let clicks bubble up to overlay
+            });
+        }
     }
 }
 
