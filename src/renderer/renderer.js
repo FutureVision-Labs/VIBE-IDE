@@ -3126,17 +3126,46 @@ async function switchToTab(tabId) {
                     // Show preview, hide editor - make it editable!
                     const previewEl = document.getElementById('mdPreview');
                     const editorEl = document.getElementById('monacoEditor');
+                    
+                    if (!previewEl || !editorEl) {
+                        console.error('❌ Preview or editor elements not found!');
+                        return;
+                    }
+                    
+                    console.log('✅ Showing WYSIWYG preview for:', tab.name);
+                    console.log('   Editor display:', editorEl.style.display);
+                    console.log('   Preview display before:', previewEl.style.display);
+                    
                     editorEl.style.display = 'none';
                     previewEl.style.display = 'block';
                     previewEl.contentEditable = 'true'; // Make preview editable for WYSIWYG!
                     previewEl.setAttribute('spellcheck', 'true');
+                    
+                    console.log('   Preview display after:', previewEl.style.display);
+                    console.log('   Preview contentEditable:', previewEl.contentEditable);
+                    
+                    // Update preview content from markdown
                     updateMarkdownPreview();
+                    
+                    console.log('   Preview innerHTML length:', previewEl.innerHTML.length);
+                    
                     // Focus the preview after a short delay
-                    setTimeout(() => previewEl.focus(), 100);
+                    setTimeout(() => {
+                        previewEl.focus();
+                        console.log('   Preview focused');
+                    }, 100);
                 } else {
                     // Show editor, hide preview
                     const previewEl = document.getElementById('mdPreview');
                     const editorEl = document.getElementById('monacoEditor');
+                    
+                    if (!previewEl || !editorEl) {
+                        console.error('❌ Preview or editor elements not found!');
+                        return;
+                    }
+                    
+                    console.log('✅ Showing markdown editor for:', tab.name);
+                    
                     previewEl.contentEditable = 'false';
                     editorEl.style.display = 'block';
                     previewEl.style.display = 'none';
@@ -6479,10 +6508,24 @@ function htmlToMarkdown(html) {
 // Update markdown preview content
 function updateMarkdownPreview() {
     const activeTab = state.openTabs.find(t => t.id === state.activeTab);
-    if (!activeTab) return;
+    if (!activeTab) {
+        console.warn('⚠️ No active tab for preview update');
+        return;
+    }
     
     const previewEl = document.getElementById('mdPreview');
-    if (!previewEl) return;
+    if (!previewEl) {
+        console.error('❌ mdPreview element not found!');
+        return;
+    }
+    
+    // Don't update if user is currently editing in WYSIWYG mode
+    // Only update when switching to preview mode or when markdown source changes
+    if (previewEl.contentEditable === 'true' && document.activeElement === previewEl) {
+        // User is actively editing - don't overwrite their changes
+        console.log('📝 User is editing in WYSIWYG mode, skipping preview update');
+        return;
+    }
     
     // Always get content from Monaco editor if available (it has the latest), otherwise from tab content
     let content = '';
@@ -6492,9 +6535,13 @@ function updateMarkdownPreview() {
         content = activeTab.content;
     }
     
+    console.log('📝 Updating markdown preview, content length:', content.length);
+    
     // Parse and render markdown
     const html = parseMarkdownForPreview(content);
     previewEl.innerHTML = html;
+    
+    console.log('✅ Preview updated, HTML length:', html.length);
 }
 
 // Listen for editor changes to update preview in real-time
