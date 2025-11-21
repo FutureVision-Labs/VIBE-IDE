@@ -1540,9 +1540,18 @@ window.openMusicPlayer = async function() {
     
     openCursyCornerModal('🎵 Music Player', content);
     
-    // Auto-search on open (key should already be loaded on IDE startup)
-    setTimeout(() => {
-        searchMusic();
+    // Check API status first, then auto-search
+    setTimeout(async () => {
+        const status = await window.electronAPI.pixabayCheckStatus();
+        console.log('🔍 Pixabay API status for music player:', status);
+        if (!status.available) {
+            const resultsDiv = document.getElementById('musicResults');
+            if (resultsDiv) {
+                resultsDiv.innerHTML = '<p style="color: #ff4444;">❌ Pixabay API key not configured. Please check the main process console for details.</p>';
+            }
+        } else {
+            searchMusic();
+        }
     }, 100);
 }
 
