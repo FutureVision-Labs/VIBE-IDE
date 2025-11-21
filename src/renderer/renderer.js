@@ -1540,9 +1540,18 @@ window.openMusicPlayer = async function() {
     
     openCursyCornerModal('🎵 Music Player', content);
     
-    // Auto-search on open
-    setTimeout(() => {
-        searchMusic();
+    // Check API status first
+    setTimeout(async () => {
+        const status = await window.electronAPI.pixabayCheckStatus();
+        console.log('🔍 Pixabay API status:', status);
+        if (!status.available) {
+            const resultsDiv = document.getElementById('musicResults');
+            if (resultsDiv) {
+                resultsDiv.innerHTML = '<p style="color: #ff4444;">❌ Pixabay API key not configured. Please check the main process console for details.</p>';
+            }
+        } else {
+            searchMusic();
+        }
     }, 100);
 }
 
@@ -1671,9 +1680,18 @@ window.openImageGallery = async function(element) {
     // Store reference to element for replacement
     window.currentImageElement = element;
     
-    // Auto-search on open
-    setTimeout(() => {
-        searchImages();
+    // Check API status first
+    setTimeout(async () => {
+        const status = await window.electronAPI.pixabayCheckStatus();
+        console.log('🔍 Pixabay API status:', status);
+        if (!status.available) {
+            const resultsDiv = document.getElementById('imageResults');
+            if (resultsDiv) {
+                resultsDiv.innerHTML = '<p style="color: #ff4444;">❌ Pixabay API key not configured. Please check the main process console for details.</p>';
+            }
+        } else {
+            searchImages();
+        }
     }, 100);
 }
 
@@ -1755,9 +1773,18 @@ window.openVideoPlayer = async function() {
     
     openCursyCornerModal('📺 Video Player', content);
     
-    // Auto-search on open
-    setTimeout(() => {
-        searchVideos();
+    // Check API status first
+    setTimeout(async () => {
+        const status = await window.electronAPI.pixabayCheckStatus();
+        console.log('🔍 Pixabay API status:', status);
+        if (!status.available) {
+            const resultsDiv = document.getElementById('videoResults');
+            if (resultsDiv) {
+                resultsDiv.innerHTML = '<p style="color: #ff4444;">❌ Pixabay API key not configured. Please check the main process console for details.</p>';
+            }
+        } else {
+            searchVideos();
+        }
     }, 100);
 }
 
