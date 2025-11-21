@@ -1820,50 +1820,69 @@ ipcMain.handle('pixabay:searchAudio', async (event, { query, options }) => {
 });
 
 ipcMain.handle('pixabay:checkStatus', async () => {
-  console.log('═══════════════════════════════════════════════════════');
-  console.log('🔍 PIXABAY STATUS CHECK CALLED');
-  console.log('═══════════════════════════════════════════════════════');
-  console.log('Current key state:', !!pixabayApiKey);
-  console.log('Key variable type:', typeof pixabayApiKey);
-  
-  // Always try to load the key if it's not already loaded
-  if (!pixabayApiKey) {
-    console.log('⚠️ Key not loaded, attempting to load...');
-    const loaded = loadPixabayKey();
-    console.log('🔍 loadPixabayKey() returned:', loaded);
-    console.log('🔍 Key exists after load:', !!pixabayApiKey);
-    if (loaded && pixabayApiKey) {
-      console.log('✅ Key loaded successfully, length:', pixabayApiKey.length);
-    } else {
-      console.error('❌ Failed to load key');
-    }
-  } else {
-    console.log('✅ Key already loaded, length:', pixabayApiKey.length);
-  }
-  
-  // Get paths (ensure app is ready)
-  let userDataPath, configPath;
   try {
-    userDataPath = app.getPath('userData');
-    configPath = path.join(userDataPath, 'pixabay-config.json');
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('🔍 PIXABAY STATUS CHECK CALLED');
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('Current key state:', !!pixabayApiKey);
+    console.log('Key variable type:', typeof pixabayApiKey);
+    
+    // Always try to load the key if it's not already loaded
+    if (!pixabayApiKey) {
+      console.log('⚠️ Key not loaded, attempting to load...');
+      const loaded = loadPixabayKey();
+      console.log('🔍 loadPixabayKey() returned:', loaded);
+      console.log('🔍 Key exists after load:', !!pixabayApiKey);
+      if (loaded && pixabayApiKey) {
+        console.log('✅ Key loaded successfully, length:', pixabayApiKey.length);
+      } else {
+        console.error('❌ Failed to load key');
+      }
+    } else {
+      console.log('✅ Key already loaded, length:', pixabayApiKey.length);
+    }
+    
+    // Get paths (ensure app is ready)
+    let userDataPath = 'unknown';
+    let configPath = 'unknown';
+    try {
+      userDataPath = app.getPath('userData');
+      configPath = path.join(userDataPath, 'pixabay-config.json');
+      console.log('📁 User data path:', userDataPath);
+      console.log('📁 Config path:', configPath);
+      console.log('📁 Config file exists:', fs.existsSync(configPath));
+    } catch (error) {
+      console.error('❌ Error getting paths:', error);
+      console.error('   Error message:', error.message);
+      console.error('   Error stack:', error.stack);
+    }
+    
+    const result = { 
+      available: !!pixabayApiKey,
+      hasKey: !!pixabayApiKey,
+      keyLength: pixabayApiKey ? pixabayApiKey.length : 0,
+      userDataPath: userDataPath,
+      configPath: configPath,
+      fileExists: fs.existsSync ? fs.existsSync(configPath) : false
+    };
+    
+    console.log('Returning result:', JSON.stringify(result, null, 2));
+    console.log('═══════════════════════════════════════════════════════');
+    
+    return result;
   } catch (error) {
-    console.error('❌ Error getting paths:', error);
-    userDataPath = 'unknown';
-    configPath = 'unknown';
+    console.error('❌ ERROR in pixabay:checkStatus handler:', error);
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
+    return {
+      available: false,
+      hasKey: false,
+      keyLength: 0,
+      userDataPath: 'error',
+      configPath: 'error',
+      error: error.message
+    };
   }
-  
-  const result = { 
-    available: !!pixabayApiKey,
-    hasKey: !!pixabayApiKey,
-    keyLength: pixabayApiKey ? pixabayApiKey.length : 0,
-    userDataPath: userDataPath,
-    configPath: configPath
-  };
-  
-  console.log('Returning result:', JSON.stringify(result, null, 2));
-  console.log('═══════════════════════════════════════════════════════');
-  
-  return result;
 });
 
 ipcMain.handle('openai:checkStatus', async () => {
