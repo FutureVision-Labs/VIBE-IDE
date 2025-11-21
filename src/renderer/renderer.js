@@ -1103,7 +1103,14 @@ function buildCursyOffice() {
     bookcase.classList.add('clickable-element');
     bookcase.dataset.elementType = 'bookshelf';
     bookcase.style.cursor = 'pointer';
-    bookcase.addEventListener('click', () => openBookshelf());
+    bookcase.addEventListener('click', () => {
+        console.log('📚 Bookcase clicked!');
+        if (window.openBookshelf) {
+            window.openBookshelf();
+        } else {
+            console.error('❌ openBookshelf not found!');
+        }
+    });
     bookcase.onerror = () => {
         bookcase.style.display = 'none';
     };
@@ -1186,7 +1193,14 @@ function buildCursyOffice() {
     recordPlayer.classList.add('clickable-element');
     recordPlayer.dataset.elementType = 'music';
     recordPlayer.style.cursor = 'pointer';
-    recordPlayer.addEventListener('click', () => openMusicPlayer());
+    recordPlayer.addEventListener('click', () => {
+        console.log('🎵 Record player clicked!');
+        if (window.openMusicPlayer) {
+            window.openMusicPlayer();
+        } else {
+            console.error('❌ openMusicPlayer not found!');
+        }
+    });
     recordPlayer.onerror = () => {
         recordPlayer.style.display = 'none';
     };
@@ -1218,7 +1232,14 @@ function buildCursyOffice() {
     oldTV.classList.add('clickable-element');
     oldTV.dataset.elementType = 'video';
     oldTV.style.cursor = 'pointer';
-    oldTV.addEventListener('click', () => openVideoPlayer());
+    oldTV.addEventListener('click', () => {
+        console.log('📺 TV clicked!');
+        if (window.openVideoPlayer) {
+            window.openVideoPlayer();
+        } else {
+            console.error('❌ openVideoPlayer not found!');
+        }
+    });
     oldTV.onerror = () => {
         oldTV.style.display = 'none';
     };
@@ -1238,7 +1259,14 @@ function buildCursyOffice() {
     corkboard.classList.add('clickable-element');
     corkboard.dataset.elementType = 'notes';
     corkboard.style.cursor = 'pointer';
-    corkboard.addEventListener('click', () => openCursysNotes());
+    corkboard.addEventListener('click', () => {
+        console.log('📝 Corkboard clicked!');
+        if (window.openCursysNotes) {
+            window.openCursysNotes();
+        } else {
+            console.error('❌ openCursysNotes not found!');
+        }
+    });
     corkboard.onerror = () => {
         corkboard.style.display = 'none';
     };
@@ -1255,7 +1283,14 @@ function buildCursyOffice() {
     poster.dataset.elementType = 'image';
     poster.dataset.searchQuery = 'abstract art';
     poster.style.cursor = 'pointer';
-    poster.addEventListener('click', () => openImageGallery(poster));
+    poster.addEventListener('click', () => {
+        console.log('🖼️ Poster clicked!');
+        if (window.openImageGallery) {
+            window.openImageGallery(poster);
+        } else {
+            console.error('❌ openImageGallery not found!');
+        }
+    });
     poster.onerror = () => {
         poster.style.display = 'none';
     };
@@ -1274,7 +1309,14 @@ function buildCursyOffice() {
     wallFrame.dataset.elementType = 'image';
     wallFrame.dataset.searchQuery = 'painting art';
     wallFrame.style.cursor = 'pointer';
-    wallFrame.addEventListener('click', () => openImageGallery(wallFrame));
+    wallFrame.addEventListener('click', () => {
+        console.log('🖼️ Wall frame clicked!');
+        if (window.openImageGallery) {
+            window.openImageGallery(wallFrame);
+        } else {
+            console.error('❌ openImageGallery not found!');
+        }
+    });
     wallFrame.onerror = () => {
         wallFrame.style.display = 'none';
     };
@@ -1390,7 +1432,14 @@ function buildCursyOffice() {
     pinnedNote01.classList.add('clickable-element');
     pinnedNote01.dataset.elementType = 'notes';
     pinnedNote01.style.cursor = 'pointer';
-    pinnedNote01.addEventListener('click', () => openCursysNotes());
+    pinnedNote01.addEventListener('click', () => {
+        console.log('📝 Pinned note clicked!');
+        if (window.openCursysNotes) {
+            window.openCursysNotes();
+        } else {
+            console.error('❌ openCursysNotes not found!');
+        }
+    });
     pinnedNote01.onerror = () => {
         pinnedNote01.style.display = 'none';
     };
@@ -1439,7 +1488,7 @@ function closeCursyCornerModal() {
 window.closeCursyCornerModal = closeCursyCornerModal;
 
 // Music Player
-async function openMusicPlayer() {
+window.openMusicPlayer = async function() {
     const defaultQueries = ['lofi', 'coding music', 'ambient'];
     const randomQuery = defaultQueries[Math.floor(Math.random() * defaultQueries.length)];
     
@@ -1555,7 +1604,7 @@ window.toggleMusic = function() {
 };
 
 // Image Gallery
-async function openImageGallery(element) {
+window.openImageGallery = async function(element) {
     const searchQuery = element.dataset.searchQuery || 'art';
     
     let content = `
@@ -1622,7 +1671,7 @@ window.selectImage = function(imageUrl) {
 };
 
 // Video Player
-async function openVideoPlayer() {
+window.openVideoPlayer = async function() {
     let content = `
         <div class="video-player-container">
             <div class="video-search">
@@ -1691,7 +1740,7 @@ window.playVideo = function(videoUrl) {
 };
 
 // Cursy's Notes
-async function openCursysNotes() {
+window.openCursysNotes = async function() {
     // Load notes from project or create default
     let cursyNotes = '';
     let userNotes = '';
@@ -1803,7 +1852,7 @@ window.generateCursyNotes = async function() {
 };
 
 // Bookshelf
-function openBookshelf() {
+window.openBookshelf = function() {
     const books = [
         { title: 'The VIBE IDE Chronicles: Book One', icon: '📖', type: 'flipbook', url: 'https://heyzine.com/flip-book/...' },
         { title: 'Eloquent JavaScript', icon: '📚', type: 'link', url: 'https://eloquentjavascript.net/' },
