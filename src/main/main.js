@@ -111,10 +111,18 @@ function loadPixabayKey() {
       console.log('   apiKey value preview:', config.apiKey ? config.apiKey.substring(0, 10) + '...' : 'null');
       
       if (config.apiKey && config.apiKey.trim()) {
-        pixabayApiKey = config.apiKey.trim();
+        const trimmedKey = config.apiKey.trim();
+        pixabayApiKey = trimmedKey;
         console.log('✅ Pixabay API key loaded from config file (length:', pixabayApiKey.length, ')');
         console.log('   Key value:', pixabayApiKey);
         console.log('   Global pixabayApiKey variable set:', !!pixabayApiKey);
+        console.log('   Variable type:', typeof pixabayApiKey);
+        // Force verify it's actually set
+        if (pixabayApiKey && pixabayApiKey.length > 0) {
+          console.log('✅ VERIFIED: Key is loaded and ready!');
+        } else {
+          console.error('❌ CRITICAL: Key assignment failed!');
+        }
         return true;
       } else {
         console.warn('⚠️ Config file exists but apiKey is empty or missing');

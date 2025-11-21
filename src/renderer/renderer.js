@@ -3420,8 +3420,15 @@ function initMusicSfxPanel() {
     console.log('✅ Initializing Music & SFX panel...');
     
     // Toggle panel
-    toggleBtn.addEventListener('click', () => {
+    toggleBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('🎵 Music & SFX button clicked!');
+        console.log('   Panel element:', panel);
+        console.log('   Panel classes before:', panel.className);
         panel.classList.toggle('open');
+        console.log('   Panel classes after:', panel.className);
+        console.log('   Panel is open:', panel.classList.contains('open'));
     });
     
     // Close panel
