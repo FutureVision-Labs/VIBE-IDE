@@ -5862,12 +5862,6 @@ function initGifPicker() {
                         closeGifPicker();
                         chatInput.focus();
                     });
-                        const gifUrl = gif.images.original.url;
-                        const gifMarkdown = `[GIF:${gifUrl}]`;
-                        insertTextAtCursor(chatInput, gifMarkdown);
-                        closeGifPicker();
-                        chatInput.focus();
-                    });
                     
                     gifPickerResults.appendChild(gifItem);
                 });
