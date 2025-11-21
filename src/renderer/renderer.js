@@ -3412,7 +3412,12 @@ function initMusicSfxPanel() {
     const sfxSearchBtn = document.getElementById('sfxSearchBtn');
     const sfxSearchInput = document.getElementById('sfxSearch');
     
-    if (!toggleBtn || !panel) return;
+    if (!toggleBtn || !panel) {
+        console.error('❌ Music & SFX panel elements not found!');
+        return;
+    }
+    
+    console.log('✅ Initializing Music & SFX panel...');
     
     // Toggle panel
     toggleBtn.addEventListener('click', () => {
