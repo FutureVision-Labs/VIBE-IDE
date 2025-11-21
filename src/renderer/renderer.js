@@ -3496,12 +3496,7 @@ async function searchPixabayAudio(query, type) {
     resultsDiv.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">🔍 Searching...</p>';
     
     try {
-        // Check API status first
-        const status = await window.electronAPI.pixabayCheckStatus();
-        if (!status.available) {
-            resultsDiv.innerHTML = `<p style="color: #ff4444; text-align: center; padding: 20px;">❌ Pixabay API key not configured.<br>Config path: ${status.configPath || 'unknown'}</p>`;
-            return;
-        }
+        // Key should already be loaded on IDE startup, but check if search fails
         
         // Search for audio (Pixabay uses 'audio' category)
         const result = await window.electronAPI.pixabaySearchAudio(query, {
