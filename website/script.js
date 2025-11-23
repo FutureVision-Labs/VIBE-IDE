@@ -182,10 +182,175 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// Audiobook Player
+const chapters = [
+    { name: 'Opening', file: 'opening.mp3' },
+    { name: "Chapter 1 - 'The Pivot'", file: 'chapter1.mp3' },
+    { name: "Chapter 2 - 'The Name Game'", file: 'chapter2.mp3' },
+    { name: "Chapter 3 - 'The Chatbox Revolution'", file: 'chapter3.mp3' },
+    { name: "Chapter 4 - 'Self Awareness & Identity'", file: 'chapter4.mp3' },
+    { name: "Chapter 5 - 'Coding Day'", file: 'chapter5.mp3' },
+    { name: "Chapter 6 - 'Stop Apologizing For Vibe Coding'", file: 'chapter6.mp3' },
+    { name: "Chapter 7 - 'Cursy's Corner - The Placeholder'", file: 'chapter7.mp3' },
+    { name: "Chapter 8 - 'Cursy's Corner - The Transformation'", file: 'chapter8.mp3' },
+    { name: "Chapter 9 - 'The Speech Bubbles Saga'", file: 'chapter9.mp3' },
+    { name: "Chapter 10 - 'The Math Correction'", file: 'chapter10.mp3' },
+    { name: "Chapter 11 - 'The Housewarming'", file: 'chapter11.mp3' },
+    { name: "Chapter 12 - 'The Community'", file: 'chapter12.mp3' },
+    { name: "Chapter 13 - 'The Future'", file: 'chapter13.mp3' },
+    { name: 'Conclusion', file: 'conclusion.mp3' }
+];
+
+let currentChapterIndex = 0;
+let wasPlaying = false;
+let isAutoAdvancing = false;
+
+function initAudiobookPlayer() {
+    const audioPlayer = document.getElementById('audio-player');
+    const playPauseBtn = document.getElementById('play-pause');
+    const prevBtn = document.getElementById('prev-chapter');
+    const nextBtn = document.getElementById('next-chapter');
+    const currentChapterSpan = document.getElementById('current-chapter');
+    const progressSpan = document.getElementById('chapter-progress');
+    const progressBar = document.getElementById('progress');
+    const chapterItems = document.querySelectorAll('.chapter-item');
+
+    if (!audioPlayer) return;
+
+    function loadChapter(index, autoPlay = false) {
+        if (index < 0 || index >= chapters.length) return;
+        
+        currentChapterIndex = index;
+        const chapter = chapters[index];
+        audioPlayer.src = `assets/audio/audiobook/${chapter.file}`;
+        currentChapterSpan.textContent = chapter.name;
+        
+        // Update active chapter in list
+        chapterItems.forEach((item, i) => {
+            item.classList.toggle('active', i === index);
+        });
+        
+        // Auto-play if user was playing OR if auto-advancing
+        if (wasPlaying || autoPlay) {
+            // Small delay to ensure audio is loaded
+            setTimeout(() => {
+                audioPlayer.play().catch(e => {
+                    console.log('Auto-play prevented:', e);
+                    // If autoplay is blocked, update button state
+                    playPauseBtn.textContent = '▶ Play';
+                    wasPlaying = false;
+                });
+            }, 100);
+        }
+        
+        // Update progress
+        updateProgress();
+    }
+
+    function updateProgress() {
+        if (audioPlayer.duration) {
+            const current = formatTime(audioPlayer.currentTime);
+            const total = formatTime(audioPlayer.duration);
+            progressSpan.textContent = `${current} / ${total}`;
+            
+            const percent = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+            progressBar.style.width = `${percent}%`;
+        } else {
+            progressSpan.textContent = '0:00 / 0:00';
+            progressBar.style.width = '0%';
+        }
+    }
+
+    function formatTime(seconds) {
+        if (isNaN(seconds)) return '0:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Play/Pause button
+    playPauseBtn.addEventListener('click', () => {
+        if (audioPlayer.paused) {
+            audioPlayer.play();
+            playPauseBtn.textContent = '⏸ Pause';
+            wasPlaying = true;
+        } else {
+            audioPlayer.pause();
+            playPauseBtn.textContent = '▶ Play';
+            wasPlaying = false;
+        }
+    });
+
+    // Previous chapter
+    prevBtn.addEventListener('click', () => {
+        if (currentChapterIndex > 0) {
+            // Remember if we were playing, but don't autoplay when manually navigating
+            wasPlaying = !audioPlayer.paused;
+            loadChapter(currentChapterIndex - 1, false);
+        }
+    });
+
+    // Next chapter
+    nextBtn.addEventListener('click', () => {
+        if (currentChapterIndex < chapters.length - 1) {
+            // Remember if we were playing, but don't autoplay when manually navigating
+            wasPlaying = !audioPlayer.paused;
+            loadChapter(currentChapterIndex + 1, false);
+        }
+    });
+
+    // Click chapter in list to load it
+    chapterItems.forEach((item, index) => {
+        item.addEventListener('click', () => {
+            // Remember if we were playing, but don't autoplay when manually selecting
+            wasPlaying = !audioPlayer.paused;
+            loadChapter(index, false);
+        });
+    });
+
+    // Auto-advance to next chapter when current ends
+    audioPlayer.addEventListener('ended', () => {
+        if (currentChapterIndex < chapters.length - 1) {
+            // If we were playing, auto-play the next chapter
+            isAutoAdvancing = wasPlaying;
+            loadChapter(currentChapterIndex + 1, isAutoAdvancing);
+            isAutoAdvancing = false;
+        } else {
+            // Last chapter ended
+            playPauseBtn.textContent = '▶ Play';
+            wasPlaying = false;
+        }
+    });
+
+    // Update progress bar and time
+    audioPlayer.addEventListener('timeupdate', updateProgress);
+
+    // Update play/pause button when audio state changes
+    audioPlayer.addEventListener('play', () => {
+        playPauseBtn.textContent = '⏸ Pause';
+        wasPlaying = true;
+    });
+
+    audioPlayer.addEventListener('pause', () => {
+        playPauseBtn.textContent = '▶ Play';
+        // Only set wasPlaying to false if we're not auto-advancing
+        if (!isAutoAdvancing) {
+            wasPlaying = false;
+        }
+    });
+
+    // Update progress when metadata loads
+    audioPlayer.addEventListener('loadedmetadata', updateProgress);
+
+    // Initialize with first chapter
+    loadChapter(0);
+}
+
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     initLogoCarousel();
     initAcronymRotator();
     initSmoothScroll();
+    initAudiobookPlayer();
 });
 

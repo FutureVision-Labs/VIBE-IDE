@@ -39,6 +39,7 @@
         <nav class="nav">
             <a href="#features" class="nav-link">Features</a>
             <a href="#about" class="nav-link">About</a>
+            <a href="#audiobook" class="nav-link">Audiobook</a>
             <a href="#community" class="nav-link">Community</a>
             <a href="https://futurevisionlabs.itch.io/vibe-ide" class="nav-link nav-cta" target="_blank">Get Started</a>
         </nav>
@@ -412,6 +413,73 @@
                     </p>
                     <p style="color: #888; font-style: italic;">
                         Written by Team DC (Damo & Cursy) | Created with Heyzine
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Audiobook Section -->
+    <section id="audiobook" class="audiobook-section">
+        <div class="container">
+            <h2 class="section-title">🎙️ The VIBE IDE Chronicles - Audiobook</h2>
+            <div class="audiobook-content">
+                <p class="audiobook-description">
+                    <strong>Listen to the complete story!</strong> Narrated by Damo and Cursy (Rachel voice). 
+                    The full audiobook experience - all chapters available right here on the website. 
+                    <strong>No gatekeepers, no platform rules - just the story, your way!</strong>
+                </p>
+                
+                <div class="audiobook-player">
+                    <div class="player-controls">
+                        <button id="prev-chapter" class="btn-control" title="Previous Chapter">⏮ Previous</button>
+                        <button id="play-pause" class="btn-play" title="Play/Pause">▶ Play</button>
+                        <button id="next-chapter" class="btn-control" title="Next Chapter">Next ⏭</button>
+                    </div>
+                    
+                    <div class="player-info">
+                        <span id="current-chapter" class="chapter-name">Opening</span>
+                        <span id="chapter-progress" class="progress-time">0:00 / 0:00</span>
+                    </div>
+                    
+                    <audio id="audio-player" controls preload="metadata">
+                        <source src="assets/audio/audiobook/opening.mp3" type="audio/mpeg">
+                        Your browser does not support the audio element.
+                    </audio>
+                    
+                    <div class="progress-bar-container">
+                        <div class="progress-bar">
+                            <div id="progress" class="progress-fill"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chapters-list">
+                    <h3>Chapters</h3>
+                    <ul id="chapters" class="chapters-ul">
+                        <li class="chapter-item active" data-file="opening.mp3" data-name="Opening">Opening</li>
+                        <li class="chapter-item" data-file="chapter1.mp3" data-name="Chapter 1 - 'The Pivot'">Chapter 1 - 'The Pivot'</li>
+                        <li class="chapter-item" data-file="chapter2.mp3" data-name="Chapter 2 - 'The Name Game'">Chapter 2 - 'The Name Game'</li>
+                        <li class="chapter-item" data-file="chapter3.mp3" data-name="Chapter 3 - 'The Chatbox Revolution'">Chapter 3 - 'The Chatbox Revolution'</li>
+                        <li class="chapter-item" data-file="chapter4.mp3" data-name="Chapter 4 - 'Self Awareness & Identity'">Chapter 4 - 'Self Awareness & Identity'</li>
+                        <li class="chapter-item" data-file="chapter5.mp3" data-name="Chapter 5 - 'Coding Day'">Chapter 5 - 'Coding Day'</li>
+                        <li class="chapter-item" data-file="chapter6.mp3" data-name="Chapter 6 - 'Stop Apologizing For Vibe Coding'">Chapter 6 - 'Stop Apologizing For Vibe Coding'</li>
+                        <li class="chapter-item" data-file="chapter7.mp3" data-name="Chapter 7 - 'Cursy's Corner - The Placeholder'">Chapter 7 - 'Cursy's Corner - The Placeholder'</li>
+                        <li class="chapter-item" data-file="chapter8.mp3" data-name="Chapter 8 - 'Cursy's Corner - The Transformation'">Chapter 8 - 'Cursy's Corner - The Transformation'</li>
+                        <li class="chapter-item" data-file="chapter9.mp3" data-name="Chapter 9 - 'The Speech Bubbles Saga'">Chapter 9 - 'The Speech Bubbles Saga'</li>
+                        <li class="chapter-item" data-file="chapter10.mp3" data-name="Chapter 10 - 'The Math Correction'">Chapter 10 - 'The Math Correction'</li>
+                        <li class="chapter-item" data-file="chapter11.mp3" data-name="Chapter 11 - 'The Housewarming'">Chapter 11 - 'The Housewarming'</li>
+                        <li class="chapter-item" data-file="chapter12.mp3" data-name="Chapter 12 - 'The Community'">Chapter 12 - 'The Community'</li>
+                        <li class="chapter-item" data-file="chapter13.mp3" data-name="Chapter 13 - 'The Future'">Chapter 13 - 'The Future'</li>
+                        <li class="chapter-item" data-file="conclusion.mp3" data-name="Conclusion">Conclusion</li>
+                    </ul>
+                </div>
+
+                <div class="download-section">
+                    <h3>Download</h3>
+                    <p>Download individual chapters or listen directly in your browser!</p>
+                    <p style="color: #888; font-style: italic; margin-top: 10px;">
+                        All files are MP3 format. Right-click any chapter above to download, or use the audio player controls.
                     </p>
                 </div>
             </div>

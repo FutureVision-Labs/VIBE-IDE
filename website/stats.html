@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIBE IDE - Website Statistics</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #00131f 0%, #003959 100%);
+            color: #e6f7ff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px;
+        }
+
+        h1 {
+            font-size: 3em;
+            color: #00a2ff;
+            text-shadow: 0 0 20px rgba(0, 162, 255, 0.5);
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.8;
+            margin-bottom: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: rgba(20, 20, 30, 0.95);
+            border: 1px solid rgba(0, 162, 255, 0.25);
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 0 24px rgba(0, 162, 255, 0.18);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 0 32px rgba(0, 162, 255, 0.3);
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.7;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #00a2ff;
+            text-shadow: 0 0 10px rgba(0, 162, 255, 0.5);
+        }
+
+        .stat-unit {
+            font-size: 0.6em;
+            opacity: 0.6;
+            margin-left: 5px;
+        }
+
+        .countries-section {
+            background: rgba(20, 20, 30, 0.95);
+            border: 1px solid rgba(0, 162, 255, 0.25);
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 0 24px rgba(0, 162, 255, 0.18);
+            margin-bottom: 40px;
+        }
+
+        .section-title {
+            font-size: 1.8em;
+            color: #00a2ff;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+
+        .country-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: rgba(0, 162, 255, 0.05);
+            border-radius: 8px;
+            border-left: 4px solid #00a2ff;
+            transition: background 0.3s ease;
+        }
+
+        .country-item:hover {
+            background: rgba(0, 162, 255, 0.1);
+        }
+
+        .country-flag {
+            font-size: 2em;
+            margin-right: 15px;
+            width: 50px;
+            text-align: center;
+        }
+
+        .country-info {
+            flex: 1;
+        }
+
+        .country-name {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .country-stats {
+            display: flex;
+            gap: 20px;
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .country-stat {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .country-stat-label {
+            font-size: 0.8em;
+            opacity: 0.6;
+            text-transform: uppercase;
+        }
+
+        .country-stat-value {
+            font-weight: bold;
+            color: #00a2ff;
+        }
+
+        .bandwidth-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(0, 162, 255, 0.1);
+            border-radius: 4px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .bandwidth-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00a2ff, #00d4ff);
+            border-radius: 4px;
+            transition: width 1s ease;
+            box-shadow: 0 0 10px rgba(0, 162, 255, 0.5);
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-top: 30px;
+            padding: 12px 24px;
+            background: rgba(0, 162, 255, 0.2);
+            border: 1px solid rgba(0, 162, 255, 0.5);
+            border-radius: 8px;
+            color: #00a2ff;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .back-link:hover {
+            background: rgba(0, 162, 255, 0.3);
+            box-shadow: 0 0 20px rgba(0, 162, 255, 0.3);
+        }
+
+        .last-updated {
+            text-align: center;
+            opacity: 0.6;
+            font-size: 0.9em;
+            margin-top: 20px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .stat-value {
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .charts-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .chart-card {
+            background: rgba(20, 20, 30, 0.95);
+            border: 1px solid rgba(0, 162, 255, 0.25);
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 0 24px rgba(0, 162, 255, 0.18);
+        }
+
+        .chart-title {
+            font-size: 1.3em;
+            color: #00a2ff;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        @media (max-width: 768px) {
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 VIBE IDE Stats</h1>
+            <p class="subtitle">Real-time website analytics</p>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Pages</div>
+                <div class="stat-value">70<span class="stat-unit">pages</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Hits</div>
+                <div class="stat-value">509<span class="stat-unit">hits</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Bandwidth</div>
+                <div class="stat-value">32.6<span class="stat-unit">MB</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Countries</div>
+                <div class="stat-value">4<span class="stat-unit">countries</span></div>
+            </div>
+        </div>
+
+        <div class="charts-section">
+            <div class="chart-card">
+                <h2 class="chart-title">📈 Traffic by Country</h2>
+                <div class="chart-container">
+                    <canvas id="countryChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h2 class="chart-title">📊 Pages vs Hits</h2>
+                <div class="chart-container">
+                    <canvas id="comparisonChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-card" style="margin-bottom: 40px;">
+            <h2 class="chart-title">🌍 Country Distribution</h2>
+            <div class="chart-container" style="height: 400px;">
+                <canvas id="pieChart"></canvas>
+            </div>
+        </div>
+
+        <div class="countries-section">
+            <h2 class="section-title">🌍 Visitors by Country</h2>
+            
+            <div class="country-item">
+                <div class="country-flag">🇺🇸</div>
+                <div class="country-info">
+                    <div class="country-name">United States</div>
+                    <div class="country-stats">
+                        <div class="country-stat">
+                            <span class="country-stat-label">Pages</span>
+                            <span class="country-stat-value">64</span>
+                        </div>
+                        <div class="country-stat">
+                            <span class="country-stat-label">Hits</span>
+                            <span class="country-stat-value">443</span>
+                        </div>
+                        <div class="country-stat">
+                            <span class="country-stat-label">Bandwidth</span>
+                            <span class="country-stat-value">27.98 MB</span>
+                        </div>
+                    </div>
+                    <div class="bandwidth-bar">
+                        <div class="bandwidth-fill" style="width: 100%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="country-item">
+                <div class="country-flag">🇬🇧</div>
+                <div class="country-info">
+                    <div class="country-name">Great Britain</div>
+                    <div class="country-stats">
+                        <div class="country-stat">
+                            <span class="country-stat-label">Pages</span>
+                            <span class="country-stat-value">4</span>
+                        </div>
+                        <div class="country-stat">
+                            <span class="country-stat-label">Hits</span>
+                            <span class="country-stat-value">40</span>
+                        </div>
+                        <div class="country-stat">
+                            <span class="country-stat-label">Bandwidth</span>
+                            <span class="country-stat-value">2.75 MB</span>
+                        </div>
+                    </div>
+                    <div class="bandwidth-bar">
+                        <div class="bandwidth-fill" style="width: 10%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="country-item">
+                <div class="country-flag">🇨🇦</div>
+                <div class="country-info">
+                    <div class="country-name">Canada</div>
+                    <div class="country-stats">
+                        <div class="country-stat">
+                            <span class="country-stat-label">Pages</span>
+                            <span class="country-stat-value">1</span>
+                        </div>
+                        <div class="country-stat">
+                            <span class="country-stat-label">Hits</span>
+                            <span class="country-stat-value">13</span>
+                        </div>
+                        <div class="country-stat">
+                            <span class="country-stat-label">Bandwidth</span>
+                            <span class="country-stat-value">936 KB</span>
+                        </div>
+                    </div>
+                    <div class="bandwidth-bar">
+                        <div class="bandwidth-fill" style="width: 3.3%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="country-item">
+                <div class="country-flag">🇧🇩</div>
+                <div class="country-info">
+                    <div class="country-name">Bangladesh</div>
+                    <div class="country-stats">
+                        <div class="country-stat">
+                            <span class="country-stat-label">Pages</span>
+                            <span class="country-stat-value">1</span>
+                        </div>
+                        <div class="country-stat">
+                            <span class="country-stat-label">Hits</span>
+                            <span class="country-stat-value">13</span>
+                        </div>
+                        <div class="country-stat">
+                            <span class="country-stat-label">Bandwidth</span>
+                            <span class="country-stat-value">936 KB</span>
+                        </div>
+                    </div>
+                    <div class="bandwidth-bar">
+                        <div class="bandwidth-fill" style="width: 3.3%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align: center;">
+            <a href="index.html" class="back-link">← Back to Home</a>
+        </div>
+
+        <div class="last-updated">
+            Last updated: November 2025
+        </div>
+    </div>
+
+    <script>
+        // Fetch stats from API
+        async function loadStats() {
+            try {
+                // Try PHP API first, fallback to static data
+                const response = await fetch('stats-api.php');
+                let data;
+                
+                if (response.ok) {
+                    data = await response.json();
+                } else {
+                    // Fallback to static data if API not available
+                    data = getStaticStats();
+                }
+                
+                updateStats(data);
+            } catch (error) {
+                console.error('Error loading stats:', error);
+                // Use static data as fallback
+                updateStats(getStaticStats());
+            }
+        }
+
+        // Static stats data (fallback)
+        function getStaticStats() {
+            return {
+                totalPages: 70,
+                totalHits: 509,
+                totalBandwidth: '32.6 MB',
+                totalBandwidthBytes: 34185216,
+                countryCount: 4,
+                countries: [
+                    { code: 'us', name: 'United States', flag: '🇺🇸', pages: 64, hits: 443, bandwidth: 29360128 },
+                    { code: 'gb', name: 'Great Britain', flag: '🇬🇧', pages: 4, hits: 40, bandwidth: 2883584 },
+                    { code: 'ca', name: 'Canada', flag: '🇨🇦', pages: 1, hits: 13, bandwidth: 958464 },
+                    { code: 'bd', name: 'Bangladesh', flag: '🇧🇩', pages: 1, hits: 13, bandwidth: 958464 }
+                ],
+                lastUpdated: 'November 2025'
+            };
+        }
+
+        // Update page with stats data
+        function updateStats(data) {
+            // Update stat cards
+            document.querySelector('.stat-card:nth-child(1) .stat-value').textContent = data.totalPages;
+            document.querySelector('.stat-card:nth-child(2) .stat-value').textContent = data.totalHits;
+            document.querySelector('.stat-card:nth-child(3) .stat-value').textContent = data.totalBandwidth.split(' ')[0];
+            document.querySelector('.stat-card:nth-child(4) .stat-value').textContent = data.countryCount;
+            
+            // Update last updated
+            document.querySelector('.last-updated').textContent = `Last updated: ${data.lastUpdated}`;
+            
+            // Update charts
+            updateCharts(data);
+            
+            // Update country list
+            updateCountryList(data);
+        }
+
+        // Update country list
+        function updateCountryList(data) {
+            const countriesSection = document.querySelector('.countries-section');
+            const countryList = countriesSection.querySelector('.section-title').nextElementSibling || countriesSection;
+            
+            // Remove existing country items (keep title)
+            const existingItems = countryList.querySelectorAll('.country-item');
+            existingItems.forEach(item => item.remove());
+            
+            // Add country items
+            const maxBandwidth = Math.max(...data.countries.map(c => c.bandwidth));
+            data.countries.forEach(country => {
+                const percentage = (country.bandwidth / maxBandwidth) * 100;
+                const countryHTML = `
+                    <div class="country-item">
+                        <div class="country-flag">${country.flag}</div>
+                        <div class="country-info">
+                            <div class="country-name">${country.name}</div>
+                            <div class="country-stats">
+                                <div class="country-stat">
+                                    <span class="country-stat-label">Pages</span>
+                                    <span class="country-stat-value">${country.pages}</span>
+                                </div>
+                                <div class="country-stat">
+                                    <span class="country-stat-label">Hits</span>
+                                    <span class="country-stat-value">${country.hits}</span>
+                                </div>
+                                <div class="country-stat">
+                                    <span class="country-stat-label">Bandwidth</span>
+                                    <span class="country-stat-value">${formatBytes(country.bandwidth)}</span>
+                                </div>
+                            </div>
+                            <div class="bandwidth-bar">
+                                <div class="bandwidth-fill" style="width: ${percentage}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                countryList.insertAdjacentHTML('beforeend', countryHTML);
+            });
+        }
+
+        function formatBytes(bytes) {
+            if (bytes >= 1048576) {
+                return (bytes / 1048576).toFixed(2) + ' MB';
+            } else if (bytes >= 1024) {
+                return (bytes / 1024).toFixed(2) + ' KB';
+            }
+            return bytes + ' B';
+        }
+
+        // Chart.js configuration
+        Chart.defaults.color = '#e6f7ff';
+        Chart.defaults.borderColor = 'rgba(0, 162, 255, 0.2)';
+        Chart.defaults.backgroundColor = 'rgba(0, 162, 255, 0.1)';
+
+        let countryChart, comparisonChart, pieChart;
+
+        // Update charts with data
+        function updateCharts(data) {
+            const countryLabels = data.countries.map(c => c.name);
+            const countryPages = data.countries.map(c => c.pages);
+            const countryHits = data.countries.map(c => c.hits);
+            const countryBandwidth = data.countries.map(c => c.bandwidth);
+
+            // Country Traffic Chart (Bar Chart)
+            const countryCtx = document.getElementById('countryChart').getContext('2d');
+            if (countryChart) countryChart.destroy();
+            countryChart = new Chart(countryCtx, {
+            type: 'bar',
+            data: {
+                labels: countryLabels,
+                datasets: [{
+                    label: 'Pages',
+                    data: countryPages,
+                    backgroundColor: 'rgba(0, 162, 255, 0.6)',
+                    borderColor: '#00a2ff',
+                    borderWidth: 2
+                }, {
+                    label: 'Hits',
+                    data: countryHits,
+                    backgroundColor: 'rgba(0, 212, 255, 0.6)',
+                    borderColor: '#00d4ff',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#e6f7ff'
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: '#e6f7ff'
+                        },
+                        grid: {
+                            color: 'rgba(0, 162, 255, 0.1)'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: '#e6f7ff'
+                        },
+                        grid: {
+                            color: 'rgba(0, 162, 255, 0.1)'
+                        }
+                    }
+                }
+            }
+        });
+
+            // Comparison Chart (Line Chart)
+            const comparisonCtx = document.getElementById('comparisonChart').getContext('2d');
+            if (comparisonChart) comparisonChart.destroy();
+            comparisonChart = new Chart(comparisonCtx, {
+            type: 'line',
+            data: {
+                labels: countryLabels,
+                datasets: [{
+                    label: 'Pages',
+                    data: countryPages,
+                    borderColor: '#00a2ff',
+                    backgroundColor: 'rgba(0, 162, 255, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#00a2ff',
+                    pointBorderColor: '#00d4ff',
+                    pointBorderWidth: 2,
+                    pointRadius: 6
+                }, {
+                    label: 'Hits',
+                    data: countryHits,
+                    borderColor: '#00d4ff',
+                    backgroundColor: 'rgba(0, 212, 255, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#00d4ff',
+                    pointBorderColor: '#00a2ff',
+                    pointBorderWidth: 2,
+                    pointRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#e6f7ff'
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: '#e6f7ff'
+                        },
+                        grid: {
+                            color: 'rgba(0, 162, 255, 0.1)'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: '#e6f7ff'
+                        },
+                        grid: {
+                            color: 'rgba(0, 162, 255, 0.1)'
+                        }
+                    }
+                }
+            }
+        });
+
+            // Pie Chart for Country Distribution
+            const pieCtx = document.getElementById('pieChart').getContext('2d');
+            if (pieChart) pieChart.destroy();
+            pieChart = new Chart(pieCtx, {
+            type: 'doughnut',
+            data: {
+                labels: countryLabels,
+                datasets: [{
+                    data: countryHits,
+                    backgroundColor: [
+                        'rgba(0, 162, 255, 0.8)',
+                        'rgba(0, 212, 255, 0.8)',
+                        'rgba(139, 92, 246, 0.8)',
+                        'rgba(236, 72, 153, 0.8)'
+                    ],
+                    borderColor: [
+                        '#00a2ff',
+                        '#00d4ff',
+                        '#8b5cf6',
+                        '#ec4899'
+                    ],
+                    borderWidth: 3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            color: '#e6f7ff',
+                            padding: 15,
+                            font: {
+                                size: 14
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return `${label}: ${value} hits (${percentage}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        }
+
+        // Load stats and initialize on page load
+        window.addEventListener('load', () => {
+            loadStats().then(() => {
+                // Animate bandwidth bars after data loads
+                setTimeout(() => {
+                    const fills = document.querySelectorAll('.bandwidth-fill');
+                    fills.forEach(fill => {
+                        const width = fill.style.width;
+                        fill.style.width = '0%';
+                        setTimeout(() => {
+                            fill.style.width = width;
+                        }, 100);
+                    });
+                }, 500);
+            });
+        });
+    </script>
+</body>
+</html>
+
