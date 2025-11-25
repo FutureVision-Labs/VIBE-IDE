@@ -23,6 +23,11 @@
                         <div class="menu-dropdown-item" onclick="handleSaveFile()">Save</div>
                         <div class="menu-dropdown-item" onclick="handleSaveFileAs()">Save As</div>
                         <div class="menu-dropdown-separator"></div>
+                        <div class="menu-dropdown-item" onclick="handleAgentPersonaSettings()">Agent Persona Settings...</div>
+                        <div class="menu-dropdown-separator"></div>
+                        <div class="menu-dropdown-item" onclick="handleCMLViewer()">CML Viewer...</div>
+                        <div class="menu-dropdown-item" onclick="handleUserSettings()">User Settings...</div>
+                        <div class="menu-dropdown-separator"></div>
                         <div class="menu-dropdown-item" onclick="window.electronAPI.closeWindow()">Exit</div>
                     </div>
                 </div>
@@ -53,6 +58,8 @@
                     <span class="menu-item" id="menuHelp">Help</span>
                     <div class="menu-dropdown" id="dropdownHelp">
                         <div class="menu-dropdown-item" onclick="showKeyboardShortcuts()">⌨️ Keyboard Shortcuts</div>
+                        <div class="menu-dropdown-separator"></div>
+                        <div class="menu-dropdown-item" onclick="handleUsersManual()">📚 User's Manual</div>
                         <div class="menu-dropdown-separator"></div>
                         <div class="menu-dropdown-item" onclick="if(window.electronAPI && window.electronAPI.showAbout) window.electronAPI.showAbout(); else alert('About VIBE IDE\n\nVersion 0.1.0\n\nBuilt with ❤️ by FutureVision Labs');">About VIBE IDE</div>
                     </div>
@@ -96,7 +103,7 @@
                 </div>
                 <!-- Music & SFX Button -->
                 <div class="file-tree-footer">
-                    <button class="music-sfx-toggle" id="musicSfxToggle" title="Music & Sound Effects">
+                    <button class="music-sfx-toggle" id="musicSfxToggle" title="Music & Sound Effects" onclick="window.toggleMusicSfxPanel && window.toggleMusicSfxPanel(event)">
                         🎵 Music & SFX
                     </button>
                 </div>
@@ -115,6 +122,7 @@
                             <div class="music-sfx-search">
                                 <input type="text" id="musicSearch" placeholder="🔍 Search for music..." class="music-sfx-search-input">
                                 <button class="music-sfx-search-btn" id="musicSearchBtn">Search</button>
+                                <button class="music-sfx-favorite-btn" id="musicFavoritesBtn" title="View Favorites">⭐ Favorites</button>
                             </div>
                             <div class="music-sfx-results" id="musicResults"></div>
                         </div>
@@ -122,6 +130,7 @@
                             <div class="music-sfx-search">
                                 <input type="text" id="sfxSearch" placeholder="🔍 Search for sound effects..." class="music-sfx-search-input">
                                 <button class="music-sfx-search-btn" id="sfxSearchBtn">Search</button>
+                                <button class="music-sfx-favorite-btn" id="sfxFavoritesBtn" title="View Favorites">⭐ Favorites</button>
                             </div>
                             <div class="music-sfx-results" id="sfxResults"></div>
                         </div>
@@ -682,6 +691,256 @@
         </div>
     </div>
     
+    <!-- Agent Persona Settings Modal -->
+    <div class="modal-overlay" id="agentPersonaModalOverlay" style="display:none;">
+        <div class="modal" style="max-width: 800px; max-height: 90vh;">
+            <div class="modal-header">
+                <h3>🤖 Global Agent Persona Settings</h3>
+                <button class="btn-icon" id="agentPersonaModalClose" title="Close">✖</button>
+            </div>
+            <div class="modal-body" style="padding: 20px; max-height: calc(90vh - 100px); overflow-y: auto;">
+                <p style="margin-bottom: 20px; color: #ccc;">
+                    Configure the global personality and behavior of Cursy, your AI assistant. 
+                    This persona will apply to all projects unless overridden by a project-specific Agent_Persona.md file.
+                </p>
+                
+                <!-- Persona Templates -->
+                <div class="form-field" style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; color: #fff; font-weight: 500;">
+                        🎭 Choose a Template (or build your own!)
+                    </label>
+                    <div id="personaTemplates" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 10px;">
+                        <!-- Templates will be inserted here -->
+                    </div>
+                </div>
+                
+                <!-- Form Fields -->
+                <div class="form-field" style="margin-bottom: 15px;">
+                    <label for="personaName" style="display: block; margin-bottom: 5px; color: #fff; font-weight: 500;">
+                        Name
+                    </label>
+                    <input 
+                        type="text" 
+                        id="personaName" 
+                        placeholder="e.g., Cursy, Helper Bot, Code Buddy"
+                        style="width: 100%; padding: 8px; background: #1e1e1e; border: 1px solid #3e3e42; color: #d4d4d4; border-radius: 4px; font-size: 14px;"
+                    >
+                </div>
+                
+                <div class="form-field" style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 8px; color: #fff; font-weight: 500;">
+                        Personality Traits (pick as many as you want!)
+                    </label>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px;">
+                        <label style="display: flex; align-items: center; gap: 6px; color: #ccc; cursor: pointer; font-size: 13px;">
+                            <input type="checkbox" class="persona-trait" value="friendly" style="width: 16px; height: 16px;">
+                            <span>😊 Friendly</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; color: #ccc; cursor: pointer; font-size: 13px;">
+                            <input type="checkbox" class="persona-trait" value="funny" style="width: 16px; height: 16px;">
+                            <span>😂 Funny</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; color: #ccc; cursor: pointer; font-size: 13px;">
+                            <input type="checkbox" class="persona-trait" value="patient" style="width: 16px; height: 16px;">
+                            <span>🧘 Patient</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; color: #ccc; cursor: pointer; font-size: 13px;">
+                            <input type="checkbox" class="persona-trait" value="encouraging" style="width: 16px; height: 16px;">
+                            <span>💪 Encouraging</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; color: #ccc; cursor: pointer; font-size: 13px;">
+                            <input type="checkbox" class="persona-trait" value="strict" style="width: 16px; height: 16px;">
+                            <span>📚 Strict Teacher</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; color: #ccc; cursor: pointer; font-size: 13px;">
+                            <input type="checkbox" class="persona-trait" value="casual" style="width: 16px; height: 16px;">
+                            <span>😎 Casual</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; color: #ccc; cursor: pointer; font-size: 13px;">
+                            <input type="checkbox" class="persona-trait" value="enthusiastic" style="width: 16px; height: 16px;">
+                            <span>🎉 Enthusiastic</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; color: #ccc; cursor: pointer; font-size: 13px;">
+                            <input type="checkbox" class="persona-trait" value="calm" style="width: 16px; height: 16px;">
+                            <span>🌊 Calm</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-field" style="margin-bottom: 15px;">
+                    <label for="personaTone" style="display: block; margin-bottom: 5px; color: #fff; font-weight: 500;">
+                        Communication Style
+                    </label>
+                    <select 
+                        id="personaTone" 
+                        style="width: 100%; padding: 8px; background: #1e1e1e; border: 1px solid #3e3e42; color: #d4d4d4; border-radius: 4px; font-size: 14px;"
+                    >
+                        <option value="conversational">💬 Conversational (like talking to a friend)</option>
+                        <option value="professional">👔 Professional (formal and clear)</option>
+                        <option value="playful">🎮 Playful (fun and silly)</option>
+                        <option value="simple">📖 Simple (easy to understand)</option>
+                        <option value="excited">🚀 Excited (lots of energy!)</option>
+                    </select>
+                </div>
+                
+                <div class="form-field" style="margin-bottom: 15px;">
+                    <label for="personaEmojis" style="display: block; margin-bottom: 5px; color: #fff; font-weight: 500;">
+                        Use Emojis?
+                    </label>
+                    <select 
+                        id="personaEmojis" 
+                        style="width: 100%; padding: 8px; background: #1e1e1e; border: 1px solid #3e3e42; color: #d4d4d4; border-radius: 4px; font-size: 14px;"
+                    >
+                        <option value="lots">✨ Lots! (very expressive)</option>
+                        <option value="some">😊 Some (just a few)</option>
+                        <option value="none">🚫 None (no emojis)</option>
+                    </select>
+                </div>
+                
+                <div class="form-field" style="margin-bottom: 15px;">
+                    <label for="personaSpecial" style="display: block; margin-bottom: 5px; color: #fff; font-weight: 500;">
+                        Special Instructions (optional)
+                    </label>
+                    <textarea 
+                        id="personaSpecial" 
+                        rows="3" 
+                        placeholder="e.g., 'Always celebrate when I finish code!', 'Explain things like I'm 10 years old', 'Use lots of examples'"
+                        style="width: 100%; padding: 8px; background: #1e1e1e; border: 1px solid #3e3e42; color: #d4d4d4; border-radius: 4px; font-size: 13px; resize: vertical;"
+                    ></textarea>
+                </div>
+                
+                <!-- Advanced: Raw Markdown Editor (collapsible) -->
+                <div class="form-field" style="margin-bottom: 20px;">
+                    <label style="display: flex; align-items: center; gap: 8px; color: #fff; font-weight: 500; cursor: pointer;" onclick="toggleAdvancedPersona()">
+                        <span>⚙️ Advanced: Edit Raw Markdown</span>
+                        <span id="advancedPersonaToggle" style="font-size: 12px; color: #999;">(click to show)</span>
+                    </label>
+                    <textarea 
+                        id="agentPersonaTextarea" 
+                        rows="10" 
+                        style="width: 100%; padding: 12px; background: #1e1e1e; border: 1px solid #3e3e42; color: #d4d4d4; font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; resize: vertical; border-radius: 4px; display: none;"
+                        placeholder="Advanced markdown editor for custom personas..."
+                    ></textarea>
+                </div>
+                <div class="form-field" style="margin-bottom: 20px; padding: 12px; background: #1e1e1e; border: 1px solid #3e3e42; border-radius: 4px;">
+                    <label style="display: flex; align-items: center; gap: 10px; color: #fff; cursor: pointer;">
+                        <input 
+                            type="checkbox" 
+                            id="agentPersonaAllowOverrides" 
+                            style="width: 18px; height: 18px; cursor: pointer;"
+                        >
+                        <span style="flex: 1;">
+                            <strong>Allow Project-Based Agent Persona Overrides</strong>
+                            <div style="font-size: 12px; color: #999; margin-top: 4px;">
+                                When enabled, project-specific Agent_Persona.md files can override the global persona. 
+                                When disabled, the global persona always takes precedence.
+                            </div>
+                        </span>
+                    </label>
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button class="btn btn-secondary" id="agentPersonaResetBtn" style="padding: 8px 16px;">Reset to Default</button>
+                    <button class="btn btn-primary" id="agentPersonaSaveBtn" style="padding: 8px 16px;">Save Persona</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- CML Viewer Modal -->
+    <div class="modal-overlay" id="cmlViewerModalOverlay" style="display:none;">
+        <div class="modal" style="max-width: 1000px; max-height: 90vh;">
+            <div class="modal-header">
+                <h3>📖 CML Viewer & Editor</h3>
+                <button class="btn-icon" id="cmlViewerModalClose" title="Close">✖</button>
+            </div>
+            <div class="modal-body" style="padding: 20px; display: flex; flex-direction: column; gap: 20px; max-height: calc(90vh - 100px); overflow-y: auto;">
+                <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+                    <button class="btn btn-secondary" id="cmlOpenFileBtn" style="padding: 8px 16px;">📂 Open CML File</button>
+                    <button class="btn btn-secondary" id="cmlOpenFolderBtn" style="padding: 8px 16px;">📁 Open CML Folder</button>
+                    <button class="btn btn-secondary" id="cmlNewFileBtn" style="padding: 8px 16px;">✨ New CML File</button>
+                    <button class="btn btn-primary" id="cmlRenderBtn" style="padding: 8px 16px;">📖 Render to Story</button>
+                    <button class="btn btn-primary" id="cmlSaveBtn" style="padding: 8px 16px;">💾 Save CML</button>
+                </div>
+                <div style="margin-bottom: 10px; padding: 10px; background: rgba(0, 255, 136, 0.1); border-left: 3px solid #00ff88; border-radius: 4px;">
+                    <label style="display: flex; align-items: center; gap: 8px; color: #fff; cursor: pointer;">
+                        <input type="checkbox" id="cmlRecordingEnabled" style="width: 18px; height: 18px; cursor: pointer;">
+                        <span>
+                            <strong>Record Chat to CML</strong>
+                            <div style="font-size: 12px; color: #999; margin-top: 4px;">
+                                Automatically save chat conversations as CML files in your project's cml/ folder
+                            </div>
+                        </span>
+                    </label>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; height: 600px;">
+                    <div style="display: flex; flex-direction: column;">
+                        <label style="display: block; margin-bottom: 8px; color: #fff; font-weight: 500;">CML Source</label>
+                        <textarea 
+                            id="cmlSourceTextarea" 
+                            style="flex: 1; padding: 12px; background: #1e1e1e; border: 1px solid #3e3e42; color: #d4d4d4; font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; resize: none; border-radius: 4px;"
+                            placeholder="Paste or edit CML here..."
+                        ></textarea>
+                    </div>
+                    <div style="display: flex; flex-direction: column;">
+                        <label style="display: block; margin-bottom: 8px; color: #fff; font-weight: 500;">Rendered Story (Markdown)</label>
+                        <div 
+                            id="cmlRenderedStory" 
+                            style="flex: 1; padding: 12px; background: #1e1e1e; border: 1px solid #3e3e42; color: #d4d4d4; font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; overflow-y: auto; border-radius: 4px; white-space: pre-wrap;"
+                        >Rendered story will appear here...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- User Settings Modal -->
+    <div class="modal-overlay" id="userSettingsModalOverlay" style="display:none;">
+        <div class="modal" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>👤 User Settings</h3>
+                <button class="btn-icon" id="userSettingsModalClose" title="Close">✖</button>
+            </div>
+            <div class="modal-body" style="padding: 20px;">
+                <p style="margin-bottom: 20px; color: #ccc;">
+                    Set your name for CML recording and personalization. 
+                    <em>(Full login system coming in beta release!)</em>
+                </p>
+                <div class="form-field" style="margin-bottom: 20px;">
+                    <label for="userNameInput" style="display: block; margin-bottom: 8px; color: #fff; font-weight: 500;">
+                        Your Name
+                    </label>
+                    <input 
+                        type="text" 
+                        id="userNameInput" 
+                        placeholder="e.g., Damo, John, Sarah"
+                        style="width: 100%; padding: 12px; background: #1e1e1e; border: 1px solid #3e3e42; color: #d4d4d4; border-radius: 4px; font-size: 14px;"
+                    >
+                    <div style="font-size: 12px; color: #999; margin-top: 4px;">
+                        This name will be used in CML recordings and personalized features.
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button class="btn btn-secondary" id="userSettingsCancelBtn" style="padding: 8px 16px;">Cancel</button>
+                    <button class="btn btn-primary" id="userSettingsSaveBtn" style="padding: 8px 16px;">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- User's Manual Modal -->
+    <div class="modal-overlay" id="usersManualModalOverlay" style="display:none;">
+        <div class="modal" style="max-width: 95vw; max-height: 95vh; width: 1200px; padding: 0;">
+            <div class="modal-header" style="position: sticky; top: 0; z-index: 10; background: #252526; border-bottom: 1px solid #3e3e42;">
+                <h3>📚 VIBE IDE User's Manual</h3>
+                <button class="btn-icon" id="usersManualModalClose" title="Close">✖</button>
+            </div>
+            <div class="modal-body" style="padding: 0; max-height: calc(95vh - 60px); overflow: hidden;">
+                <iframe id="usersManualFrame" src="users-manual.html" style="width: 100%; height: 100%; border: none; min-height: 600px;"></iframe>
+            </div>
+        </div>
+    </div>
+    
+    <script src="cml-utils.js"></script>
     <script src="renderer.js"></script>
 </body>
 </html>

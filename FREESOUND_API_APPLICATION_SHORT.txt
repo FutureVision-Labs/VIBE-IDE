@@ -1,0 +1,10 @@
+VIBE IDE is an educational coding environment designed to make programming accessible for beginners, especially kids and teens (10+). Built on Electron with Monaco Editor, it's a beginner-friendly alternative to professional IDEs.
+
+We're integrating Freesound API to provide users with a built-in Music & Sound Effects library directly within the IDE. Users can search Freesound's library, preview audio tracks, and download Creative Commons audio for use in their coding projects (games, web apps, etc.). This is part of our "Cursy's Corner" feature set, which provides easy access to multimedia assets (images, videos, and audio) to help beginners learn how to find and use assets in their projects.
+
+The API will be used for: text-based search for music and sound effects, preview playback via Freesound's preview URLs, and displaying metadata (duration, format, creator, license). This is primarily for educational and personal projects, helping beginners learn about finding and using audio assets.
+
+Project: https://futurevisionlabs.itch.io/vibe-ide
+Type: Educational Desktop Application (Electron)
+License: Open source / Educational use
+

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, protocol, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, protocol, dialog, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -72,8 +72,61 @@ function initOpenAIClient() {
 // Don't initialize here - wait for app to be ready
 // initOpenAIClient() will be called in app.whenReady()
 
-// Pixabay API
+// Pixabay API (for images/videos)
 let pixabayApiKey = null;
+
+// Freesound API (for music/SFX)
+let freesoundApiKey = null;
+let freesoundClientId = null;
+
+function loadFreesoundKey() {
+  try {
+    // Load from project root - this is a built-in feature, not user config
+    const projectRoot = path.join(__dirname, '..', '..'); // Go up from src/main to project root
+    const configPath = path.join(projectRoot, 'freesound-config.json');
+    
+    if (fs.existsSync(configPath)) {
+      console.log('✅ Found Freesound config at:', configPath);
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      if (config.apiKey) {
+        freesoundApiKey = config.apiKey.trim();
+        console.log('✅ Freesound API key loaded (length:', freesoundApiKey.length, ')');
+      }
+      if (config.clientId) {
+        freesoundClientId = config.clientId.trim();
+        console.log('✅ Freesound Client ID loaded (length:', freesoundClientId.length, ')');
+      }
+      if (freesoundApiKey) {
+        return true;
+      } else {
+        console.warn('⚠️ Config file exists but no apiKey found');
+      }
+    } else {
+      console.warn('⚠️ Freesound config not found at:', configPath);
+    }
+    
+    // Fall back to environment variables (for development)
+    if (process.env.FREESOUND_API_KEY) {
+      freesoundApiKey = process.env.FREESOUND_API_KEY.trim();
+      console.log('✅ Freesound API key loaded from environment variable');
+    }
+    if (process.env.FREESOUND_CLIENT_ID) {
+      freesoundClientId = process.env.FREESOUND_CLIENT_ID.trim();
+      console.log('✅ Freesound Client ID loaded from environment variable');
+    }
+    
+    if (freesoundApiKey) {
+      return true;
+    }
+    
+    console.warn('⚠️ Freesound API key not configured. Create freesound-config.json in project root.');
+    return false;
+  } catch (error) {
+    console.error('❌ Error loading Freesound key:', error);
+    console.error('   Error details:', error.message);
+    return false;
+  }
+}
 
 function loadPixabayKey() {
   try {
@@ -248,30 +301,61 @@ async function searchPixabayVideos(query, options = {}) {
 }
 
 async function searchPixabayAudio(query, options = {}) {
-  console.log('🔍 searchPixabayAudio called with query:', query, 'options:', options);
-  if (!pixabayApiKey) {
-    console.log('⚠️ Pixabay key not loaded, attempting to load...');
-    const loaded = loadPixabayKey();
-    if (!loaded || !pixabayApiKey) {
-      console.error('❌ Failed to load Pixabay key');
-      return { success: false, error: 'Pixabay API key not configured. Check main process console for details.' };
+  // Redirect to Freesound for actual audio search
+  return await searchFreesoundAudio(query, options);
+}
+
+async function searchFreesoundAudio(query, options = {}) {
+  console.log('🔍 searchFreesoundAudio called with query:', query, 'options:', options);
+  if (!freesoundApiKey) {
+    console.log('⚠️ Freesound key not loaded, attempting to load...');
+    const loaded = loadFreesoundKey();
+    if (!loaded || !freesoundApiKey) {
+      console.error('❌ Failed to load Freesound key');
+      return { success: false, error: 'Freesound API key not configured. Create freesound-config.json in your user data folder. Get your API key from https://freesound.org/apiv2/apply/' };
     }
   }
-  console.log('✅ Using Pixabay key (length:', pixabayApiKey.length, ')');
+  console.log('✅ Using Freesound key (length:', freesoundApiKey.length, ')');
   
   try {
     const https = require('https');
-    // Pixabay Audio API endpoint
-    const url = new URL('https://pixabay.com/api/');
-    url.searchParams.set('key', pixabayApiKey);
-    url.searchParams.set('q', query);
-    url.searchParams.set('audio_type', options.category === 'music' ? 'music' : 'all'); // 'music' or 'all' (includes sound effects)
-    url.searchParams.set('safesearch', options.safesearch !== false ? 'true' : 'false');
-    url.searchParams.set('per_page', options.perPage || 20);
+    // Freesound API v2 search endpoint
+    const url = new URL('https://freesound.org/apiv2/search/text/');
+    url.searchParams.set('query', query);
+    url.searchParams.set('token', freesoundApiKey);
+    url.searchParams.set('page_size', options.perPage || 20);
     url.searchParams.set('page', options.page || 1);
+    url.searchParams.set('fields', 'id,name,tags,description,username,previews,duration,download,license,type');
+    
+    // Build filter string
+    let filterParts = [];
+    
+    // Filter by category if specified
+    if (options.category === 'music') {
+      filterParts.push('tag:music OR tag:ambient OR tag:background');
+    } else if (options.category === 'soundEffects' || options.category === 'sfx') {
+      filterParts.push('tag:sfx OR tag:sound-effect OR tag:effect');
+    }
+    
+    // Add duration filter if specified (minDuration in seconds)
+    if (options.minDuration) {
+      filterParts.push(`duration:[${options.minDuration} TO *]`);
+    }
+    
+    // Set filter if we have any filter parts
+    if (filterParts.length > 0) {
+      url.searchParams.set('filter', filterParts.join(' AND '));
+    }
     
     return new Promise((resolve, reject) => {
-      https.get(url.toString(), (res) => {
+      // Freesound API uses token in query params, not Authorization header
+      const requestOptions = {
+        hostname: 'freesound.org',
+        path: url.pathname + '?' + url.searchParams.toString(),
+        method: 'GET'
+      };
+      
+      https.get(requestOptions, (res) => {
         let data = '';
         
         if (res.statusCode !== 200) {
@@ -286,26 +370,46 @@ async function searchPixabayAudio(query, options = {}) {
         res.on('end', () => {
           try {
             const json = JSON.parse(data);
-            if (json.error) {
-              resolve({ success: false, error: json.error });
+            if (json.detail) {
+              // Freesound returns errors in 'detail' field
+              resolve({ success: false, error: json.detail });
+            } else if (json.results) {
+              // Convert Freesound results to our audio format
+              const audioHits = (json.results || []).map(sound => {
+                // Get preview URL (MP3 preview)
+                const previews = sound.previews || {};
+                const previewUrl = previews['preview-hq-mp3'] || previews['preview-lq-mp3'] || previews['preview-hq-ogg'] || previews['preview-lq-ogg'] || '';
+                
+                return {
+                  id: sound.id,
+                  tags: sound.tags ? sound.tags.join(', ') : '',
+                  duration: sound.duration || 0,
+                  url: previewUrl, // Preview URL (MP3)
+                  audio_url: previewUrl, // Same as url for compatibility
+                  download_url: sound.download || '', // Full download URL (requires OAuth for some)
+                  type: sound.type || 'audio/mpeg',
+                  user: sound.username || 'Unknown',
+                  title: sound.name || 'Untitled',
+                  description: sound.description || '',
+                  format: sound.type || 'mp3',
+                  license: sound.license || '',
+                  // Freesound-specific fields
+                  sound_id: sound.id,
+                  freesound_url: `https://freesound.org/people/${sound.username}/sounds/${sound.id}/`
+                };
+              });
+              resolve({ 
+                success: true, 
+                hits: audioHits, 
+                total: json.count || 0,
+                next: json.next || null,
+                previous: json.previous || null
+              });
             } else {
-              // Pixabay audio API returns hits with audio-specific fields
-              const audioHits = (json.hits || []).map(audio => ({
-                id: audio.id,
-                tags: audio.tags,
-                duration: audio.duration || 0,
-                url: audio.url || audio.audio_url || audio.preview_url,
-                type: audio.type || 'mpeg',
-                user: audio.user,
-                title: audio.title || audio.tags,
-                format: audio.format || 'mp3',
-                bitrate: audio.bitrate || 0,
-                sample_rate: audio.sample_rate || 0
-              }));
-              resolve({ success: true, hits: audioHits, total: json.total || 0 });
+              resolve({ success: false, error: 'Unexpected response format from Freesound API' });
             }
           } catch (parseError) {
-            console.error('❌ Error parsing Pixabay audio response:', parseError);
+            console.error('❌ Error parsing Freesound response:', parseError);
             console.error('Response data:', data.substring(0, 500));
             resolve({ success: false, error: `Failed to parse response: ${parseError.message}` });
           }
@@ -849,6 +953,52 @@ ipcMain.handle('fs:rename', async (event, oldPath, newPath) => {
     
     fs.renameSync(oldPath, newPath);
     return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Fetch audio as buffer (for playback, bypasses CORS)
+ipcMain.handle('audio:fetchAsBuffer', async (event, url) => {
+  try {
+    const https = require('https');
+    const http = require('http');
+    const urlModule = require('url');
+    
+    const parsedUrl = urlModule.parse(url);
+    const protocol = parsedUrl.protocol === 'https:' ? https : http;
+    
+    return new Promise((resolve) => {
+      protocol.get(url, (response) => {
+        if (response.statusCode !== 200) {
+          resolve({ success: false, error: `HTTP ${response.statusCode}: ${response.statusMessage || 'Request failed'}` });
+          return;
+        }
+        
+        const chunks = [];
+        response.on('data', (chunk) => {
+          chunks.push(chunk);
+        });
+        
+        response.on('end', () => {
+          const buffer = Buffer.concat(chunks);
+          const contentType = response.headers['content-type'] || 'audio/mpeg';
+          resolve({ 
+            success: true, 
+            buffer: buffer, 
+            contentType: contentType,
+            // Convert to base64 for transfer
+            base64: buffer.toString('base64')
+          });
+        });
+        
+        response.on('error', (error) => {
+          resolve({ success: false, error: error.message });
+        });
+      }).on('error', (error) => {
+        resolve({ success: false, error: error.message });
+      });
+    });
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -1777,7 +1927,12 @@ ipcMain.handle('pixabay:searchVideos', async (event, { query, options }) => {
 });
 
 ipcMain.handle('pixabay:searchAudio', async (event, { query, options }) => {
-  return await searchPixabayAudio(query, options);
+  // Redirect to Freesound for actual audio (Pixabay doesn't have audio API)
+  return await searchFreesoundAudio(query, options);
+});
+
+ipcMain.handle('freesound:searchAudio', async (event, { query, options }) => {
+  return await searchFreesoundAudio(query, options);
 });
 
 ipcMain.handle('pixabay:checkStatus', async () => {
@@ -1797,6 +1952,28 @@ ipcMain.handle('pixabay:checkStatus', async () => {
     hasKey: !!pixabayApiKey,
     keyLength: pixabayApiKey ? pixabayApiKey.length : 0,
     userDataPath: userDataPath,
+    configPath: configPath
+  };
+});
+
+ipcMain.handle('freesound:checkStatus', async () => {
+  // Always try to load if not already loaded
+  if (!freesoundApiKey) {
+    const loaded = loadFreesoundKey();
+    if (!loaded) {
+      console.warn('⚠️ Failed to load Freesound key in checkStatus handler');
+    }
+  }
+  
+  const projectRoot = path.join(__dirname, '..', '..');
+  const configPath = path.join(projectRoot, 'freesound-config.json');
+  
+  return {
+    available: !!freesoundApiKey,
+    hasKey: !!freesoundApiKey,
+    hasClientId: !!freesoundClientId,
+    keyLength: freesoundApiKey ? freesoundApiKey.length : 0,
+    clientIdLength: freesoundClientId ? freesoundClientId.length : 0,
     configPath: configPath
   };
 });
@@ -1878,6 +2055,20 @@ ipcMain.handle('window:isMaximized', () => {
   return false;
 });
 
+// Open folder in system file manager
+ipcMain.handle('fs:openFolder', async (event, folderPath) => {
+  try {
+    if (!fs.existsSync(folderPath)) {
+      return { success: false, error: 'Folder does not exist' };
+    }
+    await shell.openPath(folderPath);
+    return { success: true };
+  } catch (error) {
+    console.error('Error opening folder:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Register protocol to serve static files from node_modules
 app.whenReady().then(() => {
   // Register protocol handler for node_modules
@@ -1909,8 +2100,9 @@ app.whenReady().then(() => {
   // Initialize OpenAI client now that app is ready
   initOpenAIClient();
   
-  // Load Pixabay API key now that app is ready
+  // Load API keys now that app is ready
   loadPixabayKey();
+  loadFreesoundKey();
   
   // Create splash window first, then main window
   createSplashWindow();

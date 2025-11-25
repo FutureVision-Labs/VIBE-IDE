@@ -219,6 +219,7 @@ body.light-theme .window-control.close:hover {
     display: flex;
     flex-direction: column;
     position: relative;
+    overflow: visible; /* Allow panel to slide out */
 }
 
 .right-sidebar {
@@ -317,6 +318,7 @@ body.light-theme .window-control.close:hover {
     display: flex;
     flex-direction: column;
     position: relative;
+    min-height: 0; /* Allow flex child to shrink */
 }
 
 /* Music & SFX Footer Button */
@@ -346,16 +348,16 @@ body.light-theme .window-control.close:hover {
 /* Music & SFX Panel */
 .music-sfx-panel {
     position: absolute;
-    bottom: 0;
+    bottom: 50px; /* Position above footer (footer is ~50px tall) */
     left: 0;
     right: 0;
     background: #252526;
     border-top: 2px solid #0e639c;
-    height: calc(100% - 40px); /* Full height of sidebar-content minus footer */
-    max-height: 80vh; /* Don't exceed 80% of viewport height */
-    transform: translateY(100%);
+    height: calc(100% - 50px); /* Full sidebar height minus footer height */
+    max-height: calc(100vh - 200px); /* Don't exceed viewport */
+    transform: translateY(calc(100% + 50px)); /* Start hidden below footer (moves down by full height + footer height) */
     transition: transform 0.3s ease-out, visibility 0s 0.3s;
-    z-index: 1000;
+    z-index: 1001; /* Above footer */
     display: flex;
     flex-direction: column;
     box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.5);
@@ -364,8 +366,8 @@ body.light-theme .window-control.close:hover {
 }
 
 .music-sfx-panel.open {
-    transform: translateY(0);
-    visibility: visible;
+    transform: translateY(0) !important;
+    visibility: visible !important;
     transition: transform 0.3s ease-out, visibility 0s 0s;
 }
 
@@ -482,6 +484,22 @@ body.light-theme .window-control.close:hover {
     transition: background 0.2s;
 }
 
+.music-sfx-favorite-btn {
+    padding: 8px 16px;
+    background: rgba(255, 215, 0, 0.2);
+    color: #ffd700;
+    border: 1px solid rgba(255, 215, 0, 0.5);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    margin-left: 8px;
+    transition: background 0.2s;
+}
+
+.music-sfx-favorite-btn:hover {
+    background: rgba(255, 215, 0, 0.3);
+}
+
 .music-sfx-search-btn:hover {
     background: #1177bb;
 }
@@ -529,6 +547,130 @@ body.light-theme .window-control.close:hover {
     margin: 4px 0;
 }
 
+/* Custom Audio Player */
+.custom-audio-player {
+    margin: 8px 0;
+    background: #1a1a1a;
+    border: 1px solid #3e3e42;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.custom-audio-element {
+    display: none;
+}
+
+.custom-audio-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.custom-audio-play-pause {
+    background: #0e639c;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 6px 10px;
+    min-width: 40px;
+    transition: background 0.2s;
+}
+
+.custom-audio-play-pause:hover {
+    background: #1177bb;
+}
+
+.custom-audio-play-pause:disabled {
+    background: #3e3e42;
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.custom-audio-progress-container {
+    flex: 1;
+    min-width: 150px;
+}
+
+.custom-audio-progress-bar {
+    width: 100%;
+    height: 6px;
+    background: #3e3e42;
+    border-radius: 3px;
+    cursor: pointer;
+    position: relative;
+    margin-bottom: 4px;
+}
+
+.custom-audio-progress-fill {
+    height: 100%;
+    background: #0e639c;
+    border-radius: 3px;
+    width: 0%;
+    transition: width 0.1s;
+}
+
+.custom-audio-time {
+    font-size: 11px;
+    color: #999;
+    display: flex;
+    justify-content: space-between;
+}
+
+.custom-audio-volume-container {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.custom-audio-mute {
+    background: transparent;
+    border: 1px solid #3e3e42;
+    border-radius: 4px;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px 8px;
+    transition: all 0.2s;
+}
+
+.custom-audio-mute:hover {
+    background: #3e3e42;
+    border-color: #0e639c;
+}
+
+.custom-audio-volume {
+    width: 60px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: #3e3e42;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+.custom-audio-volume::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    background: #0e639c;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.custom-audio-volume::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    background: #0e639c;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+
 .music-sfx-item-actions {
     display: flex;
     gap: 8px;
@@ -559,6 +701,18 @@ body.light-theme .window-control.close:hover {
 
 .music-sfx-item-btn.download:hover {
     background: #1177bb;
+}
+
+.music-sfx-item-btn.download:disabled {
+    background: #3e3e42;
+    border-color: #3e3e42;
+    color: #666;
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.music-sfx-item-btn.download:disabled:hover {
+    background: #3e3e42;
 }
 
 .music-sfx-item-btn.favorite {
@@ -883,9 +1037,10 @@ body.light-theme .window-control.close:hover {
 }
 
 .cursy-bubble.speech.celebrate {
-    background: rgba(76, 175, 80, 0.95);
-    border: 2px solid #4caf50;
-    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.4);
+    background: rgba(76, 175, 80, 0.95) !important;
+    border: 2px solid #4caf50 !important;
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.4) !important;
+    color: white !important;
 }
 
 .cursy-bubble.speech::before {
@@ -902,7 +1057,141 @@ body.light-theme .window-control.close:hover {
 }
 
 .cursy-bubble.speech.celebrate::before {
-    border-top-color: #4caf50;
+    border-top-color: #4caf50 !important;
+}
+
+/* Sparkles for celebration */
+.cursy-sparkles {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 999;
+    overflow: hidden;
+}
+
+.cursy-sparkle {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: #00ff88;
+    border-radius: 50%;
+    animation: sparkleFloat 2s ease-out forwards;
+    box-shadow: 0 0 6px #00ff88, 0 0 12px #00ff88;
+}
+
+.cursy-sparkle:nth-child(2n) {
+    background: #00a2ff;
+    box-shadow: 0 0 6px #00a2ff, 0 0 12px #00a2ff;
+    animation-duration: 2.5s;
+}
+
+.cursy-sparkle:nth-child(3n) {
+    background: #ffd700;
+    box-shadow: 0 0 6px #ffd700, 0 0 12px #ffd700;
+    animation-duration: 3s;
+}
+
+.cursy-sparkle:nth-child(4n) {
+    background: #ff69b4;
+    box-shadow: 0 0 6px #ff69b4, 0 0 12px #ff69b4;
+    animation-duration: 2.2s;
+}
+
+@keyframes sparkleFloat {
+    0% {
+        opacity: 1;
+        transform: translateY(0) scale(1) rotate(0deg);
+    }
+    50% {
+        opacity: 0.8;
+        transform: translateY(-30px) scale(1.2) rotate(180deg);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-60px) scale(0.5) rotate(360deg);
+    }
+}
+
+/* Lighting effects for celebration */
+.cursy-celebration-light {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0, 255, 136, 0.3) 0%, rgba(0, 162, 255, 0.2) 50%, transparent 70%);
+    pointer-events: none;
+    z-index: 998;
+    animation: celebrationPulse 2s ease-in-out infinite;
+    transform: translate(-50%, -50%);
+    filter: blur(20px);
+}
+
+.cursy-celebration-light::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0, 255, 136, 0.4) 0%, transparent 60%);
+    transform: translate(-50%, -50%);
+    animation: celebrationPulse 1.5s ease-in-out infinite reverse;
+}
+
+.cursy-celebration-light::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0, 162, 255, 0.5) 0%, transparent 50%);
+    transform: translate(-50%, -50%);
+    animation: celebrationPulse 1s ease-in-out infinite;
+}
+
+@keyframes celebrationPulse {
+    0%, 100% {
+        opacity: 0.6;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.2);
+    }
+}
+
+/* Character glow effect when celebrating */
+.cursy-character.celebrating {
+    filter: drop-shadow(0 0 10px rgba(0, 255, 136, 0.8)) 
+            drop-shadow(0 0 20px rgba(0, 162, 255, 0.6))
+            drop-shadow(0 0 30px rgba(0, 255, 136, 0.4)) !important;
+    animation: characterGlow 2s ease-in-out infinite;
+}
+
+.cursy-character:not(.celebrating) {
+    filter: none !important;
+    animation: none !important;
+}
+
+@keyframes characterGlow {
+    0%, 100% {
+        filter: drop-shadow(0 0 10px rgba(0, 255, 136, 0.8)) 
+                drop-shadow(0 0 20px rgba(0, 162, 255, 0.6))
+                drop-shadow(0 0 30px rgba(0, 255, 136, 0.4)) !important;
+    }
+    50% {
+        filter: drop-shadow(0 0 15px rgba(0, 255, 136, 1)) 
+                drop-shadow(0 0 30px rgba(0, 162, 255, 0.8))
+                drop-shadow(0 0 40px rgba(0, 255, 136, 0.6)) !important;
+    }
 }
 
 /* Animated dots for thinking */
@@ -1555,7 +1844,8 @@ body.light-theme .quick-action-btn:hover {
     opacity: 0.8;
 }
 
-.chat-message pre {
+.chat-message pre,
+.chat-message .chat-code-block {
     background: rgba(0, 0, 0, 0.4);
     padding: 8px;
     border-radius: 4px;
@@ -1564,11 +1854,21 @@ body.light-theme .quick-action-btn:hover {
     border-left: 3px solid #00a2ff;
 }
 
-.chat-message pre code {
+.chat-message pre code,
+.chat-message .chat-code-block code {
     background: transparent;
     padding: 0;
     font-size: 12px;
     display: block;
+    white-space: pre;
+}
+
+.chat-message .chat-inline-code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
 }
 
 .chat-message p {

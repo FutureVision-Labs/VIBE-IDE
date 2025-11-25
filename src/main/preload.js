@@ -54,14 +54,24 @@ window.electronAPI = {
   openaiChat: (messages, systemPrompt, maxTokens) => ipcRenderer.invoke('openai:chat', { messages, systemPrompt, maxTokens }),
   openaiCheckStatus: () => ipcRenderer.invoke('openai:checkStatus'),
   
-  // Pixabay API (Cursy's Corner)
+  // Pixabay API (Cursy's Corner - for images/videos)
   pixabaySearchImages: (query, options) => ipcRenderer.invoke('pixabay:searchImages', { query, options }),
   pixabaySearchVideos: (query, options) => ipcRenderer.invoke('pixabay:searchVideos', { query, options }),
-  pixabaySearchAudio: (query, options) => ipcRenderer.invoke('pixabay:searchAudio', { query, options }),
+  pixabaySearchAudio: (query, options) => ipcRenderer.invoke('pixabay:searchAudio', { query, options }), // Redirects to Freesound
   pixabayCheckStatus: () => ipcRenderer.invoke('pixabay:checkStatus'),
   
+  // Freesound API (for music/SFX - the real audio API!)
+  freesoundSearchAudio: (query, options) => ipcRenderer.invoke('freesound:searchAudio', { query, options }),
+  freesoundCheckStatus: () => ipcRenderer.invoke('freesound:checkStatus'),
+  
   // File download
-  downloadFile: (url, filePath) => ipcRenderer.invoke('fs:downloadFile', url, filePath)
+  downloadFile: (url, filePath) => ipcRenderer.invoke('fs:downloadFile', url, filePath),
+  
+  // Fetch audio as blob (for playback, bypasses CORS)
+  fetchAudioAsBlob: (url) => ipcRenderer.invoke('audio:fetchAsBuffer', url),
+  
+  // Open folder in system file manager
+  openFolder: (folderPath) => ipcRenderer.invoke('fs:openFolder', folderPath)
 };
 
 console.log('VIBE IDE Preload Script Loaded');

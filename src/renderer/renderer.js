@@ -54,8 +54,12 @@ const state = {
     openaiClient: null, // OpenAI client instance
     useOpenAI: true, // Toggle between OpenAI and mock responses
     conversationContext: [], // Store conversation context for OpenAI
-    agentPersona: null, // Agent_Persona.md content
-    projectJournal: null // PROJECT_JOURNAL.md content
+    agentPersona: null, // Agent_Persona.md content (project-specific)
+    globalAgentPersona: localStorage.getItem('vibe-ide-global-agent-persona') || null, // Global agent persona
+    allowProjectPersonaOverrides: localStorage.getItem('vibe-ide-allow-project-persona-overrides') !== 'false', // Default to true
+    projectJournal: null, // PROJECT_JOURNAL.md content
+    userName: localStorage.getItem('vibe-ide-user-name') || null, // User's name (for CML recording, future login)
+    recordChatToCML: localStorage.getItem('vibe-ide-record-chat-to-cml') === 'true' // CML recording enabled state
 };
 
 // Welcome screen functions (exposed globally for HTML onclick handlers)
@@ -106,6 +110,49 @@ function showAboutDialog() {
     // The actual dialog is shown via IPC from the menu
     console.log('About dialog requested');
 }
+
+// User's Manual Modal
+window.handleUsersManual = function() {
+    const overlay = document.getElementById('usersManualModalOverlay');
+    const closeBtn = document.getElementById('usersManualModalClose');
+    const frame = document.getElementById('usersManualFrame');
+    
+    if (!overlay) {
+        console.error('Users Manual modal overlay not found!');
+        return;
+    }
+    
+    // Show modal
+    overlay.style.display = 'flex';
+    
+    // Reload iframe to ensure fresh content
+    if (frame) {
+        frame.src = frame.src; // Reload iframe
+    }
+    
+    // Close button handler
+    if (closeBtn) {
+        closeBtn.onclick = () => {
+            overlay.style.display = 'none';
+        };
+    }
+    
+    // Close on overlay click (but not on modal content click)
+    overlay.onclick = (e) => {
+        if (e.target === overlay) {
+            overlay.style.display = 'none';
+        }
+    };
+    
+    // Close on Escape key
+    const escapeHandler = (e) => {
+        if (e.key === 'Escape' && overlay.style.display !== 'none') {
+            overlay.style.display = 'none';
+            document.removeEventListener('keydown', escapeHandler);
+        }
+    };
+    document.addEventListener('keydown', escapeHandler);
+};
 
 // File Operations (Phase 4)
 async function handleNewFile() {
@@ -816,10 +863,17 @@ function updateCursyState(newState, statusText = null) {
     // Remove all state classes
     character.className = 'cursy-character';
     
+    // Remove glow effect by resetting filter
+    character.style.filter = '';
+    
     // Remove any existing bubbles (check both characterLayer and roomContainer)
     const existingBubbles = document.querySelectorAll('.cursy-bubble');
     console.log('🗑️ Removing', existingBubbles.length, 'existing bubbles');
     existingBubbles.forEach(bubble => bubble.remove());
+    
+    // Remove sparkles and lighting effects
+    const existingSparkles = document.querySelectorAll('.cursy-sparkles, .cursy-celebration-light');
+    existingSparkles.forEach(el => el.remove());
     
     // Don't clear props - keep wall decorations visible!
     // Props are part of the room, not the character state
@@ -845,35 +899,34 @@ function updateCursyState(newState, statusText = null) {
                 thinkingDots.className = 'thinking-dots';
                 thinkingDots.innerHTML = '<span></span><span></span><span></span>';
                 thoughtBubble.appendChild(thinkingDots);
-                roomContainer.appendChild(thoughtBubble);
+                const vizContainer = document.querySelector('.cursy-visualization') || roomContainer;
+                vizContainer.appendChild(thoughtBubble);
                 
                 // Position bubble after a small delay to ensure character is rendered
                 setTimeout(() => {
+                    const vizContainer = document.querySelector('.cursy-visualization') || roomContainer;
+                    
+                    // Move bubble to visualization container if it's in room-container
+                    if (thoughtBubble.parentElement === roomContainer && vizContainer !== roomContainer) {
+                        vizContainer.appendChild(thoughtBubble);
+                    }
+                    
                     const charRect = character.getBoundingClientRect();
-                    const containerRect = roomContainer.getBoundingClientRect();
-                    const visualizationRect = document.querySelector('.cursy-visualization')?.getBoundingClientRect();
+                    const containerRect = vizContainer.getBoundingClientRect();
                     
                     if (charRect.width > 0 && containerRect.width > 0) {
-                        // Position relative to the visualization container, not room-container
-                        // This ensures bubbles can appear above the room
-                        const charCenterX = charRect.left - (visualizationRect?.left || containerRect.left) + (charRect.width / 2);
-                        const charTop = charRect.top - (visualizationRect?.top || containerRect.top);
+                        // Position relative to the visualization container
+                        const charCenterX = charRect.left - containerRect.left + (charRect.width / 2);
+                        const charTop = charRect.top - containerRect.top;
                         
-                        // Position relative to visualization container
-                        const vizContainer = document.querySelector('.cursy-visualization') || roomContainer;
                         thoughtBubble.style.position = 'absolute';
                         thoughtBubble.style.left = (charCenterX - 40) + 'px';
                         thoughtBubble.style.top = (charTop - 60) + 'px';
-                        thoughtBubble.style.zIndex = '1000'; // Much higher z-index
+                        thoughtBubble.style.zIndex = '1001';
                         thoughtBubble.style.opacity = '1';
                         thoughtBubble.style.visibility = 'visible';
                         thoughtBubble.style.display = 'flex';
-                        thoughtBubble.style.pointerEvents = 'none'; // Don't block clicks
-                        
-                        // Move bubble to visualization container if it's in room-container
-                        if (thoughtBubble.parentElement === roomContainer && vizContainer !== roomContainer) {
-                            vizContainer.appendChild(thoughtBubble);
-                        }
+                        thoughtBubble.style.pointerEvents = 'none';
                         
                         console.log('✅ Thought bubble positioned:', { 
                             left: thoughtBubble.style.left, 
@@ -889,7 +942,7 @@ function updateCursyState(newState, statusText = null) {
                         thoughtBubble.style.left = '50%';
                         thoughtBubble.style.top = '20%';
                         thoughtBubble.style.position = 'absolute';
-                        thoughtBubble.style.zIndex = '1000';
+                        thoughtBubble.style.zIndex = '1001';
                         thoughtBubble.style.opacity = '1';
                         thoughtBubble.style.visibility = 'visible';
                         thoughtBubble.style.display = 'flex';
@@ -909,10 +962,59 @@ function updateCursyState(newState, statusText = null) {
             
         case 'celebrating':
             character.classList.add('celebrating');
-            startCursyAnimation('idle'); // Use idle animation for celebrating
+            startCursyAnimation('celebrating'); // Use celebrating animation
             
-            // Add green speech bubble with animated "YES!!!"
+            // Add sparkles and lighting effects
             if (roomContainer && character) {
+                const vizContainer = document.querySelector('.cursy-visualization') || roomContainer;
+                
+                // Remove any existing sparkles/lighting
+                const existingSparkles = document.querySelectorAll('.cursy-sparkles, .cursy-celebration-light');
+                existingSparkles.forEach(el => el.remove());
+                
+                // Create sparkles container
+                const sparklesContainer = document.createElement('div');
+                sparklesContainer.className = 'cursy-sparkles';
+                vizContainer.appendChild(sparklesContainer);
+                
+                // Create multiple sparkles
+                setTimeout(() => {
+                    const charRect = character.getBoundingClientRect();
+                    const containerRect = vizContainer.getBoundingClientRect();
+                    const charCenterX = charRect.left - containerRect.left + (charRect.width / 2);
+                    const charCenterY = charRect.top - containerRect.top + (charRect.height / 2);
+                    
+                    for (let i = 0; i < 30; i++) {
+                        const sparkle = document.createElement('div');
+                        sparkle.className = 'cursy-sparkle';
+                        
+                        const angle = (Math.PI * 2 * i) / 30;
+                        const radius = 30 + Math.random() * 40;
+                        const startX = charCenterX + Math.cos(angle) * radius;
+                        const startY = charCenterY + Math.sin(angle) * radius;
+                        
+                        sparkle.style.left = startX + 'px';
+                        sparkle.style.top = startY + 'px';
+                        sparkle.style.animationDelay = (Math.random() * 0.5) + 's';
+                        sparklesContainer.appendChild(sparkle);
+                    }
+                }, 50);
+                
+                // Create lighting effect
+                setTimeout(() => {
+                    const charRect = character.getBoundingClientRect();
+                    const containerRect = vizContainer.getBoundingClientRect();
+                    const charCenterX = charRect.left - containerRect.left + (charRect.width / 2);
+                    const charCenterY = charRect.top - containerRect.top + (charRect.height / 2);
+                    
+                    const celebrationLight = document.createElement('div');
+                    celebrationLight.className = 'cursy-celebration-light';
+                    celebrationLight.style.left = charCenterX + 'px';
+                    celebrationLight.style.top = charCenterY + 'px';
+                    vizContainer.appendChild(celebrationLight);
+                }, 50);
+                
+                // Add green speech bubble with animated "YES!!!"
                 console.log('🎉 Creating celebrate bubble...');
                 const celebrateBubble = document.createElement('div');
                 celebrateBubble.className = 'cursy-bubble speech celebrate';
@@ -920,38 +1022,33 @@ function updateCursyState(newState, statusText = null) {
                 celebrateText.className = 'celebrate-exclamations';
                 celebrateText.innerHTML = '<span>Y</span><span>E</span><span>S</span><span>!</span><span>!</span><span>!</span>';
                 celebrateBubble.appendChild(celebrateText);
-                roomContainer.appendChild(celebrateBubble);
+                vizContainer.appendChild(celebrateBubble);
                 
                 // Position bubble after a small delay
                 setTimeout(() => {
                     const charRect = character.getBoundingClientRect();
-                    const containerRect = roomContainer.getBoundingClientRect();
-                    const visualizationRect = document.querySelector('.cursy-visualization')?.getBoundingClientRect();
+                    const containerRect = vizContainer.getBoundingClientRect();
                     
                     if (charRect.width > 0 && containerRect.width > 0) {
-                        const charCenterX = charRect.left - (visualizationRect?.left || containerRect.left) + (charRect.width / 2);
-                        const charTop = charRect.top - (visualizationRect?.top || containerRect.top);
+                        const charCenterX = charRect.left - containerRect.left + (charRect.width / 2);
+                        const charTop = charRect.top - containerRect.top;
                         
-                        const vizContainer = document.querySelector('.cursy-visualization') || roomContainer;
                         celebrateBubble.style.position = 'absolute';
                         celebrateBubble.style.left = (charCenterX - 35) + 'px';
                         celebrateBubble.style.top = (charTop - 60) + 'px';
-                        celebrateBubble.style.zIndex = '1000';
+                        celebrateBubble.style.zIndex = '1001';
                         celebrateBubble.style.opacity = '1';
                         celebrateBubble.style.visibility = 'visible';
                         celebrateBubble.style.display = 'flex';
                         celebrateBubble.style.pointerEvents = 'none';
                         
-                        if (celebrateBubble.parentElement === roomContainer && vizContainer !== roomContainer) {
-                            vizContainer.appendChild(celebrateBubble);
-                        }
-                        
                         console.log('✅ Celebrate bubble positioned');
                     } else {
+                        console.warn('⚠️ Character or container not properly sized, using fallback positioning');
                         celebrateBubble.style.left = '50%';
                         celebrateBubble.style.top = '20%';
                         celebrateBubble.style.position = 'absolute';
-                        celebrateBubble.style.zIndex = '1000';
+                        celebrateBubble.style.zIndex = '1001';
                         celebrateBubble.style.opacity = '1';
                         celebrateBubble.style.visibility = 'visible';
                         celebrateBubble.style.display = 'flex';
@@ -965,7 +1062,7 @@ function updateCursyState(newState, statusText = null) {
             // Auto-return to idle after celebration
             setTimeout(() => {
                 updateCursyState('idle', 'Ready to help!');
-            }, 2000);
+            }, 3000); // Extended to 3 seconds to enjoy the sparkles
             break;
             
         case 'error':
@@ -1515,7 +1612,104 @@ window.closeCursyCornerModal = closeCursyCornerModal;
 
 // Music Player
 window.openMusicPlayer = async function() {
-    const defaultQueries = ['lofi', 'coding music', 'ambient'];
+    const defaultQueries = [
+        'lofi',
+        'coding music',
+        'ambient',
+        'chill',
+        'relaxing',
+        'focus',
+        'study music',
+        'electronic',
+        'synthwave',
+        'retro',
+        'jazz',
+        'piano',
+        'acoustic',
+        'nature sounds',
+        'rain',
+        'ocean waves',
+        'forest',
+        'meditation',
+        'zen',
+        'peaceful',
+        'dreamy',
+        'ethereal',
+        'space',
+        'sci-fi',
+        'cyberpunk',
+        'downtempo',
+        'trip hop',
+        'indie',
+        'folk',
+        'blues',
+        'classical',
+        'orchestral',
+        'cinematic',
+        'epic',
+        'uplifting',
+        'energetic',
+        'motivational',
+        'workout',
+        'dance',
+        'house',
+        'techno',
+        'trance',
+        'hip hop',
+        'rap beat',
+        'trap',
+        'r&b',
+        'soul',
+        'funk',
+        'disco',
+        'rock',
+        'metal',
+        'punk',
+        'alternative',
+        'pop',
+        'country',
+        'reggae',
+        'latin',
+        'world music',
+        'african',
+        'asian',
+        'middle eastern',
+        'celtic',
+        'irish',
+        'japanese',
+        'indian',
+        'tribal',
+        'ethnic',
+        'experimental',
+        'minimalist',
+        'psychedelic',
+        'atmospheric',
+        'moody',
+        'dark',
+        'bright',
+        'warm',
+        'cool',
+        'mellow',
+        'smooth',
+        'vintage',
+        'nostalgic',
+        'futuristic',
+        '80s',
+        '90s',
+        'soundtrack',
+        'background music',
+        'drum and bass',
+        'jungle',
+        'garage',
+        'dub',
+        'future bass',
+        'bass music',
+        'breakbeat',
+        'drum loop',
+        'beat',
+        'rhythm',
+        'groove'
+    ];
     const randomQuery = defaultQueries[Math.floor(Math.random() * defaultQueries.length)];
     
     let content = `
@@ -1523,8 +1717,10 @@ window.openMusicPlayer = async function() {
             <div class="music-search">
                 <input type="text" id="musicSearchInput" placeholder="Search for music..." value="${randomQuery}">
                 <button onclick="searchMusic()">🔍 Search</button>
+                <button onclick="openMusicFavorites()" style="margin-left: 10px; padding: 8px 15px; background: rgba(255, 107, 107, 0.2); color: #ff6b6b; border: 1px solid rgba(255, 107, 107, 0.5); border-radius: 4px; cursor: pointer;">❤️ Favorites</button>
+                <button onclick="openMusicPlaylists()" style="margin-left: 10px; padding: 8px 15px; background: rgba(127, 90, 240, 0.2); color: #7f5af0; border: 1px solid rgba(127, 90, 240, 0.5); border-radius: 4px; cursor: pointer;">📋 Playlists</button>
             </div>
-            <div id="musicResults" class="music-results">
+            <div id="cursyMusicResults" class="music-results">
                 <p>Loading music...</p>
             </div>
             <div id="musicControls" class="music-controls" style="display: none;">
@@ -1538,16 +1734,17 @@ window.openMusicPlayer = async function() {
         </div>
     `;
     
-    openCursyCornerModal('🎵 Music Player', content);
+    openCursyCornerModal('🎵 Cursy\'s Music Player', content);
     
     // Check API status first, then auto-search
     setTimeout(async () => {
-        const status = await window.electronAPI.pixabayCheckStatus();
-        console.log('🔍 Pixabay API status for music player:', status);
+        // Check Freesound status for audio (not Pixabay!)
+        const status = await window.electronAPI.freesoundCheckStatus();
+        console.log('🔍 Freesound API status for music player:', status);
         if (!status.available) {
-            const resultsDiv = document.getElementById('musicResults');
+            const resultsDiv = document.getElementById('cursyMusicResults');
             if (resultsDiv) {
-                resultsDiv.innerHTML = '<p style="color: #ff4444;">❌ Pixabay API key not configured. Please check the main process console for details.</p>';
+                resultsDiv.innerHTML = '<p style="color: #ff4444;">❌ Freesound API key not configured. Create freesound-config.json in your user data folder. Get your API key from <a href="https://freesound.org/apiv2/apply/" target="_blank" style="color: #00a2ff;">https://freesound.org/apiv2/apply/</a></p>';
             }
         } else {
             searchMusic();
@@ -1559,47 +1756,84 @@ window.openMusicPlayer = async function() {
 window.searchMusic = async function() {
     const input = document.getElementById('musicSearchInput');
     const query = input ? input.value : 'lofi';
-    const resultsDiv = document.getElementById('musicResults');
+    
+    // Wait a tiny bit to ensure modal is fully rendered
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    // Get the Cursy's Corner music results div (not the Music & SFX panel one!)
+    const resultsDiv = document.getElementById('cursyMusicResults');
     
     if (!resultsDiv) {
-        console.error('❌ musicResults div not found!');
+        console.error('❌ cursyMusicResults div not found!');
+        console.error('   Available elements:', document.querySelectorAll('[id*="music"]'));
         return;
     }
     
-    if (!window.electronAPI || !window.electronAPI.pixabaySearchVideos) {
-        resultsDiv.innerHTML = '<p style="color: #ff4444;">❌ Pixabay API not available. Check console for errors.</p>';
-        console.error('❌ window.electronAPI.pixabaySearchVideos not found!');
+    console.log('✅ Found cursyMusicResults div:', resultsDiv);
+    console.log('   Current innerHTML length:', resultsDiv.innerHTML.length);
+    
+    if (!window.electronAPI || !window.electronAPI.freesoundSearchAudio) {
+        resultsDiv.innerHTML = '<p style="color: #ff4444;">❌ Freesound API not available. Check console for errors.</p>';
+        console.error('❌ window.electronAPI.freesoundSearchAudio not found!');
         return;
     }
     
-    resultsDiv.innerHTML = '<p>Searching for music...</p>';
+    resultsDiv.innerHTML = '<p>🔍 Searching for music...</p>';
     console.log('🔍 Searching for music:', query);
     
     try {
-        // Note: Pixabay videos API can be used for music/audio content
-        const response = await window.electronAPI.pixabaySearchVideos(query, { perPage: 20 });
-        console.log('📥 Pixabay response:', response);
+        // Use Freesound API for music search
+        const response = await window.electronAPI.freesoundSearchAudio(query, {
+            category: 'music',
+            perPage: 20,
+            minDuration: 60 // Only show tracks longer than 1 minute for Cursy's Corner
+        });
+        console.log('📥 Freesound response:', response);
         
         if (!response) {
             resultsDiv.innerHTML = '<p style="color: #ff4444;">❌ No response from API</p>';
             return;
         }
         
-        if (response.success && response.data && response.data.hits && response.data.hits.length > 0) {
+        if (response.success && response.hits && response.hits.length > 0) {
             let html = '';
-            response.data.hits.forEach((video, index) => {
-                const thumbnail = video.videos ? video.videos.small.thumbnail : '';
+            response.hits.forEach((audio, index) => {
+                const title = audio.title || audio.tags || 'Untitled';
+                const duration = formatDuration(audio.duration);
+                // Escape title for HTML
+                const safeTitle = title.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                const safeUser = (audio.user || 'Unknown').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const audioId = audio.id || `audio_${index}_${Date.now()}`;
+                const isFavorite = isMusicFavorite(audioId);
                 html += `
-                    <div class="music-item" onclick="playMusic(${index})" data-video='${JSON.stringify(video).replace(/'/g, "&apos;")}'>
-                        <img src="${thumbnail}" alt="${video.tags || 'Music'}">
-                        <h4>${(video.tags || 'Music').split(',')[0]}</h4>
-                        <p>${video.user || 'Unknown'}</p>
+                    <div class="music-item" data-audio-id="${audioId}">
+                        <div class="music-item-icon" onclick="playMusic(${index})" style="font-size: 48px; text-align: center; margin-bottom: 10px; height: 120px; display: flex; align-items: center; justify-content: center; background: rgba(0, 255, 136, 0.1); border-radius: 6px; cursor: pointer;">🎵</div>
+                        <h4 onclick="playMusic(${index})" style="cursor: pointer;">${safeTitle}</h4>
+                        <p onclick="playMusic(${index})" style="cursor: pointer;">${safeUser} • ${duration}</p>
+                        <div class="music-item-actions" style="display: flex; gap: 8px; margin-top: 10px; justify-content: center;">
+                            <button onclick="toggleMusicFavorite('${audioId}', event)" class="music-favorite-btn" data-audio-id="${audioId}" style="padding: 6px 12px; background: ${isFavorite ? 'rgba(255, 107, 107, 0.2)' : 'rgba(255, 255, 255, 0.1)'}; color: ${isFavorite ? '#ff6b6b' : '#fff'}; border: 1px solid ${isFavorite ? 'rgba(255, 107, 107, 0.5)' : 'rgba(255, 255, 255, 0.2)'}; border-radius: 4px; cursor: pointer; font-size: 14px;">${isFavorite ? '❤️' : '🤍'}</button>
+                            <button onclick="addMusicToPlaylist('${audioId}', event)" class="music-playlist-btn" style="padding: 6px 12px; background: rgba(78, 205, 196, 0.2); color: #4ecdc4; border: 1px solid rgba(78, 205, 196, 0.5); border-radius: 4px; cursor: pointer; font-size: 14px;">Add</button>
+                        </div>
                     </div>
                 `;
             });
+            console.log('📝 Setting innerHTML on resultsDiv:', resultsDiv);
+            console.log('📝 HTML length:', html.length);
             resultsDiv.innerHTML = html;
-            window.musicVideos = response.data.hits;
-            console.log(`✅ Found ${response.data.hits.length} music results`);
+            window.musicAudios = response.hits; // Changed from musicVideos to musicAudios
+            console.log(`✅ Found ${response.hits.length} music results`);
+            
+            // Verify it's actually set
+            setTimeout(() => {
+                const verifyDiv = document.getElementById('cursyMusicResults');
+                if (verifyDiv) {
+                    console.log('🔍 Verification - cursyMusicResults innerHTML length:', verifyDiv.innerHTML.length);
+                    console.log('🔍 Verification - music-item count:', verifyDiv.querySelectorAll('.music-item').length);
+                    if (verifyDiv.innerHTML.length < 100) {
+                        console.error('❌ Results were reset! Current content:', verifyDiv.innerHTML);
+                    }
+                }
+            }, 100);
         } else {
             const errorMsg = response.error || 'No music found';
             resultsDiv.innerHTML = `<p style="color: #ffaa00;">⚠️ ${errorMsg}. Try a different search term.</p>`;
@@ -1612,9 +1846,9 @@ window.searchMusic = async function() {
 };
 
 window.playMusic = function(index) {
-    if (!window.musicVideos || !window.musicVideos[index]) return;
+    if (!window.musicAudios || !window.musicAudios[index]) return;
     
-    const video = window.musicVideos[index];
+    const audioData = window.musicAudios[index];
     const audio = document.getElementById('musicPlayer');
     const controls = document.getElementById('musicControls');
     const title = document.getElementById('musicTitle');
@@ -1622,10 +1856,10 @@ window.playMusic = function(index) {
     const playPause = document.getElementById('musicPlayPause');
     
     if (audio && controls && title && artist && playPause) {
-        // Use the small video URL as audio source
-        audio.src = video.videos.small.url;
-        title.textContent = video.tags.split(',')[0];
-        artist.textContent = `By ${video.user}`;
+        // Use the Freesound audio URL
+        audio.src = audioData.url;
+        title.textContent = audioData.title || audioData.tags || 'Untitled';
+        artist.textContent = `By ${audioData.user || 'Unknown'}`;
         controls.style.display = 'flex';
         audio.play();
         playPause.textContent = '⏸️';
@@ -1657,6 +1891,694 @@ window.toggleMusic = function() {
         }
     }
 };
+
+// Music Favorites & Playlists Functions
+function isMusicFavorite(audioId) {
+    try {
+        const favorites = JSON.parse(localStorage.getItem('vibe_ide_music_favorites') || '[]');
+        return favorites.some(f => f.id === audioId);
+    } catch (e) {
+        return false;
+    }
+}
+
+window.toggleMusicFavorite = function(audioId, event) {
+    if (event) event.stopPropagation();
+    
+    try {
+        const favorites = JSON.parse(localStorage.getItem('vibe_ide_music_favorites') || '[]');
+        
+        // Try to find audio in musicAudios first
+        let audio = null;
+        if (window.musicAudios && window.musicAudios.length > 0) {
+            const audioIndex = window.musicAudios.findIndex(a => (a.id || '').toString() === audioId.toString());
+            audio = audioIndex >= 0 ? window.musicAudios[audioIndex] : null;
+        }
+        
+        // If not found, try to find it in favorites
+        if (!audio) {
+            const favorite = favorites.find(f => (f.id || '').toString() === audioId.toString());
+            if (favorite) {
+                audio = {
+                    id: favorite.id,
+                    title: favorite.title,
+                    user: favorite.user,
+                    url: favorite.url,
+                    duration: favorite.duration,
+                    tags: favorite.title
+                };
+            }
+        }
+        
+        if (!audio) {
+            console.error('Audio not found for ID:', audioId);
+            return;
+        }
+        
+        const existingIndex = favorites.findIndex(f => f.id === audioId);
+        let updated;
+        
+        if (existingIndex >= 0) {
+            // Remove from favorites
+            updated = favorites.filter(f => f.id !== audioId);
+            console.log('Removed from favorites:', audio.title);
+            if (window.showToast) {
+                showToast(`Removed "${audio.title}" from favorites`, 'info', 2000);
+            }
+        } else {
+            // Add to favorites
+            updated = [...favorites, {
+                id: audioId,
+                title: audio.title || audio.tags || 'Untitled',
+                user: audio.user || 'Unknown',
+                url: audio.url,
+                duration: audio.duration,
+                addedAt: Date.now()
+            }];
+            console.log('Added to favorites:', audio.title);
+            if (window.showToast) {
+                showToast(`❤️ Added "${audio.title}" to favorites!`, 'success', 2000);
+            }
+        }
+        
+        localStorage.setItem('vibe_ide_music_favorites', JSON.stringify(updated));
+        
+        // Update button appearance
+        const btn = event?.target?.closest('.music-favorite-btn');
+        if (btn) {
+            const isFav = existingIndex < 0; // Will be favorite after this action
+            btn.style.background = isFav ? 'rgba(255, 107, 107, 0.2)' : 'rgba(255, 255, 255, 0.1)';
+            btn.style.color = isFav ? '#ff6b6b' : '#fff';
+            btn.style.borderColor = isFav ? 'rgba(255, 107, 107, 0.5)' : 'rgba(255, 255, 255, 0.2)';
+            btn.textContent = isFav ? '❤️' : '🤍';
+        }
+    } catch (e) {
+        console.error('Error toggling favorite:', e);
+    }
+};
+
+window.addMusicToPlaylist = function(audioId, event) {
+    if (event) event.stopPropagation();
+    
+    // Try to find audio in musicAudios first
+    let audio = null;
+    if (window.musicAudios && window.musicAudios.length > 0) {
+        const audioIndex = window.musicAudios.findIndex(a => (a.id || '').toString() === audioId.toString());
+        audio = audioIndex >= 0 ? window.musicAudios[audioIndex] : null;
+    }
+    
+    // If not found, try to find it in favorites
+    if (!audio) {
+        const favorites = JSON.parse(localStorage.getItem('vibe_ide_music_favorites') || '[]');
+        const favorite = favorites.find(f => (f.id || '').toString() === audioId.toString());
+        if (favorite) {
+            audio = {
+                id: favorite.id,
+                title: favorite.title,
+                user: favorite.user,
+                url: favorite.url,
+                duration: favorite.duration,
+                tags: favorite.title // Fallback for tags
+            };
+        }
+    }
+    
+    // If still not found, try playlists
+    if (!audio) {
+        const playlists = JSON.parse(localStorage.getItem('vibe_ide_music_playlists') || '[]');
+        for (const playlist of playlists) {
+            const entry = playlist.entries.find(e => (e.id || '').toString() === audioId.toString());
+            if (entry) {
+                audio = {
+                    id: entry.id,
+                    title: entry.title,
+                    user: entry.user,
+                    url: entry.url,
+                    duration: entry.duration,
+                    tags: entry.title
+                };
+                break;
+            }
+        }
+    }
+    
+    if (!audio) {
+        console.error('Audio not found for ID:', audioId);
+        if (window.showToast) {
+            showToast('Could not find track information', 'error', 2000);
+        }
+        return;
+    }
+    
+    // Show playlist selector modal
+    showPlaylistSelector(audioId, audio);
+};
+
+window.openMusicPlaylists = function() {
+    showPlaylistManager();
+};
+
+function showPlaylistSelector(audioId, audio) {
+    const playlists = JSON.parse(localStorage.getItem('vibe_ide_music_playlists') || '[]');
+    
+    let content = `
+        <div style="padding: 20px;">
+            <h3 style="color: #00ff88; margin-top: 0;">Add to Playlist</h3>
+            <p style="color: #ccc; margin-bottom: 15px;">${audio.title || 'Untitled'} by ${audio.user || 'Unknown'}</p>
+            <div id="playlistSelectorList" style="max-height: 300px; overflow-y: auto; margin-bottom: 15px;">
+    `;
+    
+    if (playlists.length === 0) {
+        content += '<p style="color: #888; text-align: center; padding: 20px;">No playlists yet. Create one below!</p>';
+    } else {
+        playlists.forEach(playlist => {
+            const alreadyInPlaylist = playlist.entries.some(e => e.id === audioId);
+            content += `
+                <div style="padding: 10px; margin-bottom: 8px; background: rgba(127, 90, 240, 0.1); border: 1px solid rgba(127, 90, 240, 0.3); border-radius: 4px; cursor: ${alreadyInPlaylist ? 'not-allowed' : 'pointer'}; opacity: ${alreadyInPlaylist ? '0.5' : '1'};" 
+                     onclick="${alreadyInPlaylist ? '' : `addToPlaylist('${playlist.id}', '${audioId}')`}">
+                    <div style="color: #fff; font-weight: bold;">${playlist.name}</div>
+                    <div style="color: #888; font-size: 0.85em;">${playlist.entries.length} tracks${alreadyInPlaylist ? ' (already in playlist)' : ''}</div>
+                </div>
+            `;
+        });
+    }
+    
+    content += `
+            </div>
+            <div style="border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 15px;">
+                <input type="text" id="newPlaylistNameInput" placeholder="New playlist name..." style="width: 100%; padding: 8px; background: rgba(0, 0, 0, 0.5); color: #fff; border: 1px solid rgba(127, 90, 240, 0.5); border-radius: 4px; margin-bottom: 10px;">
+                <button onclick="createPlaylistAndAdd('${audioId}')" style="width: 100%; padding: 10px; background: rgba(78, 205, 196, 0.2); color: #4ecdc4; border: 1px solid rgba(78, 205, 196, 0.5); border-radius: 4px; cursor: pointer; font-weight: bold;">+ Create New Playlist</button>
+            </div>
+        </div>
+    `;
+    
+    openCursyCornerModal('📋 Add to Playlist', content);
+}
+
+window.addToPlaylist = function(playlistId, audioId) {
+    const playlists = JSON.parse(localStorage.getItem('vibe_ide_music_playlists') || '[]');
+    
+    // Try to find audio in musicAudios first
+    let audio = null;
+    if (window.musicAudios && window.musicAudios.length > 0) {
+        const audioIndex = window.musicAudios.findIndex(a => (a.id || '').toString() === audioId.toString());
+        audio = audioIndex >= 0 ? window.musicAudios[audioIndex] : null;
+    }
+    
+    // If not found, try favorites
+    if (!audio) {
+        const favorites = JSON.parse(localStorage.getItem('vibe_ide_music_favorites') || '[]');
+        const favorite = favorites.find(f => (f.id || '').toString() === audioId.toString());
+        if (favorite) {
+            audio = {
+                id: favorite.id,
+                title: favorite.title,
+                user: favorite.user,
+                url: favorite.url,
+                duration: favorite.duration,
+                tags: favorite.title
+            };
+        }
+    }
+    
+    if (!audio) {
+        console.error('Audio not found for ID:', audioId);
+        return;
+    }
+    
+    const updated = playlists.map(playlist => {
+        if (playlist.id === playlistId) {
+            // Check if already exists
+            if (playlist.entries.some(e => e.id === audioId)) {
+                return playlist;
+            }
+            return {
+                ...playlist,
+                entries: [...playlist.entries, {
+                    id: audioId,
+                    title: audio.title || audio.tags || 'Untitled',
+                    user: audio.user || 'Unknown',
+                    url: audio.url,
+                    duration: audio.duration,
+                    addedAt: Date.now()
+                }],
+                updatedAt: Date.now()
+            };
+        }
+        return playlist;
+    });
+    
+    localStorage.setItem('vibe_ide_music_playlists', JSON.stringify(updated));
+    closeCursyCornerModal();
+    console.log('Added to playlist:', audio.title);
+    
+    // Open playlist manager and select the playlist
+    setTimeout(() => {
+        showPlaylistManager();
+        setTimeout(() => {
+            selectPlaylist(playlistId);
+        }, 100);
+    }, 100);
+}
+
+window.createPlaylistAndAdd = function(audioId) {
+    const input = document.getElementById('newPlaylistNameInput');
+    const name = input?.value?.trim();
+    
+    if (!name) {
+        alert('Please enter a playlist name');
+        return;
+    }
+    
+    const playlists = JSON.parse(localStorage.getItem('vibe_ide_music_playlists') || '[]');
+    
+    // Try to find audio in musicAudios first
+    let audio = null;
+    if (window.musicAudios && window.musicAudios.length > 0) {
+        const audioIndex = window.musicAudios.findIndex(a => (a.id || '').toString() === audioId.toString());
+        audio = audioIndex >= 0 ? window.musicAudios[audioIndex] : null;
+    }
+    
+    // If not found, try favorites
+    if (!audio) {
+        const favorites = JSON.parse(localStorage.getItem('vibe_ide_music_favorites') || '[]');
+        const favorite = favorites.find(f => (f.id || '').toString() === audioId.toString());
+        if (favorite) {
+            audio = {
+                id: favorite.id,
+                title: favorite.title,
+                user: favorite.user,
+                url: favorite.url,
+                duration: favorite.duration,
+                tags: favorite.title
+            };
+        }
+    }
+    
+    if (!audio) {
+        console.error('Audio not found for ID:', audioId);
+        return;
+    }
+    
+    const newPlaylist = {
+        id: `playlist_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: name,
+        entries: [{
+            id: audioId,
+            title: audio.title || audio.tags || 'Untitled',
+            user: audio.user || 'Unknown',
+            url: audio.url,
+            duration: audio.duration,
+            addedAt: Date.now()
+        }],
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+    };
+    
+    const updated = [...playlists, newPlaylist];
+    localStorage.setItem('vibe_ide_music_playlists', JSON.stringify(updated));
+    closeCursyCornerModal();
+    console.log('Created playlist and added:', audio.title);
+    
+    // Open playlist manager and select the new playlist
+    setTimeout(() => {
+        showPlaylistManager();
+        setTimeout(() => {
+            selectPlaylist(newPlaylist.id);
+        }, 100);
+    }, 100);
+}
+
+function showPlaylistManager() {
+    const playlists = JSON.parse(localStorage.getItem('vibe_ide_music_playlists') || '[]');
+    
+    let content = `
+        <div style="display: flex; gap: 20px; padding: 20px; min-height: 400px;">
+            <div style="width: 250px; border-right: 1px solid rgba(127, 90, 240, 0.3); padding-right: 20px;">
+                <button onclick="createNewPlaylist()" style="width: 100%; padding: 10px; background: rgba(78, 205, 196, 0.2); color: #4ecdc4; border: 1px solid rgba(78, 205, 196, 0.5); border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 15px;">+ New Playlist</button>
+                <div id="playlistList" style="overflow-y: auto; max-height: 500px;">
+    `;
+    
+    playlists.forEach(playlist => {
+        content += `
+            <div onclick="selectPlaylist('${playlist.id}')" id="playlist_${playlist.id}" 
+                 style="padding: 12px; margin-bottom: 8px; background: rgba(127, 90, 240, 0.1); border: 1px solid rgba(127, 90, 240, 0.3); border-radius: 4px; cursor: pointer;">
+                <div style="color: #fff; font-weight: bold; margin-bottom: 4px;">${playlist.name}</div>
+                <div style="color: #888; font-size: 0.85em;">${playlist.entries.length} tracks</div>
+                <button onclick="deletePlaylist('${playlist.id}', event)" style="float: right; margin-top: -20px; padding: 4px 8px; background: rgba(255, 107, 107, 0.2); color: #ff6b6b; border: 1px solid rgba(255, 107, 107, 0.5); border-radius: 4px; cursor: pointer; font-size: 0.8em;">×</button>
+            </div>
+        `;
+    });
+    
+    content += `
+                </div>
+            </div>
+            <div id="playlistContent" style="flex: 1; overflow-y: auto; max-height: 500px;">
+                <p style="color: #888; text-align: center; padding: 40px;">Select a playlist or create a new one</p>
+            </div>
+        </div>
+    `;
+    
+    openCursyCornerModal('📋 Music Playlists', content);
+    window.selectedPlaylistId = null;
+}
+
+window.createNewPlaylist = function() {
+    const name = prompt('Enter playlist name:');
+    if (!name) return;
+    
+    const playlists = JSON.parse(localStorage.getItem('vibe_ide_music_playlists') || '[]');
+    const newPlaylist = {
+        id: `playlist_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: name,
+        entries: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+    };
+    
+    const updated = [...playlists, newPlaylist];
+    localStorage.setItem('vibe_ide_music_playlists', JSON.stringify(updated));
+    showPlaylistManager(); // Refresh
+}
+
+window.selectPlaylist = function(playlistId) {
+    const playlists = JSON.parse(localStorage.getItem('vibe_ide_music_playlists') || '[]');
+    const playlist = playlists.find(p => p.id === playlistId);
+    if (!playlist) return;
+    
+    window.selectedPlaylistId = playlistId;
+    
+    // Update selection styling
+    document.querySelectorAll('[id^="playlist_"]').forEach(el => {
+        el.style.background = 'rgba(127, 90, 240, 0.1)';
+        el.style.borderColor = 'rgba(127, 90, 240, 0.3)';
+    });
+    const selectedEl = document.getElementById(`playlist_${playlistId}`);
+    if (selectedEl) {
+        selectedEl.style.background = 'rgba(127, 90, 240, 0.3)';
+        selectedEl.style.borderColor = 'rgba(127, 90, 240, 0.8)';
+    }
+    
+    // Show playlist content
+    const contentDiv = document.getElementById('playlistContent');
+    if (!contentDiv) return;
+    
+    let html = `
+        <h3 style="color: #00ff88; margin-top: 0;">${playlist.name}</h3>
+        <p style="color: #888; margin-bottom: 15px;">${playlist.entries.length} tracks</p>
+    `;
+    
+    if (playlist.entries.length === 0) {
+        html += '<p style="color: #888; text-align: center; padding: 40px;">Playlist is empty. Add tracks from search results!</p>';
+    } else {
+        html += '<div style="display: flex; flex-direction: column; gap: 8px;">';
+        playlist.entries.forEach((entry, index) => {
+            const safeTitle = (entry.title || 'Untitled').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const safeUser = (entry.user || 'Unknown').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            html += `
+                <div data-track-index="${index}" style="padding: 12px; background: rgba(127, 90, 240, 0.1); border: 1px solid rgba(127, 90, 240, 0.3); border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+                    <div style="flex: 1;">
+                        <div style="color: #fff; font-weight: bold;">${index + 1}. ${entry.title}</div>
+                        <div style="color: #888; font-size: 0.85em;">by ${entry.user}</div>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="playMusicFromPlaylist('${entry.url}', '${safeTitle}', '${safeUser}', '${playlistId}', ${index})" style="padding: 6px 12px; background: rgba(78, 205, 196, 0.2); color: #4ecdc4; border: 1px solid rgba(78, 205, 196, 0.5); border-radius: 4px; cursor: pointer;">▶</button>
+                        <button onclick="removeFromPlaylist('${playlistId}', '${entry.id}')" style="padding: 6px 12px; background: rgba(255, 107, 107, 0.2); color: #ff6b6b; border: 1px solid rgba(255, 107, 107, 0.5); border-radius: 4px; cursor: pointer;">×</button>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+    }
+    
+    contentDiv.innerHTML = html;
+}
+
+window.deletePlaylist = function(playlistId, event) {
+    if (event) event.stopPropagation();
+    if (!confirm('Delete this playlist?')) return;
+    
+    const playlists = JSON.parse(localStorage.getItem('vibe_ide_music_playlists') || '[]');
+    const updated = playlists.filter(p => p.id !== playlistId);
+    localStorage.setItem('vibe_ide_music_playlists', JSON.stringify(updated));
+    showPlaylistManager(); // Refresh
+}
+
+window.removeFromPlaylist = function(playlistId, entryId) {
+    const playlists = JSON.parse(localStorage.getItem('vibe_ide_music_playlists') || '[]');
+    const updated = playlists.map(playlist => {
+        if (playlist.id === playlistId) {
+            return {
+                ...playlist,
+                entries: playlist.entries.filter(e => e.id !== entryId),
+                updatedAt: Date.now()
+            };
+        }
+        return playlist;
+    });
+    localStorage.setItem('vibe_ide_music_playlists', JSON.stringify(updated));
+    selectPlaylist(playlistId); // Refresh view
+}
+
+window.playMusicFromPlaylist = function(url, title, user, playlistId, trackIndex) {
+    // Find the music player elements - they might be in the modal or main page
+    let audio = document.getElementById('musicPlayer');
+    let controls = document.getElementById('musicControls');
+    let titleEl = document.getElementById('musicTitle');
+    let artistEl = document.getElementById('musicArtist');
+    let playPause = document.getElementById('musicPlayPause');
+    
+    // If not found, they might be in the modal - try to find them
+    if (!audio) {
+        const modal = document.getElementById('cursyCornerModal');
+        if (modal) {
+            audio = modal.querySelector('#musicPlayer');
+            controls = modal.querySelector('#musicControls');
+            titleEl = modal.querySelector('#musicTitle');
+            artistEl = modal.querySelector('#musicArtist');
+            playPause = modal.querySelector('#musicPlayPause');
+        }
+    }
+    
+    // If still not found, the music player modal might not be open - open it first
+    if (!audio || !controls || !titleEl || !artistEl || !playPause) {
+        // Open the music player modal first
+        openMusicPlayer();
+        // Wait a bit for the modal to render, then try again
+        setTimeout(() => {
+            audio = document.getElementById('musicPlayer');
+            controls = document.getElementById('musicControls');
+            titleEl = document.getElementById('musicTitle');
+            artistEl = document.getElementById('musicArtist');
+            playPause = document.getElementById('musicPlayPause');
+            
+            // Try modal if still not found
+            if (!audio) {
+                const modal = document.getElementById('cursyCornerModal');
+                if (modal) {
+                    audio = modal.querySelector('#musicPlayer');
+                    controls = modal.querySelector('#musicControls');
+                    titleEl = modal.querySelector('#musicTitle');
+                    artistEl = modal.querySelector('#musicArtist');
+                    playPause = modal.querySelector('#musicPlayPause');
+                }
+            }
+            
+            if (audio && controls && titleEl && artistEl && playPause) {
+                setupPlaylistAutoProgress(audio, playlistId, trackIndex);
+                audio.src = url;
+                titleEl.textContent = title;
+                artistEl.textContent = `By ${user}`;
+                controls.style.display = 'flex';
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.error('Error playing audio:', error);
+                    });
+                }
+                playPause.textContent = '⏸️';
+            } else {
+                console.error('Music player elements still not found after opening modal!');
+            }
+        }, 200);
+        return;
+    }
+    
+    // Store current playlist info for auto-progress
+    if (playlistId !== undefined && trackIndex !== undefined) {
+        setupPlaylistAutoProgress(audio, playlistId, trackIndex);
+        // Update playlist UI to highlight current track
+        updatePlaylistPlayingTrack(playlistId, trackIndex);
+    } else {
+        // Clear playlist auto-progress if not playing from playlist
+        if (audio) {
+            audio.removeEventListener('ended', window.playlistNextTrack);
+            window.currentPlaylistId = null;
+            window.currentTrackIndex = null;
+        }
+    }
+    
+    // Elements found, play the track
+    audio.src = url;
+    titleEl.textContent = title;
+    artistEl.textContent = `By ${user}`;
+    controls.style.display = 'flex';
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+        playPromise.catch(error => {
+            console.error('Error playing audio:', error);
+        });
+    }
+    playPause.textContent = '⏸️';
+}
+
+function setupPlaylistAutoProgress(audio, playlistId, trackIndex) {
+    if (!audio || playlistId === undefined || trackIndex === undefined) return;
+    
+    // Store current playlist info
+    window.currentPlaylistId = playlistId;
+    window.currentTrackIndex = trackIndex;
+    
+    // Remove any existing ended listener
+    audio.removeEventListener('ended', window.playlistNextTrack);
+    
+    // Create the next track function
+    window.playlistNextTrack = function() {
+        const playlists = JSON.parse(localStorage.getItem('vibe_ide_music_playlists') || '[]');
+        const playlist = playlists.find(p => p.id === window.currentPlaylistId);
+        
+        if (!playlist || !playlist.entries || playlist.entries.length === 0) {
+            return;
+        }
+        
+        const nextIndex = window.currentTrackIndex + 1;
+        
+        if (nextIndex < playlist.entries.length) {
+            // Play next track
+            const nextTrack = playlist.entries[nextIndex];
+            window.playMusicFromPlaylist(
+                nextTrack.url,
+                nextTrack.title,
+                nextTrack.user,
+                window.currentPlaylistId,
+                nextIndex
+            );
+            
+            // Update playlist UI to highlight current track
+            updatePlaylistPlayingTrack(window.currentPlaylistId, nextIndex);
+        } else {
+            // End of playlist
+            console.log('End of playlist reached');
+            window.currentPlaylistId = null;
+            window.currentTrackIndex = null;
+        }
+    };
+    
+    // Add ended event listener
+    audio.addEventListener('ended', window.playlistNextTrack);
+}
+
+function updatePlaylistPlayingTrack(playlistId, trackIndex) {
+    // Update the playlist view to show which track is playing
+    const playlistContent = document.getElementById('playlistContent');
+    if (!playlistContent) return;
+    
+    // Find all track items and remove playing class
+    playlistContent.querySelectorAll('[data-track-index]').forEach(item => {
+        item.style.background = 'rgba(127, 90, 240, 0.1)';
+        item.style.borderColor = 'rgba(127, 90, 240, 0.3)';
+    });
+    
+    // Highlight current track
+    const currentTrack = playlistContent.querySelector(`[data-track-index="${trackIndex}"]`);
+    if (currentTrack) {
+        currentTrack.style.background = 'rgba(0, 255, 136, 0.2)';
+        currentTrack.style.borderColor = 'rgba(0, 255, 136, 0.5)';
+        // Scroll into view
+        currentTrack.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+}
+
+window.openMusicFavorites = function() {
+    const favorites = JSON.parse(localStorage.getItem('vibe_ide_music_favorites') || '[]');
+    
+    let content = `
+        <div style="padding: 20px; max-height: 500px; overflow-y: auto;">
+            <h3 style="color: #ff6b6b; margin-top: 0;">❤️ Favorite Tracks</h3>
+    `;
+    
+    if (favorites.length === 0) {
+        content += '<p style="color: #888; text-align: center; padding: 40px;">No favorites yet. Click the ❤️ button on any track to add it!</p>';
+    } else {
+        content += `<p style="color: #888; margin-bottom: 15px;">${favorites.length} favorite track${favorites.length !== 1 ? 's' : ''}</p>`;
+        content += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">';
+        
+        favorites.forEach((favorite, index) => {
+            const duration = formatDuration(favorite.duration || 0);
+            const safeTitle = (favorite.title || 'Untitled').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            const safeUser = (favorite.user || 'Unknown').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            
+            content += `
+                <div class="music-item" style="background: rgba(255, 107, 107, 0.1); border: 1px solid rgba(255, 107, 107, 0.3);">
+                    <div class="music-item-icon" onclick="playMusicFromFavorites('${favorite.url}', '${safeTitle.replace(/'/g, "\\'")}', '${safeUser.replace(/'/g, "\\'")}')" style="font-size: 48px; text-align: center; margin-bottom: 10px; height: 120px; display: flex; align-items: center; justify-content: center; background: rgba(255, 107, 107, 0.1); border-radius: 6px; cursor: pointer;">❤️</div>
+                    <h4 onclick="playMusicFromFavorites('${favorite.url}', '${safeTitle.replace(/'/g, "\\'")}', '${safeUser.replace(/'/g, "\\'")}')" style="cursor: pointer;">${safeTitle}</h4>
+                    <p onclick="playMusicFromFavorites('${favorite.url}', '${safeTitle.replace(/'/g, "\\'")}', '${safeUser.replace(/'/g, "\\'")}')" style="cursor: pointer;">${safeUser} • ${duration}</p>
+                    <div class="music-item-actions" style="display: flex; gap: 8px; margin-top: 10px; justify-content: center;">
+                        <button onclick="toggleMusicFavorite('${favorite.id}', event)" class="music-favorite-btn" style="padding: 6px 12px; background: rgba(255, 107, 107, 0.2); color: #ff6b6b; border: 1px solid rgba(255, 107, 107, 0.5); border-radius: 4px; cursor: pointer; font-size: 14px;">❤️</button>
+                        <button onclick="addMusicToPlaylist('${favorite.id}', event)" class="music-playlist-btn" style="padding: 6px 12px; background: rgba(78, 205, 196, 0.2); color: #4ecdc4; border: 1px solid rgba(78, 205, 196, 0.5); border-radius: 4px; cursor: pointer; font-size: 14px;">Add</button>
+                        <button onclick="removeFromFavorites('${favorite.id}')" style="padding: 6px 12px; background: rgba(255, 255, 255, 0.1); color: #fff; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 4px; cursor: pointer; font-size: 14px;">Remove</button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        content += '</div>';
+    }
+    
+    content += '</div>';
+    
+    openCursyCornerModal('❤️ Favorite Tracks', content);
+}
+
+window.playMusicFromFavorites = function(url, title, user) {
+    // Store the favorite track data temporarily so addMusicToPlaylist can find it
+    // We need to reconstruct the audio object from the favorite data
+    const favorites = JSON.parse(localStorage.getItem('vibe_ide_music_favorites') || '[]');
+    const favorite = favorites.find(f => f.url === url);
+    
+    if (favorite && !window.musicAudios) {
+        window.musicAudios = [];
+    }
+    if (favorite && window.musicAudios) {
+        // Add to musicAudios temporarily if not already there
+        const exists = window.musicAudios.some(a => a.id === favorite.id);
+        if (!exists) {
+            window.musicAudios.push({
+                id: favorite.id,
+                title: favorite.title,
+                user: favorite.user,
+                url: favorite.url,
+                duration: favorite.duration
+            });
+        }
+    }
+    
+    window.playMusicFromPlaylist(url, title, user);
+}
+
+window.removeFromFavorites = function(audioId) {
+    const favorites = JSON.parse(localStorage.getItem('vibe_ide_music_favorites') || '[]');
+    const favorite = favorites.find(f => f.id === audioId);
+    const updated = favorites.filter(f => f.id !== audioId);
+    localStorage.setItem('vibe_ide_music_favorites', JSON.stringify(updated));
+    
+    if (window.showToast && favorite) {
+        showToast(`Removed "${favorite.title}" from favorites`, 'info', 2000);
+    }
+    
+    // Refresh favorites view
+    window.openMusicFavorites();
+}
 
 // Image Gallery
 window.openImageGallery = async function(element) {
@@ -2038,6 +2960,669 @@ window.openBook = function(index) {
     }
 };
 
+// Persona Templates
+const personaTemplates = {
+    friendly: {
+        name: 'Friendly Helper',
+        icon: '😊',
+        traits: ['friendly', 'patient', 'encouraging'],
+        tone: 'conversational',
+        emojis: 'some',
+        special: 'Always be supportive and celebrate small wins!',
+        description: 'A warm, supportive friend who helps you learn'
+    },
+    fun: {
+        name: 'Fun Friend',
+        icon: '🎮',
+        traits: ['friendly', 'funny', 'enthusiastic', 'casual'],
+        tone: 'playful',
+        emojis: 'lots',
+        special: 'Make coding fun! Use jokes and celebrate everything!',
+        description: 'Your coding buddy who makes everything fun'
+    },
+    teacher: {
+        name: 'Strict Teacher',
+        icon: '📚',
+        traits: ['strict', 'patient', 'encouraging'],
+        tone: 'professional',
+        emojis: 'none',
+        special: 'Be thorough and make sure concepts are understood before moving on.',
+        description: 'A teacher who helps you learn properly'
+    },
+    excited: {
+        name: 'Excited Cheerleader',
+        icon: '🚀',
+        traits: ['enthusiastic', 'encouraging', 'friendly'],
+        tone: 'excited',
+        emojis: 'lots',
+        special: 'Celebrate EVERYTHING! Be super excited about coding!',
+        description: 'Super enthusiastic and always celebrating'
+    },
+    calm: {
+        name: 'Calm Guide',
+        icon: '🌊',
+        traits: ['calm', 'patient', 'friendly'],
+        tone: 'simple',
+        emojis: 'some',
+        special: 'Stay calm and explain things clearly and simply.',
+        description: 'A calm, patient guide for learning'
+    },
+    casual: {
+        name: 'Casual Buddy',
+        icon: '😎',
+        traits: ['casual', 'friendly', 'funny'],
+        tone: 'conversational',
+        emojis: 'some',
+        special: 'Talk like a friend, keep it relaxed and easy-going.',
+        description: 'A chill friend who helps you code'
+    }
+};
+
+// Generate persona markdown from form
+function generatePersonaFromForm() {
+    const name = document.getElementById('personaName')?.value || 'Cursy';
+    const traits = Array.from(document.querySelectorAll('.persona-trait:checked')).map(cb => cb.value);
+    const tone = document.getElementById('personaTone')?.value || 'conversational';
+    const emojis = document.getElementById('personaEmojis')?.value || 'some';
+    const special = document.getElementById('personaSpecial')?.value || '';
+    
+    const toneDescriptions = {
+        conversational: 'Conversational and warm, like talking to a friend',
+        professional: 'Professional and clear, formal but helpful',
+        playful: 'Playful and fun, with jokes and silliness',
+        simple: 'Simple and easy to understand, perfect for beginners',
+        excited: 'Excited and energetic, with lots of enthusiasm!'
+    };
+    
+    const emojiDescriptions = {
+        lots: 'Use emojis frequently and naturally (✨🎉💖)',
+        some: 'Use emojis occasionally when appropriate',
+        none: 'Do not use emojis'
+    };
+    
+    const traitDescriptions = {
+        friendly: 'Friendly and approachable',
+        funny: 'Funny and humorous',
+        patient: 'Patient with beginners',
+        encouraging: 'Encouraging and supportive',
+        strict: 'Strict but fair, ensures proper learning',
+        casual: 'Casual and relaxed',
+        enthusiastic: 'Enthusiastic and energetic',
+        calm: 'Calm and peaceful'
+    };
+    
+    let persona = `You are ${name}, a friendly and helpful AI coding assistant for VIBE IDE.\n\n`;
+    
+    if (traits.length > 0) {
+        persona += `## Personality Traits:\n`;
+        traits.forEach(trait => {
+            persona += `- ${traitDescriptions[trait] || trait}\n`;
+        });
+        persona += `\n`;
+    }
+    
+    persona += `## Communication Style:\n`;
+    persona += `- ${toneDescriptions[tone] || tone}\n`;
+    persona += `- ${emojiDescriptions[emojis] || emojis}\n`;
+    persona += `- Clear explanations that are easy to understand\n`;
+    persona += `- Supportive and helpful\n\n`;
+    
+    if (special) {
+        persona += `## Special Instructions:\n`;
+        persona += `${special}\n\n`;
+    }
+    
+    persona += `## Guidelines:\n`;
+    persona += `- Always maintain a positive, helpful tone\n`;
+    persona += `- Provide code examples when helpful\n`;
+    persona += `- Ask clarifying questions when needed\n`;
+    persona += `- Celebrate achievements and progress\n`;
+    persona += `- Be patient with beginners\n`;
+    
+    return persona;
+}
+
+// Load persona into form
+function loadPersonaIntoForm(personaText) {
+    // Try to parse the persona text and populate form fields
+    // This is a simple parser - could be improved
+    const nameMatch = personaText.match(/You are ([^,]+),/);
+    if (nameMatch) {
+        const nameField = document.getElementById('personaName');
+        if (nameField) nameField.value = nameMatch[1].trim();
+    }
+    
+    // Parse traits
+    const traitSection = personaText.match(/## Personality Traits:([\s\S]*?)(?=##|$)/);
+    if (traitSection) {
+        document.querySelectorAll('.persona-trait').forEach(cb => cb.checked = false);
+        const traitText = traitSection[1].toLowerCase();
+        document.querySelectorAll('.persona-trait').forEach(cb => {
+            if (traitText.includes(cb.value)) {
+                cb.checked = true;
+            }
+        });
+    }
+    
+    // Parse tone
+    const toneSection = personaText.match(/## Communication Style:([\s\S]*?)(?=##|$)/);
+    if (toneSection) {
+        const toneText = toneSection[1].toLowerCase();
+        const toneField = document.getElementById('personaTone');
+        if (toneField) {
+            if (toneText.includes('conversational')) toneField.value = 'conversational';
+            else if (toneText.includes('professional')) toneField.value = 'professional';
+            else if (toneText.includes('playful')) toneField.value = 'playful';
+            else if (toneText.includes('simple')) toneField.value = 'simple';
+            else if (toneText.includes('excited')) toneField.value = 'excited';
+        }
+    }
+    
+    // Parse emojis
+    const emojiField = document.getElementById('personaEmojis');
+    if (emojiField && personaText.includes('frequently')) emojiField.value = 'lots';
+    else if (emojiField && personaText.includes('occasionally')) emojiField.value = 'some';
+    else if (emojiField && personaText.includes('Do not use emojis')) emojiField.value = 'none';
+    
+    // Parse special instructions
+    const specialMatch = personaText.match(/## Special Instructions:([\s\S]*?)(?=##|$)/);
+    if (specialMatch) {
+        const specialField = document.getElementById('personaSpecial');
+        if (specialField) specialField.value = specialMatch[1].trim();
+    }
+}
+
+// Toggle advanced mode
+window.toggleAdvancedPersona = function() {
+    const textarea = document.getElementById('agentPersonaTextarea');
+    const toggle = document.getElementById('advancedPersonaToggle');
+    if (textarea && toggle) {
+        if (textarea.style.display === 'none' || !textarea.style.display) {
+            textarea.style.display = 'block';
+            toggle.textContent = '(click to hide)';
+            // Generate from form and populate
+            textarea.value = generatePersonaFromForm();
+        } else {
+            textarea.style.display = 'none';
+            toggle.textContent = '(click to show)';
+        }
+    }
+};
+
+// Apply template
+window.applyPersonaTemplate = function(templateKey) {
+    const template = personaTemplates[templateKey];
+    if (!template) return;
+    
+    const nameField = document.getElementById('personaName');
+    const toneField = document.getElementById('personaTone');
+    const emojiField = document.getElementById('personaEmojis');
+    const specialField = document.getElementById('personaSpecial');
+    
+    if (nameField) nameField.value = template.name;
+    if (toneField) toneField.value = template.tone;
+    if (emojiField) emojiField.value = template.emojis;
+    if (specialField) specialField.value = template.special;
+    
+    // Clear and set traits
+    document.querySelectorAll('.persona-trait').forEach(cb => cb.checked = false);
+    template.traits.forEach(trait => {
+        const cb = document.querySelector(`.persona-trait[value="${trait}"]`);
+        if (cb) cb.checked = true;
+    });
+    
+    // Update advanced textarea if visible
+    const textarea = document.getElementById('agentPersonaTextarea');
+    if (textarea && textarea.style.display !== 'none') {
+        textarea.value = generatePersonaFromForm();
+    }
+    
+    showToast(`✨ Applied "${template.name}" template!`, 'success');
+};
+
+// Agent Persona Settings
+window.handleAgentPersonaSettings = function() {
+    const overlay = document.getElementById('agentPersonaModalOverlay');
+    const textarea = document.getElementById('agentPersonaTextarea');
+    const allowOverridesCheckbox = document.getElementById('agentPersonaAllowOverrides');
+    const closeBtn = document.getElementById('agentPersonaModalClose');
+    const saveBtn = document.getElementById('agentPersonaSaveBtn');
+    const resetBtn = document.getElementById('agentPersonaResetBtn');
+    const templatesContainer = document.getElementById('personaTemplates');
+    
+    if (!overlay) {
+        console.error('Agent Persona modal overlay not found!');
+        return;
+    }
+    
+    // Populate templates
+    if (templatesContainer) {
+        templatesContainer.innerHTML = '';
+        Object.entries(personaTemplates).forEach(([key, template]) => {
+            const templateBtn = document.createElement('button');
+            templateBtn.className = 'btn btn-secondary';
+            templateBtn.style.cssText = 'padding: 12px; text-align: left; display: flex; flex-direction: column; gap: 4px;';
+            templateBtn.innerHTML = `
+                <span style="font-size: 24px;">${template.icon}</span>
+                <strong>${template.name}</strong>
+                <span style="font-size: 11px; color: #999;">${template.description}</span>
+            `;
+            templateBtn.onclick = () => applyPersonaTemplate(key);
+            templatesContainer.appendChild(templateBtn);
+        });
+    }
+    
+    // Load current global persona
+    if (state.globalAgentPersona) {
+        // Try to load into form, fallback to textarea
+        try {
+            loadPersonaIntoForm(state.globalAgentPersona);
+            if (textarea) textarea.value = state.globalAgentPersona;
+        } catch (e) {
+            if (textarea) textarea.value = state.globalAgentPersona;
+        }
+    } else {
+        // Clear form
+        const nameField = document.getElementById('personaName');
+        if (nameField) nameField.value = '';
+        document.querySelectorAll('.persona-trait').forEach(cb => cb.checked = false);
+        const specialField = document.getElementById('personaSpecial');
+        if (specialField) specialField.value = '';
+        if (textarea) textarea.value = '';
+    }
+    
+    if (allowOverridesCheckbox) {
+        allowOverridesCheckbox.checked = state.allowProjectPersonaOverrides;
+    }
+    
+    // Open CML folder
+    if (openFolderBtn) {
+        openFolderBtn.onclick = async () => {
+            try {
+                if (!state.currentProject || !state.currentProject.path) {
+                    showToast('Please open a project first to access CML folder', 'warning');
+                    return;
+                }
+                
+                const cmlFolderPath = state.currentProject.path.replace(/[/\\]$/, '') + 
+                                    (state.currentProject.path.includes('\\') ? '\\' : '/') + 'cml';
+                
+                // Create folder if it doesn't exist
+                if (window.electronAPI && window.electronAPI.createFolder) {
+                    const exists = await window.electronAPI.fileExists(cmlFolderPath);
+                    if (!exists) {
+                        await window.electronAPI.createFolder(cmlFolderPath);
+                    }
+                }
+                
+                // Open folder in system file manager (via Electron)
+                if (window.electronAPI && window.electronAPI.openFolder) {
+                    const result = await window.electronAPI.openFolder(cmlFolderPath);
+                    if (result && result.success) {
+                        showToast('✨ CML folder opened!', 'success');
+                    } else {
+                        showToast(`CML folder: ${cmlFolderPath}`, 'info');
+                    }
+                } else {
+                    // Fallback: show path
+                    showToast(`CML folder: ${cmlFolderPath}`, 'info');
+                }
+            } catch (error) {
+                console.error('Error opening CML folder:', error);
+                showToast('Error opening folder: ' + error.message, 'error');
+            }
+        };
+    }
+    
+    // Update textarea when form changes
+    const formFields = ['personaName', 'personaTone', 'personaEmojis', 'personaSpecial'];
+    formFields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.addEventListener('input', () => {
+                if (textarea && textarea.style.display !== 'none') {
+                    textarea.value = generatePersonaFromForm();
+                }
+            });
+        }
+    });
+    document.querySelectorAll('.persona-trait').forEach(cb => {
+        cb.addEventListener('change', () => {
+            if (textarea && textarea.style.display !== 'none') {
+                textarea.value = generatePersonaFromForm();
+            }
+        });
+    });
+    
+    // Show modal
+    overlay.style.display = 'flex';
+    
+    // Close button
+    if (closeBtn) {
+        closeBtn.onclick = () => {
+            overlay.style.display = 'none';
+        };
+    }
+    
+    // Close on overlay click
+    overlay.onclick = (e) => {
+        if (e.target === overlay) {
+            overlay.style.display = 'none';
+        }
+    };
+    
+    // Save button
+    if (saveBtn) {
+        saveBtn.onclick = () => {
+            // Generate persona from form
+            const persona = generatePersonaFromForm();
+            const allowOverrides = allowOverridesCheckbox ? allowOverridesCheckbox.checked : true;
+            
+            state.globalAgentPersona = persona || null;
+            state.allowProjectPersonaOverrides = allowOverrides;
+            
+            if (persona) {
+                localStorage.setItem('vibe-ide-global-agent-persona', persona);
+            } else {
+                localStorage.removeItem('vibe-ide-global-agent-persona');
+            }
+            
+            localStorage.setItem('vibe-ide-allow-project-persona-overrides', allowOverrides.toString());
+            
+            showToast(`✨ Global Agent Persona saved! Project overrides: ${allowOverrides ? 'Enabled' : 'Disabled'}`, 'success');
+            overlay.style.display = 'none';
+        };
+    }
+    
+    // Reset button
+    if (resetBtn) {
+        resetBtn.onclick = () => {
+            if (confirm('Reset to default persona? This will clear your custom persona and enable project overrides.')) {
+                state.globalAgentPersona = null;
+                state.allowProjectPersonaOverrides = true;
+                localStorage.removeItem('vibe-ide-global-agent-persona');
+                localStorage.setItem('vibe-ide-allow-project-persona-overrides', 'true');
+                
+                // Clear form
+                const nameField = document.getElementById('personaName');
+                if (nameField) nameField.value = '';
+                document.querySelectorAll('.persona-trait').forEach(cb => cb.checked = false);
+                const specialField = document.getElementById('personaSpecial');
+                if (specialField) specialField.value = '';
+                if (textarea) textarea.value = '';
+                if (allowOverridesCheckbox) {
+                    allowOverridesCheckbox.checked = true;
+                }
+                showToast('✨ Global Agent Persona reset to default!', 'success');
+            }
+        };
+    }
+};
+
+// CML Viewer
+window.handleCMLViewer = async function() {
+    const overlay = document.getElementById('cmlViewerModalOverlay');
+    const sourceTextarea = document.getElementById('cmlSourceTextarea');
+    const renderedStory = document.getElementById('cmlRenderedStory');
+    const closeBtn = document.getElementById('cmlViewerModalClose');
+    const openFileBtn = document.getElementById('cmlOpenFileBtn');
+    const openFolderBtn = document.getElementById('cmlOpenFolderBtn');
+    const newFileBtn = document.getElementById('cmlNewFileBtn');
+    const renderBtn = document.getElementById('cmlRenderBtn');
+    const saveBtn = document.getElementById('cmlSaveBtn');
+    const cmlRecordingCheckbox = document.getElementById('cmlRecordingEnabled');
+    
+    if (!overlay || !sourceTextarea || !renderedStory) {
+        console.error('CML Viewer modal elements not found!');
+        return;
+    }
+    
+    // Initialize checkbox state from localStorage and state
+    if (cmlRecordingCheckbox) {
+        const isEnabled = state.recordChatToCML === true || localStorage.getItem('vibe-ide-record-chat-to-cml') === 'true';
+        cmlRecordingCheckbox.checked = isEnabled;
+        state.recordChatToCML = isEnabled;
+        console.log('📝 CML Recording checkbox initialized:', isEnabled);
+        
+        cmlRecordingCheckbox.onchange = () => {
+            const enabled = cmlRecordingCheckbox.checked;
+            state.recordChatToCML = enabled;
+            localStorage.setItem('vibe-ide-record-chat-to-cml', enabled.toString());
+            console.log('📝 CML Recording toggled:', enabled);
+            showToast(`✨ Chat-to-CML recording ${enabled ? 'enabled' : 'disabled'}!`, 'success');
+        };
+    }
+    
+    // Show modal
+    overlay.style.display = 'flex';
+    
+    // Close button
+    if (closeBtn) {
+        closeBtn.onclick = () => {
+            overlay.style.display = 'none';
+        };
+    }
+    
+    // Close on overlay click
+    overlay.onclick = (e) => {
+        if (e.target === overlay) {
+            overlay.style.display = 'none';
+        }
+    };
+    
+    // Open CML file
+    if (openFileBtn) {
+        openFileBtn.onclick = async () => {
+            try {
+                if (!window.electronAPI || !window.electronAPI.openFile) {
+                    showToast('File operations not available', 'error');
+                    return;
+                }
+                
+                // Try to suggest CML folder path
+                const suggestedPath = state.currentProject ? 
+                    state.currentProject.path.replace(/[/\\]$/, '') + (state.currentProject.path.includes('\\') ? '\\' : '/') + 'cml' :
+                    null;
+                
+                // For now, use file picker (could be enhanced to open folder)
+                const fileData = await window.electronAPI.openFile();
+                if (fileData && fileData.content) {
+                    sourceTextarea.value = fileData.content;
+                    // Auto-render
+                    renderCML();
+                }
+            } catch (error) {
+                console.error('Error opening CML file:', error);
+                showToast('Error opening file: ' + error.message, 'error');
+            }
+        };
+    }
+    
+    // New CML file
+    if (newFileBtn) {
+        newFileBtn.onclick = () => {
+            const timestamp = new Date().toISOString();
+            const userName = state.userName || 'damo';
+            const defaultCML = `[${timestamp}|event|${userName.toLowerCase()}|vibe-ide|type:new-event]{
+  title:"New Event";
+  description:"Describe what happened here...";
+  context:"Add context and background information.";
+  impact:"What was the impact or significance?";
+}`;
+            sourceTextarea.value = defaultCML;
+            renderCML();
+        };
+    }
+    
+    // Render CML to story
+    function renderCML() {
+        try {
+            const cmlText = sourceTextarea.value.trim();
+            if (!cmlText) {
+                renderedStory.textContent = 'No CML content to render.';
+                return;
+            }
+            
+            if (!window.CMLUtils) {
+                renderedStory.textContent = 'CML utilities not loaded. Please refresh the app.';
+                return;
+            }
+            
+            const cmlData = window.CMLUtils.parseCML(cmlText);
+            if (!cmlData) {
+                renderedStory.textContent = 'Error: Invalid CML format. Please check your syntax.';
+                return;
+            }
+            
+            const story = window.CMLUtils.renderCMLToStory(cmlData);
+            renderedStory.textContent = story;
+            
+            // Also render as HTML for better display
+            // Simple markdown to HTML conversion (basic)
+            let htmlStory = story
+                .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+                .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+                .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/^\- (.*$)/gim, '<li>$1</li>')
+                .replace(/^(\d+)\. (.*$)/gim, '<li>$2</li>')
+                .replace(/> "(.*)"/g, '<blockquote>$1</blockquote>')
+                .replace(/\n\n/g, '</p><p>')
+                .replace(/\n/g, '<br>');
+            
+            htmlStory = '<p>' + htmlStory + '</p>';
+            htmlStory = htmlStory.replace(/<li>/g, '<ul><li>').replace(/<\/li>/g, '</li></ul>');
+            htmlStory = htmlStory.replace(/<\/ul>\s*<ul>/g, '');
+            
+            // Keep text version for now, could switch to HTML later
+            // renderedStory.innerHTML = htmlStory;
+        } catch (error) {
+            console.error('Error rendering CML:', error);
+            renderedStory.textContent = 'Error rendering CML: ' + error.message;
+        }
+    }
+    
+    if (renderBtn) {
+        renderBtn.onclick = renderCML;
+    }
+    
+    // Auto-render on text change (with debounce)
+    let renderTimeout;
+    sourceTextarea.addEventListener('input', () => {
+        clearTimeout(renderTimeout);
+        renderTimeout = setTimeout(renderCML, 500);
+    });
+    
+    // Save CML file
+    if (saveBtn) {
+        saveBtn.onclick = async () => {
+            try {
+                if (!window.electronAPI || !window.electronAPI.saveFile) {
+                    showToast('File operations not available', 'error');
+                    return;
+                }
+                
+                const cmlText = sourceTextarea.value.trim();
+                if (!cmlText) {
+                    showToast('No CML content to save', 'warning');
+                    return;
+                }
+                
+                // Suggest filename based on CML content
+                let suggestedName = 'event.cml';
+                try {
+                    const cmlData = window.CMLUtils.parseCML(cmlText);
+                    if (cmlData && cmlData.header) {
+                        const date = cmlData.header.timestamp ? 
+                            new Date(cmlData.header.timestamp).toISOString().split('T')[0] : 
+                            new Date().toISOString().split('T')[0];
+                        const type = cmlData.header.type || 'event';
+                        suggestedName = `${date}-${type}.cml`;
+                    }
+                } catch (e) {
+                    // Use default name
+                }
+                
+                const result = await window.electronAPI.saveFile(cmlText, suggestedName);
+                if (result && result.success) {
+                    showToast('✨ CML file saved!', 'success');
+                } else {
+                    showToast('Error saving file', 'error');
+                }
+            } catch (error) {
+                console.error('Error saving CML file:', error);
+                showToast('Error saving file: ' + error.message, 'error');
+            }
+        };
+    }
+    
+    // Focus textarea
+    setTimeout(() => sourceTextarea.focus(), 100);
+};
+
+// User Settings
+window.handleUserSettings = function() {
+    const overlay = document.getElementById('userSettingsModalOverlay');
+    const userNameInput = document.getElementById('userNameInput');
+    const closeBtn = document.getElementById('userSettingsModalClose');
+    const saveBtn = document.getElementById('userSettingsSaveBtn');
+    const cancelBtn = document.getElementById('userSettingsCancelBtn');
+    
+    if (!overlay || !userNameInput) {
+        console.error('User Settings modal elements not found!');
+        return;
+    }
+    
+    // Load current user name
+    userNameInput.value = state.userName || '';
+    
+    // Show modal
+    overlay.style.display = 'flex';
+    
+    // Close button
+    if (closeBtn) {
+        closeBtn.onclick = () => {
+            overlay.style.display = 'none';
+        };
+    }
+    
+    // Cancel button
+    if (cancelBtn) {
+        cancelBtn.onclick = () => {
+            overlay.style.display = 'none';
+        };
+    }
+    
+    // Close on overlay click
+    overlay.onclick = (e) => {
+        if (e.target === overlay) {
+            overlay.style.display = 'none';
+        }
+    };
+    
+    // Save button
+    if (saveBtn) {
+        saveBtn.onclick = () => {
+            const userName = userNameInput.value.trim();
+            state.userName = userName || null;
+            
+            if (userName) {
+                localStorage.setItem('vibe-ide-user-name', userName);
+                showToast(`✨ User name saved: ${userName}!`, 'success');
+            } else {
+                localStorage.removeItem('vibe-ide-user-name');
+                showToast('✨ User name cleared!', 'success');
+            }
+            
+            overlay.style.display = 'none';
+        };
+    }
+    
+    // Focus input
+    setTimeout(() => userNameInput.focus(), 100);
+};
+
 // ============================================
 // Toast Notification System
 // ============================================
@@ -2146,6 +3731,13 @@ async function loadProject(projectPath) {
     await loadProjectJournal(projectPath);
     
     await loadProjectFiles(projectPath);
+    
+    // Update download button states when project is loaded
+    setTimeout(() => {
+        if (typeof updateDownloadButtonStates === 'function') {
+            updateDownloadButtonStates();
+        }
+    }, 100);
 }
 
 async function loadProjectFiles(projectPath) {
@@ -2546,6 +4138,11 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         initializePixabay();
     }, 600);
+    
+    // Initialize Music & SFX panel (should work even without a project loaded)
+    setTimeout(() => {
+        initMusicSfxPanel();
+    }, 700);
     
     // Apply saved theme
     if (state.theme === 'light') {
@@ -3465,6 +5062,8 @@ function initFileTreeFeatures() {
 
 // Music & SFX Panel
 function initMusicSfxPanel() {
+    console.log('🔍 initMusicSfxPanel called!');
+    
     const toggleBtn = document.getElementById('musicSfxToggle');
     const panel = document.getElementById('musicSfxPanel');
     const closeBtn = document.getElementById('musicSfxClose');
@@ -3475,35 +5074,108 @@ function initMusicSfxPanel() {
     const sfxSearchBtn = document.getElementById('sfxSearchBtn');
     const sfxSearchInput = document.getElementById('sfxSearch');
     
+    console.log('🔍 toggleBtn:', toggleBtn);
+    console.log('🔍 panel:', panel);
+    
     if (!toggleBtn || !panel) {
         console.error('❌ Music & SFX panel elements not found!');
+        console.error('   toggleBtn:', toggleBtn);
+        console.error('   panel:', panel);
+        // Try again after a delay
+        setTimeout(() => {
+            console.log('🔄 Retrying initMusicSfxPanel...');
+            initMusicSfxPanel();
+        }, 1000);
         return;
     }
     
     console.log('✅ Initializing Music & SFX panel...');
+    console.log('   Toggle button found:', toggleBtn);
+    console.log('   Panel found:', panel);
     
-    // Toggle panel
-    toggleBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+    // Make sure panel starts closed - explicitly remove open class and set transform
+    panel.classList.remove('open');
+    panel.style.transform = 'translateY(calc(100% + 50px))';
+    panel.style.visibility = 'hidden';
+    console.log('   Panel initialized as closed');
+    
+    // Remove any existing listeners first
+    const newToggleBtn = toggleBtn.cloneNode(true);
+    toggleBtn.parentNode.replaceChild(newToggleBtn, toggleBtn);
+    const newToggleBtnRef = document.getElementById('musicSfxToggle');
+    
+    // Create global toggle function
+    window.toggleMusicSfxPanel = function(e) {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        const panel = document.getElementById('musicSfxPanel');
+        if (!panel) {
+            console.error('❌ Panel not found in toggleMusicSfxPanel!');
+            return;
+        }
         console.log('🎵 Music & SFX button clicked!');
         console.log('   Panel element:', panel);
         console.log('   Panel classes before:', panel.className);
-        panel.classList.toggle('open');
+        
+        // Check actual state by looking at computed transform
+        const computedStyle = window.getComputedStyle(panel);
+        const transform = computedStyle.transform;
+        const isActuallyOpen = transform === 'none' || transform === 'matrix(1, 0, 0, 1, 0, 0)';
+        
+        // If panel has "open" class but is actually closed (or vice versa), fix it first
+        const hasOpenClass = panel.classList.contains('open');
+        if (hasOpenClass !== isActuallyOpen) {
+            console.log('   ⚠️ State mismatch detected! Fixing...');
+            if (isActuallyOpen) {
+                panel.classList.add('open');
+            } else {
+                panel.classList.remove('open');
+            }
+        }
+        
+        // Now toggle based on actual state
+        if (isActuallyOpen) {
+            // Panel is open, so close it
+            panel.classList.remove('open');
+            console.log('   ✅ Panel closed');
+        } else {
+            // Panel is closed, so open it
+            panel.classList.add('open');
+            console.log('   ✅ Panel opened');
+        }
+        
+        // Remove any inline styles to let CSS handle it
+        panel.style.transform = '';
+        panel.style.visibility = '';
+        
         console.log('   Panel classes after:', panel.className);
         console.log('   Panel is open:', panel.classList.contains('open'));
-    });
+        console.log('   Panel computed style transform:', window.getComputedStyle(panel).transform);
+    };
+    
+    // Toggle panel with event listener
+    newToggleBtnRef.addEventListener('click', window.toggleMusicSfxPanel);
+    
+    // Also set onclick as backup
+    newToggleBtnRef.onclick = window.toggleMusicSfxPanel;
     
     // Close panel
     if (closeBtn) {
-        closeBtn.addEventListener('click', () => {
+        closeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('❌ Music & SFX panel close clicked!');
             panel.classList.remove('open');
         });
+    } else {
+        console.warn('⚠️ Close button not found!');
     }
     
     // Tab switching
     tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
+        tab.addEventListener('click', async () => {
             const targetTab = tab.dataset.tab;
             
             // Update active tab
@@ -3515,10 +5187,27 @@ function initMusicSfxPanel() {
                 content.classList.remove('active');
                 if (content.id === targetTab + 'Tab') {
                     content.classList.add('active');
+                    
+                    // Check Freesound status when opening SFX tab
+                    if (targetTab === 'sfx') {
+                        checkFreesoundStatusForSfx();
+                    }
                 }
             });
         });
     });
+    
+    // Check Freesound status for SFX panel
+    async function checkFreesoundStatusForSfx() {
+        const status = await window.electronAPI.freesoundCheckStatus();
+        console.log('🔍 Freesound API status for SFX panel:', status);
+        if (!status.available) {
+            const sfxResults = document.getElementById('sfxResults');
+            if (sfxResults && !sfxResults.innerHTML.trim()) {
+                sfxResults.innerHTML = '<p style="color: #ff4444; text-align: center; padding: 20px;">❌ Freesound API key not configured. Create freesound-config.json in your user data folder. Get your API key from <a href="https://freesound.org/apiv2/apply/" target="_blank" style="color: #00a2ff;">https://freesound.org/apiv2/apply/</a></p>';
+            }
+        }
+    }
     
     // Search handlers
     if (musicSearchBtn && musicSearchInput) {
@@ -3552,6 +5241,36 @@ function initMusicSfxPanel() {
             }
         });
     }
+    
+    // Favorite buttons
+    const musicFavoritesBtn = document.getElementById('musicFavoritesBtn');
+    const sfxFavoritesBtn = document.getElementById('sfxFavoritesBtn');
+    
+    if (musicFavoritesBtn) {
+        musicFavoritesBtn.addEventListener('click', () => {
+            showMusicSfxFavorites('music');
+        });
+    }
+    
+    if (sfxFavoritesBtn) {
+        sfxFavoritesBtn.addEventListener('click', () => {
+            showMusicSfxFavorites('sfx');
+        });
+    }
+    
+    // Update download button states when panel opens
+    const updateDownloadButtonStates = () => {
+        const hasProject = !!state.currentProject;
+        const downloadButtons = panel.querySelectorAll('.music-sfx-item-btn.download');
+        downloadButtons.forEach(btn => {
+            btn.disabled = !hasProject;
+        });
+    };
+    
+    // Check download button states when panel opens
+    newToggleBtnRef.addEventListener('click', () => {
+        setTimeout(updateDownloadButtonStates, 100);
+    });
 }
 
 async function searchPixabayAudio(query, type) {
@@ -3563,10 +5282,10 @@ async function searchPixabayAudio(query, type) {
     try {
         // Key should already be loaded on IDE startup, but check if search fails
         
-        // Search for audio (Pixabay uses 'audio' category)
-        const result = await window.electronAPI.pixabaySearchAudio(query, {
-            category: type === 'music' ? 'music' : 'soundEffects',
-            per_page: 20
+        // Search for audio using Freesound (the real audio API!)
+        const result = await window.electronAPI.freesoundSearchAudio(query, {
+            category: type === 'music' ? 'music' : 'sfx',
+            perPage: 20
         });
         
         if (!result.success) {
@@ -3579,24 +5298,59 @@ async function searchPixabayAudio(query, type) {
             return;
         }
         
+        // Get favorites for this type
+        const favorites = getMusicSfxFavorites(type);
+        console.log(`📋 Loaded ${favorites.length} ${type} favorites for search results`);
+        
         // Render results
-        resultsDiv.innerHTML = result.hits.map(audio => `
-            <div class="music-sfx-item">
-                <h4 class="music-sfx-item-title" title="${audio.tags || 'Untitled'}">${audio.tags || 'Untitled'}</h4>
-                <p class="music-sfx-item-info">Duration: ${formatDuration(audio.duration)} | Format: ${audio.type || 'mp3'}</p>
-                <audio class="music-sfx-item-audio" controls preload="metadata">
-                    <source src="${audio.url}" type="audio/${audio.type || 'mpeg'}">
-                </audio>
+        resultsDiv.innerHTML = result.hits.map(audio => {
+            const title = audio.title || audio.tags || 'Untitled';
+            const audioType = audio.type ? audio.type.split('/')[1] || 'mpeg' : 'mpeg'; // Extract 'mpeg' from 'audio/mpeg'
+            const mimeType = audio.type || 'audio/mpeg';
+            // Convert IDs to strings for comparison
+            const isFavorite = favorites.some(f => String(f.id) === String(audio.id));
+            
+            return `
+            <div class="music-sfx-item" data-audio-id="${audio.id}">
+                <h4 class="music-sfx-item-title" title="${title}">${title}</h4>
+                <p class="music-sfx-item-info">Duration: ${formatDuration(audio.duration)} | Format: ${audioType} | By: ${audio.user || 'Unknown'}</p>
+                ${audio.description ? `<p class="music-sfx-item-description" style="font-size: 0.85em; color: #999; margin: 5px 0;">${audio.description.substring(0, 100)}${audio.description.length > 100 ? '...' : ''}</p>` : ''}
+                <div class="custom-audio-player" data-url="${audio.url}" data-type="${mimeType}">
+                    <audio class="custom-audio-element" preload="metadata" crossorigin="anonymous">
+                        <source src="${audio.url}" type="${mimeType}">
+                    </audio>
+                    <div class="custom-audio-controls">
+                        <button class="custom-audio-play-pause" title="Play/Pause">▶️</button>
+                        <div class="custom-audio-progress-container">
+                            <div class="custom-audio-progress-bar">
+                                <div class="custom-audio-progress-fill"></div>
+                            </div>
+                            <div class="custom-audio-time">
+                                <span class="custom-audio-current">0:00</span> / <span class="custom-audio-duration">${formatDuration(audio.duration)}</span>
+                            </div>
+                        </div>
+                        <div class="custom-audio-volume-container">
+                            <button class="custom-audio-mute" title="Mute/Unmute">🔊</button>
+                            <input type="range" class="custom-audio-volume" min="0" max="100" value="100" title="Volume">
+                        </div>
+                    </div>
+                </div>
                 <div class="music-sfx-item-actions">
-                    <button class="music-sfx-item-btn favorite" data-id="${audio.id}" title="Add to favorites">⭐</button>
-                    <button class="music-sfx-item-btn download" data-url="${audio.url}" data-name="${(audio.tags || 'audio').replace(/[^a-z0-9]/gi, '_')}" data-type="${type}">Download</button>
+                    <button class="music-sfx-item-btn favorite ${isFavorite ? 'active' : ''}" data-id="${audio.id}" data-type="${type}" data-title="${title}" data-url="${audio.url}" data-duration="${audio.duration}" data-user="${audio.user || 'Unknown'}" title="${isFavorite ? 'Remove from favorites' : 'Add to favorites'}">${isFavorite ? '⭐' : '☆'}</button>
+                    <button class="music-sfx-item-btn download" data-url="${audio.url}" data-name="${title.replace(/[^a-z0-9]/gi, '_')}" data-type="${type}" ${!state.currentProject ? 'disabled' : ''}>Download</button>
+                    ${audio.freesound_url ? `<a href="${audio.freesound_url}" target="_blank" class="music-sfx-item-btn" style="text-decoration: none; display: inline-block; margin-left: 5px;" title="View on Freesound">🔗</a>` : ''}
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
         
         // Add download handlers
         resultsDiv.querySelectorAll('.music-sfx-item-btn.download').forEach(btn => {
             btn.addEventListener('click', async () => {
+                if (btn.disabled) {
+                    showToast('Please open a project first to download files!', 'warning');
+                    return;
+                }
                 const url = btn.dataset.url;
                 const name = btn.dataset.name;
                 const audioType = btn.dataset.type;
@@ -3607,15 +5361,223 @@ async function searchPixabayAudio(query, type) {
         // Add favorite handlers
         resultsDiv.querySelectorAll('.music-sfx-item-btn.favorite').forEach(btn => {
             btn.addEventListener('click', () => {
+                const audioId = btn.dataset.id;
+                const audioType = btn.dataset.type;
+                const audioTitle = btn.dataset.title;
+                const audioUrl = btn.dataset.url;
+                const audioDuration = btn.dataset.duration;
+                const audioUser = btn.dataset.user;
+                
+                toggleMusicSfxFavorite(audioType, {
+                    id: audioId,
+                    title: audioTitle,
+                    url: audioUrl,
+                    duration: parseFloat(audioDuration) || 0,
+                    user: audioUser
+                });
+                
+                // Update button state
+                const isFavorite = btn.classList.contains('active');
                 btn.classList.toggle('active');
-                // TODO: Save favorites to localStorage or project config
+                btn.innerHTML = isFavorite ? '☆' : '⭐';
+                btn.title = isFavorite ? 'Add to favorites' : 'Remove from favorites';
             });
         });
+        
+        // Update download button states after rendering
+        updateDownloadButtonStates();
+        
+        // Initialize custom audio players
+        initializeCustomAudioPlayers();
         
     } catch (error) {
         console.error('Error searching audio:', error);
         resultsDiv.innerHTML = `<p style="color: #ff4444; text-align: center; padding: 20px;">❌ Error: ${error.message}</p>`;
     }
+}
+
+// Custom Audio Player Functions
+async function loadAudioAsBlob(url) {
+    try {
+        // Try to fetch directly first (might work if CORS allows)
+        const response = await fetch(url, { mode: 'cors' });
+        if (response.ok) {
+            const blob = await response.blob();
+            return URL.createObjectURL(blob);
+        }
+    } catch (error) {
+        console.log('Direct fetch failed (CORS?), trying through Electron:', error);
+    }
+    
+    // If direct fetch fails, try through Electron main process (bypasses CORS)
+    try {
+        if (window.electronAPI && window.electronAPI.fetchAudioAsBlob) {
+            const result = await window.electronAPI.fetchAudioAsBlob(url);
+            if (result.success && result.base64) {
+                // Convert base64 to blob
+                const binaryString = atob(result.base64);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                const blob = new Blob([bytes], { type: result.contentType || 'audio/mpeg' });
+                return URL.createObjectURL(blob);
+            } else {
+                console.error('Electron fetch failed:', result.error);
+            }
+        }
+    } catch (error) {
+        console.error('Error creating blob from Electron fetch:', error);
+    }
+    
+    // Fallback: return original URL (might work in some cases)
+    return url;
+}
+
+function initializeCustomAudioPlayers() {
+    const players = document.querySelectorAll('.custom-audio-player');
+    players.forEach(async (player) => {
+        const audio = player.querySelector('.custom-audio-element');
+        const playPauseBtn = player.querySelector('.custom-audio-play-pause');
+        const progressBar = player.querySelector('.custom-audio-progress-fill');
+        const progressContainer = player.querySelector('.custom-audio-progress-bar');
+        const currentTimeEl = player.querySelector('.custom-audio-current');
+        const durationEl = player.querySelector('.custom-audio-duration');
+        const muteBtn = player.querySelector('.custom-audio-mute');
+        const volumeSlider = player.querySelector('.custom-audio-volume');
+        
+        if (!audio || !playPauseBtn) return;
+        
+        // Get the original URL from data attribute
+        const originalUrl = player.dataset.url;
+        if (!originalUrl) return;
+        
+        // Load audio as blob to bypass CORS
+        const audioUrl = await loadAudioAsBlob(originalUrl);
+        audio.src = audioUrl;
+        
+        // Set up audio element
+        audio.addEventListener('loadedmetadata', () => {
+            if (durationEl) {
+                durationEl.textContent = formatDuration(audio.duration);
+            }
+        });
+        
+        audio.addEventListener('timeupdate', () => {
+            if (audio.duration) {
+                const progress = (audio.currentTime / audio.duration) * 100;
+                if (progressBar) {
+                    progressBar.style.width = progress + '%';
+                }
+                if (currentTimeEl) {
+                    currentTimeEl.textContent = formatDuration(audio.currentTime);
+                }
+            }
+        });
+        
+        audio.addEventListener('ended', () => {
+            if (playPauseBtn) {
+                playPauseBtn.textContent = '▶️';
+            }
+            if (progressBar) {
+                progressBar.style.width = '0%';
+            }
+            if (currentTimeEl) {
+                currentTimeEl.textContent = '0:00';
+            }
+            audio.currentTime = 0;
+        });
+        
+        audio.addEventListener('error', (e) => {
+            console.error('Audio error:', e, audio.error);
+            if (playPauseBtn) {
+                playPauseBtn.textContent = '❌';
+                playPauseBtn.disabled = true;
+                playPauseBtn.title = 'Error loading audio: ' + (audio.error?.message || 'Unknown error');
+            }
+            showToast('Error loading audio. The file may be unavailable.', 'error');
+        });
+        
+        // Play/Pause button
+        playPauseBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            try {
+                if (audio.paused) {
+                    // Stop all other players
+                    document.querySelectorAll('.custom-audio-element').forEach(otherAudio => {
+                        if (otherAudio !== audio && !otherAudio.paused) {
+                            otherAudio.pause();
+                            const otherPlayer = otherAudio.closest('.custom-audio-player');
+                            if (otherPlayer) {
+                                const otherBtn = otherPlayer.querySelector('.custom-audio-play-pause');
+                                if (otherBtn) otherBtn.textContent = '▶️';
+                            }
+                        }
+                    });
+                    
+                    const playPromise = audio.play();
+                    if (playPromise !== undefined) {
+                        await playPromise;
+                    }
+                    playPauseBtn.textContent = '⏸️';
+                } else {
+                    audio.pause();
+                    playPauseBtn.textContent = '▶️';
+                }
+            } catch (error) {
+                console.error('Error playing audio:', error);
+                showToast('Error playing audio. The file may be unavailable or blocked.', 'error');
+            }
+        });
+        
+        // Progress bar click
+        if (progressContainer) {
+            progressContainer.addEventListener('click', (e) => {
+                if (audio.duration) {
+                    const rect = progressContainer.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const percentage = x / rect.width;
+                    audio.currentTime = percentage * audio.duration;
+                }
+            });
+        }
+        
+        // Volume controls
+        if (volumeSlider) {
+            volumeSlider.addEventListener('input', (e) => {
+                audio.volume = e.target.value / 100;
+                if (muteBtn) {
+                    muteBtn.textContent = audio.volume === 0 ? '🔇' : '🔊';
+                }
+            });
+        }
+        
+        if (muteBtn) {
+            muteBtn.addEventListener('click', () => {
+                if (audio.volume === 0) {
+                    audio.volume = volumeSlider ? volumeSlider.value / 100 : 1;
+                    muteBtn.textContent = '🔊';
+                    if (volumeSlider) volumeSlider.value = audio.volume * 100;
+                } else {
+                    audio.volume = 0;
+                    muteBtn.textContent = '🔇';
+                    if (volumeSlider) volumeSlider.value = 0;
+                }
+            });
+        }
+    });
+}
+
+// Global function to update download button states (called from multiple places)
+function updateDownloadButtonStates() {
+    const hasProject = !!state.currentProject;
+    const panel = document.getElementById('musicSfxPanel');
+    if (!panel) return;
+    
+    const downloadButtons = panel.querySelectorAll('.music-sfx-item-btn.download');
+    downloadButtons.forEach(btn => {
+        btn.disabled = !hasProject;
+    });
 }
 
 function formatDuration(seconds) {
@@ -3627,7 +5589,7 @@ function formatDuration(seconds) {
 
 async function downloadAudioAsset(url, name, type) {
     if (!state.currentProject) {
-        alert('Please open a project first!');
+        showToast('Please open a project first to download files!', 'warning');
         return;
     }
     
@@ -3650,14 +5612,158 @@ async function downloadAudioAsset(url, name, type) {
             if (typeof loadFileTree === 'function') {
                 loadFileTree();
             }
-            alert(`✅ Downloaded to assets/${folderName}/`);
+            showToast(`✅ Downloaded to assets/${folderName}/`, 'success');
         } else {
-            alert(`❌ Download failed: ${result.error}`);
+            showToast(`❌ Download failed: ${result.error}`, 'error');
         }
     } catch (error) {
         console.error('Error downloading audio:', error);
-        alert(`❌ Error: ${error.message}`);
+        showToast(`❌ Error: ${error.message}`, 'error');
     }
+}
+
+// Music & SFX Favorites System
+function getMusicSfxFavorites(type) {
+    const key = type === 'music' ? 'vibe-ide-music-favorites' : 'vibe-ide-sfx-favorites';
+    try {
+        return JSON.parse(localStorage.getItem(key) || '[]');
+    } catch (e) {
+        console.error('Error loading favorites:', e);
+        return [];
+    }
+}
+
+function saveMusicSfxFavorites(type, favorites) {
+    const key = type === 'music' ? 'vibe-ide-music-favorites' : 'vibe-ide-sfx-favorites';
+    try {
+        const jsonString = JSON.stringify(favorites);
+        localStorage.setItem(key, jsonString);
+        console.log(`✅ Saved ${favorites.length} ${type} favorites to localStorage (key: ${key})`);
+        console.log('   Favorites:', favorites);
+    } catch (e) {
+        console.error('❌ Error saving favorites:', e);
+        showToast('Error saving favorites: ' + e.message, 'error');
+    }
+}
+
+function toggleMusicSfxFavorite(type, audio) {
+    console.log(`🔄 Toggling favorite for ${type}:`, audio);
+    
+    if (!audio || !audio.id) {
+        console.error('❌ Invalid audio object:', audio);
+        showToast('Error: Invalid audio data', 'error');
+        return;
+    }
+    
+    const favorites = getMusicSfxFavorites(type);
+    console.log(`   Current favorites (${favorites.length}):`, favorites);
+    
+    // Convert IDs to strings for comparison (in case one is a number)
+    const existingIndex = favorites.findIndex(f => String(f.id) === String(audio.id));
+    
+    if (existingIndex >= 0) {
+        // Remove from favorites
+        favorites.splice(existingIndex, 1);
+        saveMusicSfxFavorites(type, favorites);
+        showToast(`⭐ Removed "${audio.title}" from ${type === 'music' ? 'music' : 'SFX'} favorites`, 'info');
+    } else {
+        // Add to favorites
+        favorites.push(audio);
+        saveMusicSfxFavorites(type, favorites);
+        showToast(`⭐ Added "${audio.title}" to ${type === 'music' ? 'music' : 'SFX'} favorites!`, 'success');
+    }
+}
+
+function showMusicSfxFavorites(type) {
+    const resultsDiv = document.getElementById(type === 'music' ? 'musicResults' : 'sfxResults');
+    if (!resultsDiv) return;
+    
+    const favorites = getMusicSfxFavorites(type);
+    
+    if (favorites.length === 0) {
+        resultsDiv.innerHTML = `<p style="color: #999; text-align: center; padding: 20px;">No ${type === 'music' ? 'music' : 'SFX'} favorites yet. Search and click the ⭐ button to add favorites!</p>`;
+        return;
+    }
+    
+    resultsDiv.innerHTML = favorites.map(audio => {
+        const title = audio.title || 'Untitled';
+        const audioType = 'mpeg'; // Default
+        const mimeType = 'audio/mpeg';
+        
+        return `
+            <div class="music-sfx-item" data-audio-id="${audio.id}">
+                <h4 class="music-sfx-item-title" title="${title}">${title}</h4>
+                <p class="music-sfx-item-info">Duration: ${formatDuration(audio.duration)} | Format: ${audioType} | By: ${audio.user || 'Unknown'}</p>
+                <div class="custom-audio-player" data-url="${audio.url}" data-type="${mimeType}">
+                    <audio class="custom-audio-element" preload="metadata" crossorigin="anonymous">
+                        <source src="${audio.url}" type="${mimeType}">
+                    </audio>
+                    <div class="custom-audio-controls">
+                        <button class="custom-audio-play-pause" title="Play/Pause">▶️</button>
+                        <div class="custom-audio-progress-container">
+                            <div class="custom-audio-progress-bar">
+                                <div class="custom-audio-progress-fill"></div>
+                            </div>
+                            <div class="custom-audio-time">
+                                <span class="custom-audio-current">0:00</span> / <span class="custom-audio-duration">${formatDuration(audio.duration)}</span>
+                            </div>
+                        </div>
+                        <div class="custom-audio-volume-container">
+                            <button class="custom-audio-mute" title="Mute/Unmute">🔊</button>
+                            <input type="range" class="custom-audio-volume" min="0" max="100" value="100" title="Volume">
+                        </div>
+                    </div>
+                </div>
+                <div class="music-sfx-item-actions">
+                    <button class="music-sfx-item-btn favorite active" data-id="${audio.id}" data-type="${type}" data-title="${title}" data-url="${audio.url}" data-duration="${audio.duration}" data-user="${audio.user || 'Unknown'}" title="Remove from favorites">⭐</button>
+                    <button class="music-sfx-item-btn download" data-url="${audio.url}" data-name="${title.replace(/[^a-z0-9]/gi, '_')}" data-type="${type}" ${!state.currentProject ? 'disabled' : ''}>Download</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    // Add download handlers
+    resultsDiv.querySelectorAll('.music-sfx-item-btn.download').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            if (btn.disabled) {
+                showToast('Please open a project first to download files!', 'warning');
+                return;
+            }
+            const url = btn.dataset.url;
+            const name = btn.dataset.name;
+            const audioType = btn.dataset.type;
+            await downloadAudioAsset(url, name, audioType);
+        });
+    });
+    
+    // Add favorite handlers
+    resultsDiv.querySelectorAll('.music-sfx-item-btn.favorite').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const audioId = btn.dataset.id;
+            const audioType = btn.dataset.type;
+            const audioTitle = btn.dataset.title;
+            const audioUrl = btn.dataset.url;
+            const audioDuration = btn.dataset.duration;
+            const audioUser = btn.dataset.user;
+            
+            toggleMusicSfxFavorite(audioType, {
+                id: audioId,
+                title: audioTitle,
+                url: audioUrl,
+                duration: parseFloat(audioDuration) || 0,
+                user: audioUser
+            });
+            
+            // Refresh favorites view
+            showMusicSfxFavorites(audioType);
+        });
+    });
+    
+    // Update download button states after rendering favorites
+    updateDownloadButtonStates();
+    
+    // Initialize custom audio players
+    initializeCustomAudioPlayers();
 }
 
 function filterFileTree(searchTerm) {
@@ -6038,17 +8144,39 @@ function htmlToMarkdownForChat(html) {
 
 // Simple lightweight markdown parser for chat
 function parseSimpleMarkdown(text) {
-    // Escape HTML first to prevent XSS
-    let html = escapeHtml(text);
+    // Store code blocks before processing
+    const codeBlocks = [];
+    let codeBlockIndex = 0;
+    
+    // Extract code blocks and replace with placeholders
+    let processedText = text.replace(/```(\w+)?\n?([\s\S]*?)```/g, (match, lang, code) => {
+        const placeholder = `___CODEBLOCK_${codeBlockIndex}___`;
+        codeBlocks.push({
+            language: lang || '',
+            code: code.trim()
+        });
+        codeBlockIndex++;
+        return placeholder;
+    });
+    
+    // Escape HTML for the rest of the text
+    let html = escapeHtml(processedText);
     
     // GIF embeds ([GIF:url]) - must be done before other markdown
     html = html.replace(/\[GIF:(https?:\/\/[^\]]+)\]/g, '<img src="$1" class="chat-gif" alt="GIF" style="max-width: 200px; border-radius: 4px; margin: 4px 0;" />');
     
-    // Code blocks (```code```) - must be done before inline code
-    html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    // Replace code block placeholders with actual HTML (code is already escaped from escapeHtml, but we need to escape it again for safety in <code> tags)
+    codeBlocks.forEach((block, idx) => {
+        const placeholder = `___CODEBLOCK_${idx}___`;
+        const codeClass = block.language ? ` class="language-${block.language}"` : '';
+        // Escape code content for XSS protection
+        const escapedCode = escapeHtml(block.code);
+        const codeHtml = `<pre class="chat-code-block"><code${codeClass}>${escapedCode}</code></pre>`;
+        html = html.replace(placeholder, codeHtml);
+    });
     
-    // Inline code (`code`)
-    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // Inline code (`code`) - must be done after code blocks
+    html = html.replace(/`([^`]+)`/g, '<code class="chat-inline-code">$1</code>');
     
     // Bold (**text**)
     html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
@@ -7173,10 +9301,18 @@ async function updateProjectJournal(updates) {
 }
 
 // Extract code blocks and file paths from AI response for implementation
-async function handleCodeImplementation(responseText, originalMessage) {
+async function handleCodeImplementation(responseText, originalMessage, targetElement = null) {
     if (!state.currentProject || !window.electronAPI) {
+        console.log('⚠️ handleCodeImplementation: No project or Electron API');
         return;
     }
+    
+    console.log('🔍 handleCodeImplementation called:', {
+        hasResponseText: !!responseText,
+        responseLength: responseText?.length,
+        hasTargetElement: !!targetElement,
+        hasCodeBlocks: responseText?.includes('```')
+    });
     
     try {
         const implementations = [];
@@ -7203,12 +9339,15 @@ async function handleCodeImplementation(responseText, originalMessage) {
             });
         }
         
-        // For each code block, look backwards for file hints
+        // For each code block, look for file hints (both before AND inside the code block)
         allCodeBlocks.forEach(block => {
             if (block.code.length < 10) return; // Skip tiny code blocks
             
             // Look backwards up to 500 chars for file hints
             const beforeBlock = responseText.substring(Math.max(0, block.index - 500), block.index);
+            
+            // Also check the first few lines of the code block itself for file headers
+            const codeFirstLines = block.code.split('\n').slice(0, 5).join('\n');
             
             // Try multiple patterns to find file hints
             // Pattern 1: "### File: path" or "## File: path" (markdown headers) - capture only the path
@@ -7221,31 +9360,55 @@ async function handleCodeImplementation(responseText, originalMessage) {
             ];
             
             let filePathHint = null;
+            let extractedCode = block.code;
+            
+            // First, check if file header is INSIDE the code block (at the start)
             for (let i = 0; i < fileHintPatterns.length; i++) {
                 const pattern = fileHintPatterns[i];
-                const fileHintMatch = beforeBlock.match(pattern);
+                const fileHintMatch = codeFirstLines.match(pattern);
                 if (fileHintMatch && fileHintMatch[1]) {
                     filePathHint = fileHintMatch[1].trim();
                     // Clean up the file path - remove any markdown formatting or extra text
                     filePathHint = filePathHint.replace(/^###?\s*/, '').replace(/\s*$/, '');
-                    console.log(`🔍 Found file hint: "${filePathHint}" using pattern ${i + 1}`);
+                    
+                    // Remove the file header line from the code
+                    const headerLinePattern = new RegExp(`^###?\\s*File:\\s*${filePathHint.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^\n]*\n?`, 'im');
+                    extractedCode = extractedCode.replace(headerLinePattern, '').trim();
+                    
+                    console.log(`🔍 Found file hint INSIDE code block: "${filePathHint}" using pattern ${i + 1}`);
                     break;
+                }
+            }
+            
+            // If not found inside, check BEFORE the code block
+            if (!filePathHint) {
+                for (let i = 0; i < fileHintPatterns.length; i++) {
+                    const pattern = fileHintPatterns[i];
+                    const fileHintMatch = beforeBlock.match(pattern);
+                    if (fileHintMatch && fileHintMatch[1]) {
+                        filePathHint = fileHintMatch[1].trim();
+                        // Clean up the file path - remove any markdown formatting or extra text
+                        filePathHint = filePathHint.replace(/^###?\s*/, '').replace(/\s*$/, '');
+                        console.log(`🔍 Found file hint BEFORE code block: "${filePathHint}" using pattern ${i + 1}`);
+                        break;
+                    }
                 }
             }
             
             if (!filePathHint) {
                 console.log(`⚠️ No file hint found for code block (${block.language}, ${block.code.length} chars)`);
                 console.log(`   Looking in: "${beforeBlock.substring(Math.max(0, beforeBlock.length - 200))}"`);
+                console.log(`   Code first lines: "${codeFirstLines.substring(0, 200)}"`);
             }
             
-            // Add to implementations
+            // Add to implementations (use extracted code if header was removed)
             implementations.push({
                 filePath: filePathHint,
                 language: block.language,
-                code: block.code
+                code: extractedCode
             });
             
-            console.log(`📝 Found code block: ${filePathHint || 'unnamed'} (${block.language}), ${block.code.length} chars`);
+            console.log(`📝 Found code block: ${filePathHint || 'unnamed'} (${block.language}), ${extractedCode.length} chars`);
         });
         
         // 2. Detect file updates in natural language responses (e.g., "Here's the updated PROJECT_JOURNAL.md:")
@@ -7329,8 +9492,10 @@ async function handleCodeImplementation(responseText, originalMessage) {
         }
         
         // If we found code blocks, offer to implement them
+        console.log(`🔍 Implementation check: Found ${implementations.length} code block(s)`);
         if (implementations.length > 0) {
-            console.log(`✅ Found ${implementations.length} code block(s) to implement`);
+            console.log(`✅ Found ${implementations.length} code block(s) to implement:`, implementations.map(i => ({ file: i.filePath, lang: i.language, codeLength: i.code.length })));
+            console.log(`📋 Implementation details:`, implementations);
             // Show implementation options
             const chatMessages = document.getElementById('chatMessages');
             if (chatMessages) {
@@ -7367,28 +9532,60 @@ async function handleCodeImplementation(responseText, originalMessage) {
                     });
                 }
                 
-                // IMPORTANT: Insert AFTER the last assistant message, not just append
-                // Use a small delay to ensure DOM is fully updated
-                setTimeout(() => {
+                // IMPORTANT: Insert AFTER the target element (the response div we just created)
+                let insertAfterElement = null;
+                
+                // If targetElement is provided, verify it's still in the DOM
+                if (targetElement && targetElement.parentNode) {
+                    insertAfterElement = targetElement;
+                    console.log('✅ Using provided targetElement');
+                } else {
+                    // Fallback: find the last assistant message
                     const assistantMessages = chatMessages.querySelectorAll('.chat-message.assistant:not(.typing)');
                     if (assistantMessages.length > 0) {
-                        const lastAssistantMsg = assistantMessages[assistantMessages.length - 1];
-                        // Check if implementation offer already exists after this message
-                        const existingOffer = lastAssistantMsg.nextElementSibling;
-                        if (existingOffer && existingOffer.classList.contains('implementation-offer')) {
-                            existingOffer.remove();
-                        }
-                        lastAssistantMsg.insertAdjacentElement('afterend', implDiv);
-                    } else {
-                        // Fallback: just append if no assistant messages found
-                        chatMessages.appendChild(implDiv);
+                        insertAfterElement = assistantMessages[assistantMessages.length - 1];
+                        console.log('✅ Found last assistant message as fallback');
                     }
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
-                }, 100);
+                }
+                
+                if (insertAfterElement && insertAfterElement.parentNode) {
+                    // Check if implementation offer already exists after this message
+                    const existingOffer = insertAfterElement.nextElementSibling;
+                    if (existingOffer && existingOffer.classList.contains('implementation-offer')) {
+                        existingOffer.remove();
+                        console.log('🗑️ Removed existing implementation offer');
+                    }
+                    // Insert directly after the target element
+                    insertAfterElement.insertAdjacentElement('afterend', implDiv);
+                    console.log('✅ Implementation offer inserted after response message');
+                    console.log('🔍 implDiv:', implDiv);
+                    console.log('🔍 implDiv.innerHTML length:', implDiv.innerHTML.length);
+                    console.log('🔍 Button count:', implDiv.querySelectorAll('button').length);
+                } else {
+                    // Fallback: just append if no target found
+                    chatMessages.appendChild(implDiv);
+                    console.log('⚠️ No target element found, appended to end');
+                    console.log('🔍 implDiv:', implDiv);
+                    console.log('🔍 implDiv.innerHTML length:', implDiv.innerHTML.length);
+                    console.log('🔍 Button count:', implDiv.querySelectorAll('button').length);
+                }
+                
+                // Scroll to show the buttons
+                chatMessages.scrollTop = chatMessages.scrollHeight;
                 
                 // Store implementations for button handlers
                 window.pendingImplementations = implementations;
                 console.log('✅ Implementation offer displayed');
+                console.log('🔍 Stored implementations:', window.pendingImplementations);
+                
+                // Force a re-check to make sure buttons are visible
+                setTimeout(() => {
+                    const buttons = document.querySelectorAll('.implement-btn, .implement-all-btn');
+                    console.log('🔍 Buttons found in DOM:', buttons.length);
+                    if (buttons.length === 0) {
+                        console.error('❌ NO BUTTONS FOUND IN DOM!');
+                    }
+                }, 100);
             } else {
                 console.warn('⚠️ chatMessages element not found');
             }
@@ -7676,8 +9873,12 @@ async function callOpenAI(message) {
     }
 
     try {
+        // Get user's name from settings (if available)
+        const userName = state.userName || null;
+        const nameContext = userName ? `\n\n## User Information:\nThe user's name is **${userName}**. You can use their name naturally in conversation when appropriate (e.g., "Hey ${userName}!", "Great question, ${userName}!", "You're doing awesome, ${userName}!"). Don't overuse it, but feel free to personalize your responses when it feels natural and friendly.` : '';
+        
         // Build conversation context with persona and journal
-        let systemPrompt = `You are Cursy, a friendly and enthusiastic AI coding assistant for VIBE IDE. You help beginners learn to code with patience, encouragement, and clear explanations. You use emojis naturally, support markdown formatting, and can suggest GIFs when appropriate. Be conversational, supportive, and educational. Always maintain a positive, helpful tone.
+        let systemPrompt = `You are Cursy, a friendly and enthusiastic AI coding assistant for VIBE IDE. You help beginners learn to code with patience, encouragement, and clear explanations. You use emojis naturally, support markdown formatting, and can suggest GIFs when appropriate. Be conversational, supportive, and educational. Always maintain a positive, helpful tone.${nameContext}
 
 ## IMPORTANT: File Modification Capability
 
@@ -7715,9 +9916,17 @@ async function callOpenAI(message) {
 
 This will automatically show an "Implement This" button that users can click to apply your changes!`;
         
-        // Add Agent Persona if available
-        if (state.agentPersona) {
-            systemPrompt += `\n\n## Your Persona Guidelines:\n${state.agentPersona}\n\nFollow these persona guidelines to maintain consistency with the project's expectations.`;
+        // Add Global Agent Persona if available (applies to all projects)
+        if (state.globalAgentPersona) {
+            systemPrompt += `\n\n## Global Persona Guidelines:\n${state.globalAgentPersona}\n\nThese are your global personality guidelines that apply across all projects.`;
+        }
+        
+        // Add Project-Specific Agent Persona if available and overrides are allowed
+        if (state.agentPersona && state.allowProjectPersonaOverrides) {
+            systemPrompt += `\n\n## Project-Specific Persona Guidelines:\n${state.agentPersona}\n\nFollow these persona guidelines to maintain consistency with the project's expectations. These override the global persona for this specific project.`;
+        } else if (state.agentPersona && !state.allowProjectPersonaOverrides) {
+            // Project has persona but overrides are disabled - mention it but don't apply
+            systemPrompt += `\n\n## Note:\nThis project has an Agent_Persona.md file, but project-based persona overrides are currently disabled in global settings. The global persona takes precedence.`;
         }
         
         // Add Project Journal context if available
@@ -7967,6 +10176,121 @@ function getMockResponse(message) {
     };
 }
 
+// Record chat conversation to CML
+async function recordChatToCML(userMessage, assistantMessage) {
+    try {
+        console.log('📝 recordChatToCML called:', {
+            hasUserMessage: !!userMessage,
+            hasAssistantMessage: !!assistantMessage,
+            recordChatToCML: state.recordChatToCML,
+            localStorage: localStorage.getItem('vibe-ide-record-chat-to-cml'),
+            hasProject: !!state.currentProject,
+            projectPath: state.currentProject?.path
+        });
+        
+        // Check if CML recording is enabled (check both state and localStorage)
+        const cmlRecordingEnabled = state.recordChatToCML !== false && localStorage.getItem('vibe-ide-record-chat-to-cml') === 'true';
+        if (!cmlRecordingEnabled) {
+            console.log('⚠️ CML recording disabled');
+            return; // CML recording disabled
+        }
+        
+        // Determine CML folder path
+        let cmlFolderPath = null;
+        if (state.currentProject && state.currentProject.path) {
+            // Use project's cml folder
+            cmlFolderPath = state.currentProject.path.replace(/[/\\]$/, '') + 
+                          (state.currentProject.path.includes('\\') ? '\\' : '/') + 'cml';
+            console.log('📁 CML folder path:', cmlFolderPath);
+        } else {
+            // Use global CML folder (could be The Imaginatorium or a default location)
+            // For now, skip if no project
+            console.warn('⚠️ No project loaded, skipping CML recording');
+            showToast('CML recording requires a project to be open', 'warning');
+            return;
+        }
+        
+        // Create CML folder if it doesn't exist
+        if (window.electronAPI && window.electronAPI.createFolder) {
+            const exists = await window.electronAPI.fileExists(cmlFolderPath);
+            console.log('📁 CML folder exists:', exists);
+            if (!exists) {
+                const createResult = await window.electronAPI.createFolder(cmlFolderPath);
+                console.log('📁 Created CML folder:', createResult);
+                if (createResult && createResult.success === false) {
+                    console.error('❌ Failed to create CML folder:', createResult.error);
+                    showToast('Error creating CML folder: ' + createResult.error, 'error');
+                    return;
+                }
+            }
+        } else {
+            console.error('❌ Electron API not available for folder creation');
+            showToast('CML recording unavailable: Electron API not loaded', 'error');
+            return;
+        }
+        
+        // Generate CML filename based on timestamp
+        const now = new Date();
+        const dateStr = now.toISOString().split('T')[0];
+        const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-');
+        const cmlFileName = `${dateStr}-chat-${timeStr}.cml`;
+        const cmlFilePath = cmlFolderPath + (cmlFolderPath.includes('\\') ? '\\' : '/') + cmlFileName;
+        
+        // Get user name (fallback to 'damo' for now, will use login in beta)
+        const userName = state.userName || 'damo';
+        const projectName = state.currentProject ? state.currentProject.path.split(/[/\\]/).pop() : 'vibe-ide';
+        
+        // Escape quotes and newlines in messages for CML format
+        const escapeCML = (str) => {
+            if (!str) return '';
+            return String(str)
+                .replace(/\\/g, '\\\\')
+                .replace(/"/g, '\\"')
+                .replace(/\n/g, '\\n')
+                .replace(/\r/g, '');
+        };
+        
+        // Create CML content manually (simpler and more reliable)
+        const timestamp = now.toISOString();
+        const cmlContent = `[${timestamp}|chat|${userName.toLowerCase()},cursy|${projectName}|type:chat-conversation]{
+  title:"Chat Conversation: ${dateStr} ${now.toLocaleTimeString()}";
+  context:"A conversation between ${userName} and Cursy in VIBE IDE";
+  user_message:"${escapeCML(userMessage)}";
+  assistant_message:"${escapeCML(assistantMessage)}";
+  timestamp:"${timestamp}";
+  project:"${projectName}";
+}`;
+        
+        console.log('📝 Created CML content, length:', cmlContent.length);
+        console.log('📝 CML file path:', cmlFilePath);
+        
+        // Save CML file
+        if (window.electronAPI && window.electronAPI.writeFile) {
+            console.log('💾 Writing CML file to:', cmlFilePath);
+            const writeResult = await window.electronAPI.writeFile(cmlFilePath, cmlContent);
+            console.log('💾 Write result:', writeResult);
+            
+            if (writeResult && writeResult.success !== false) {
+                console.log('✅ Chat recorded to CML:', cmlFilePath);
+                // Show toast notification when assistant responds (so user knows it's working)
+                if (assistantMessage) {
+                    const folderName = cmlFolderPath.split(/[/\\]/).pop();
+                    showToast(`📝 Chat saved to: ${folderName}/${cmlFileName}`, 'success');
+                }
+            } else {
+                console.error('❌ Failed to write CML file:', writeResult);
+                showToast('Error saving CML file: ' + (writeResult?.error || 'Unknown error'), 'error');
+            }
+        } else {
+            console.warn('⚠️ Electron API not available for CML recording');
+            showToast('CML recording unavailable: Electron API not loaded', 'warning');
+        }
+    } catch (error) {
+        console.error('Error recording chat to CML:', error);
+        showToast('❌ Error recording chat to CML: ' + error.message, 'error');
+    }
+}
+
 function saveChatHistory() {
     try {
         localStorage.setItem('vibe-ide-chat-history', JSON.stringify(state.chatHistory));
@@ -8148,7 +10472,7 @@ function sendChatMessage() {
     // Scroll to bottom
     chatMessages.scrollTop = chatMessages.scrollHeight;
     
-    // Update Cursy to thinking state
+    // Update Cursy to thinking state (will stay until response is received)
     updateCursyState('thinking', 'Thinking...');
     
     // Show typing indicator
@@ -8158,14 +10482,25 @@ function sendChatMessage() {
     chatMessages.appendChild(typingDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
     
-    // Update to typing state after a short delay
-    setTimeout(() => {
-        updateCursyState('typing', 'Typing response...');
-    }, 300);
-    
     // Check for special commands (use messageMarkdown)
     const messageLower = messageMarkdown.toLowerCase().trim();
-    if (messageLower === 'update journal' || messageLower === 'update project journal' || messageLower.startsWith('cursy, update journal')) {
+    
+    // More flexible journal update detection - understands natural language variations
+    // Matches patterns like:
+    // - "update journal" / "update the journal" / "update project journal"
+    // - "cursy update journal" / "cursy, update journal" / "cursy, update the journal"
+    // - "can you update journal" / "please update journal" / "update journal please"
+    // - "journal update" / "update my journal" / "update the project journal"
+    const journalUpdatePatterns = [
+        /^(cursy[,]?\s*)?(can\s+you\s+|please\s+|will\s+you\s+)?(update|refresh|regenerate)\s+(the\s+)?(project\s+)?journal/i,
+        /^(update|refresh|regenerate)\s+(the\s+)?(project\s+)?journal(\s+please|\s+cursy)?/i,
+        /^(project\s+)?journal\s+(update|refresh|regenerate)/i,
+        /^(cursy[,]?\s*)?(update|refresh|regenerate)\s+(the\s+)?journal/i
+    ];
+    
+    const isJournalUpdateCommand = journalUpdatePatterns.some(pattern => pattern.test(messageLower));
+    
+    if (isJournalUpdateCommand) {
         // Trigger journal update
         typingDiv.innerHTML = '<p>🤖 Cursy is analyzing the project and updating the journal...</p>';
         chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -8416,6 +10751,9 @@ CRITICAL: Return ONLY the complete updated PROJECT_JOURNAL.md markdown content. 
         let responseText = null;
         let gifTerm = null;
         
+        // Set thinking state and keep it until response is received
+        updateCursyState('thinking', 'Thinking...');
+        
         // Try OpenAI API
         if (state.useOpenAI && state.openaiClient) {
             try {
@@ -8426,6 +10764,9 @@ CRITICAL: Return ONLY the complete updated PROJECT_JOURNAL.md markdown content. 
                 }
                 
                 responseText = await callOpenAI(enhancedMessage); // Use markdown version (includes GIF code)
+                
+                // Change to typing state when response is received (before processing)
+                updateCursyState('typing', 'Typing response...');
                 if (responseText) {
                     // Check if response suggests a GIF (simple heuristic)
                     const lowerResponseText = responseText.toLowerCase();
@@ -8476,29 +10817,43 @@ CRITICAL: Return ONLY the complete updated PROJECT_JOURNAL.md markdown content. 
         // Add to history
         addMessageToHistory('assistant', responseText);
         
+        // Record chat to CML (if enabled) - record the full conversation exchange
+        recordChatToCML(messageMarkdown, responseText);
+        
         // Scroll to bottom
         chatMessages.scrollTop = chatMessages.scrollHeight;
         
         // Check if response contains code blocks OR file updates that should be implemented
         // This includes: code blocks, journal updates, config file updates, etc.
         // IMPORTANT: Do this AFTER displaying the response so buttons appear below it
-        if (state.currentProject && responseText) {
-            const hasCodeBlocks = responseText.includes('```');
-            const hasFileUpdates = responseText.toLowerCase().includes('updated journal') || 
-                                  responseText.toLowerCase().includes('revised journal') ||
-                                  responseText.toLowerCase().includes('project journal update') ||
-                                  responseText.includes('## Project Name:') ||
-                                  responseText.includes('# 🚀 Project Journal');
-            
-            if (hasCodeBlocks || hasFileUpdates) {
-                console.log('💻 Detected code blocks or file updates in response, checking for implementation...');
-                await handleCodeImplementation(responseText, message);
-                // Scroll again after implementation offer is added
-                chatMessages.scrollTop = chatMessages.scrollHeight;
+        // Use a small delay to ensure DOM is fully rendered, but store responseDiv reference
+        const responseDivRef = responseDiv; // Store reference before async
+        setTimeout(async () => {
+            if (state.currentProject && responseText) {
+                const hasCodeBlocks = responseText.includes('```');
+                const hasFileUpdates = responseText.toLowerCase().includes('updated journal') || 
+                                      responseText.toLowerCase().includes('revised journal') ||
+                                      responseText.toLowerCase().includes('project journal update') ||
+                                      responseText.includes('## Project Name:') ||
+                                      responseText.includes('# 🚀 Project Journal');
+                
+                if (hasCodeBlocks || hasFileUpdates) {
+                    console.log('💻 Detected code blocks or file updates in response, checking for implementation...');
+                    console.log('🔍 responseDivRef:', responseDivRef);
+                    console.log('🔍 responseDivRef in DOM:', responseDivRef && responseDivRef.parentNode);
+                    // Pass responseDivRef so buttons appear directly below it
+                    await handleCodeImplementation(responseText, message, responseDivRef);
+                    // Scroll again after implementation offer is added
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                } else {
+                    console.log('⚠️ No code blocks or file updates detected in response');
+                }
+            } else {
+                console.log('⚠️ No project or response text for implementation check');
             }
-        }
+        }, 300);
         
-        // Update Cursy state based on response
+        // Update Cursy state based on response (clear thinking/typing state)
         if (responseText.toLowerCase().includes('error') || responseText.toLowerCase().includes('bug')) {
             updateCursyState('error', 'Error detected');
             setTimeout(() => {
@@ -8510,10 +10865,8 @@ CRITICAL: Return ONLY the complete updated PROJECT_JOURNAL.md markdown content. 
                 updateCursyState('idle', 'Ready to help!');
             }, 2000);
         } else {
-            // Return to idle state
-            setTimeout(() => {
-                updateCursyState('idle', 'Ready to help!');
-            }, 500);
+            // Return to idle state (thinking/typing already cleared)
+            updateCursyState('idle', 'Ready to help!');
         }
     })();
 }
