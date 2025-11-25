@@ -10842,7 +10842,7 @@ CRITICAL: Return ONLY the complete updated PROJECT_JOURNAL.md markdown content. 
                     console.log('🔍 responseDivRef:', responseDivRef);
                     console.log('🔍 responseDivRef in DOM:', responseDivRef && responseDivRef.parentNode);
                     // Pass responseDivRef so buttons appear directly below it
-                    await handleCodeImplementation(responseText, message, responseDivRef);
+                    await handleCodeImplementation(responseText, messageMarkdown, responseDivRef);
                     // Scroll again after implementation offer is added
                     chatMessages.scrollTop = chatMessages.scrollHeight;
                 } else {
