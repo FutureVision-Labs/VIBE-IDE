@@ -9373,32 +9373,67 @@ async function handleCodeImplementation(responseText, originalMessage, targetEle
                     
                     console.log(`🔍 Found file hint INSIDE code block: "${filePathHint}" using pattern ${i + 1}`);
                     console.log(`📝 Original code length: ${block.code.length} chars`);
+                    console.log(`📝 Original code preview: "${block.code.substring(0, 100)}"`);
                     
-                    // Remove the file header line from the code - be more careful with the regex
-                    // Try multiple patterns to remove the header line
-                    const headerPatterns = [
-                        new RegExp(`^###?\\s*File:\\s*${filePathHint.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^\n]*\n?`, 'im'),
-                        new RegExp(`^###?\\s*File:\\s*[^\n]*\n?`, 'im'), // Fallback: match any file header
-                        new RegExp(`^###?\\s*File:[^\n]*\n?`, 'im') // Even more permissive
-                    ];
-                    
+                    // Remove the file header line from the code - be VERY careful with the regex
+                    // Only remove if there's actual code after the header
                     let codeAfterRemoval = block.code;
-                    for (const headerPattern of headerPatterns) {
-                        const beforeLength = codeAfterRemoval.length;
-                        codeAfterRemoval = codeAfterRemoval.replace(headerPattern, '').trim();
-                        if (codeAfterRemoval.length < beforeLength) {
-                            console.log(`✅ Removed header line (${beforeLength} -> ${codeAfterRemoval.length} chars)`);
+                    
+                    // Split by newlines to work line-by-line
+                    const lines = block.code.split('\n');
+                    let headerLineIndex = -1;
+                    
+                    // Find the header line (should be first line)
+                    for (let lineIdx = 0; lineIdx < Math.min(lines.length, 3); lineIdx++) {
+                        const line = lines[lineIdx];
+                        if (line.match(/^###?\s*File:\s*/i)) {
+                            headerLineIndex = lineIdx;
+                            console.log(`📝 Found header line at index ${lineIdx}: "${line}"`);
                             break;
+                        }
+                    }
+                    
+                    if (headerLineIndex >= 0) {
+                        // Remove only the header line, keep everything else
+                        const linesWithoutHeader = lines.filter((line, idx) => idx !== headerLineIndex);
+                        codeAfterRemoval = linesWithoutHeader.join('\n').trim();
+                        console.log(`✅ Removed header line (${block.code.length} -> ${codeAfterRemoval.length} chars)`);
+                        console.log(`📝 Code after removal preview: "${codeAfterRemoval.substring(0, 100)}"`);
+                    } else {
+                        // Fallback: try regex removal but be very careful
+                        const headerPatterns = [
+                            new RegExp(`^###?\\s*File:\\s*${filePathHint.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^\n]*\n?`, 'im'),
+                            new RegExp(`^###?\\s*File:\\s*[^\n]*\n?`, 'im'), // Fallback: match any file header
+                            new RegExp(`^###?\\s*File:[^\n]*\n?`, 'im') // Even more permissive
+                        ];
+                        
+                        for (const headerPattern of headerPatterns) {
+                            const beforeLength = codeAfterRemoval.length;
+                            const testRemoval = codeAfterRemoval.replace(headerPattern, '').trim();
+                            // Only use this removal if we removed something AND there's still code left
+                            if (testRemoval.length < beforeLength && testRemoval.length > 0) {
+                                codeAfterRemoval = testRemoval;
+                                console.log(`✅ Removed header line via regex (${beforeLength} -> ${codeAfterRemoval.length} chars)`);
+                                break;
+                            }
                         }
                     }
                     
                     extractedCode = codeAfterRemoval;
                     console.log(`📝 Extracted code length: ${extractedCode.length} chars`);
                     
-                    // Safety check: if extracted code is too short, use original code
-                    if (extractedCode.length < 10 && block.code.length > 50) {
+                    // Safety check: if extracted code is empty or too short, use original code
+                    if (extractedCode.length === 0) {
+                        console.warn(`⚠️ Extracted code is EMPTY after header removal, using original code`);
+                        extractedCode = block.code;
+                    } else if (extractedCode.length < 10 && block.code.length > 50) {
                         console.warn(`⚠️ Extracted code too short (${extractedCode.length} chars), using original code`);
                         extractedCode = block.code;
+                    } else if (extractedCode.length === 0 && block.code.length < 50) {
+                        // If original code was very short and we removed everything, the code block might just be the header
+                        // In this case, we should NOT use the original code (it's just the header)
+                        console.warn(`⚠️ Code block appears to be only a header with no actual code content`);
+                        // Keep extractedCode as empty - the safety check in implementCode will catch this
                     }
                     
                     break;
