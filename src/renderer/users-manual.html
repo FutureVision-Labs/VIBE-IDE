@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIBE IDE User's Manual</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1e1e1e;
+            color: #cccccc;
+            line-height: 1.6;
+        }
+
+        .manual-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .manual-header {
+            background: linear-gradient(135deg, #8b5cf6 0%, #00a2ff 100%);
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .manual-header h1 {
+            color: #fff;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .manual-header p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1.1em;
+        }
+
+        .search-box {
+            background: #252526;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border: 1px solid #3e3e42;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px;
+            background: #1e1e1e;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            color: #cccccc;
+            font-size: 14px;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #00a2ff;
+        }
+
+        .toc {
+            background: #252526;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border: 1px solid #3e3e42;
+        }
+
+        .toc h2 {
+            color: #00a2ff;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .toc ul {
+            list-style: none;
+        }
+
+        .toc li {
+            margin: 8px 0;
+        }
+
+        .toc a {
+            color: #cccccc;
+            text-decoration: none;
+            transition: color 0.2s;
+            display: block;
+            padding: 5px 0;
+        }
+
+        .toc a:hover {
+            color: #00a2ff;
+        }
+
+        .toc a.active {
+            color: #8b5cf6;
+            font-weight: bold;
+        }
+
+        .content-section {
+            background: #252526;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border: 1px solid #3e3e42;
+        }
+
+        .content-section h2 {
+            color: #00a2ff;
+            font-size: 2em;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #3e3e42;
+        }
+
+        .content-section h3 {
+            color: #8b5cf6;
+            font-size: 1.5em;
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }
+
+        .content-section h4 {
+            color: #cccccc;
+            font-size: 1.2em;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        .content-section p {
+            margin-bottom: 15px;
+            color: #cccccc;
+        }
+
+        .content-section ul, .content-section ol {
+            margin-left: 30px;
+            margin-bottom: 15px;
+        }
+
+        .content-section li {
+            margin: 8px 0;
+            color: #cccccc;
+        }
+
+        .content-section code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+            color: #00ff88;
+        }
+
+        .content-section pre {
+            background: #1e1e1e;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 15px 0;
+            border: 1px solid #3e3e42;
+            border-left: 3px solid #00a2ff;
+        }
+
+        .content-section pre code {
+            background: transparent;
+            padding: 0;
+            color: #cccccc;
+            font-size: 0.9em;
+            display: block;
+            white-space: pre;
+        }
+
+        .faq-item {
+            background: #1e1e1e;
+            border: 1px solid #3e3e42;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+
+        .faq-question {
+            padding: 15px;
+            cursor: pointer;
+            background: #252526;
+            color: #cccccc;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .faq-question:hover {
+            background: #2a2d2e;
+        }
+
+        .faq-question::after {
+            content: '▼';
+            color: #00a2ff;
+            transition: transform 0.3s;
+        }
+
+        .faq-item.active .faq-question::after {
+            transform: rotate(180deg);
+        }
+
+        .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .faq-item.active .faq-answer {
+            max-height: 1000px;
+        }
+
+        .faq-answer-content {
+            padding: 15px;
+            color: #cccccc;
+        }
+
+        .back-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #8b5cf6;
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            font-size: 24px;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            transition: background 0.2s, transform 0.2s;
+            z-index: 1000;
+        }
+
+        .back-to-top:hover {
+            background: #00a2ff;
+            transform: translateY(-3px);
+        }
+
+        .back-to-top.visible {
+            display: flex;
+        }
+
+        .highlight {
+            background: rgba(139, 92, 246, 0.3);
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+
+        .tip-box {
+            background: rgba(0, 162, 255, 0.1);
+            border-left: 3px solid #00a2ff;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        .warning-box {
+            background: rgba(255, 193, 7, 0.1);
+            border-left: 3px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        .success-box {
+            background: rgba(0, 255, 136, 0.1);
+            border-left: 3px solid #00ff88;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        @media (max-width: 768px) {
+            .manual-container {
+                padding: 10px;
+            }
+
+            .manual-header h1 {
+                font-size: 2em;
+            }
+
+            .content-section {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="manual-container">
+        <div class="manual-header">
+            <h1>📚 VIBE IDE User's Manual</h1>
+            <p>Your complete guide to coding with VIBE IDE</p>
+        </div>
+
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="🔍 Search the manual...">
+        </div>
+
+        <div class="toc">
+            <h2>📑 Table of Contents</h2>
+            <ul id="tocList">
+                <li><a href="#getting-started">Getting Started</a></li>
+                <li><a href="#features-overview">Features Overview</a></li>
+                <li><a href="#cursys-corner">Cursy's Corner</a></li>
+                <li><a href="#code-editor">Code Editor</a></li>
+                <li><a href="#project-management">Project Management</a></li>
+                <li><a href="#cml-system">CML System</a></li>
+                <li><a href="#music-sfx">Music & SFX</a></li>
+                <li><a href="#keyboard-shortcuts">Keyboard Shortcuts</a></li>
+                <li><a href="#tips-tricks">Tips & Tricks</a></li>
+                <li><a href="#troubleshooting">Troubleshooting</a></li>
+                <li><a href="#faq">Frequently Asked Questions</a></li>
+            </ul>
+        </div>
+
+        <div class="content-section" id="getting-started">
+            <h2>🚀 Getting Started</h2>
+            
+            <h3>Welcome to VIBE IDE!</h3>
+            <p>VIBE IDE is a beginner-friendly coding environment designed to make programming accessible, fun, and collaborative. Whether you're a complete beginner or an experienced developer, VIBE IDE has something for everyone.</p>
+
+            <h3>Installation</h3>
+            <p>VIBE IDE is available as a desktop application. Download it from:</p>
+            <ul>
+                <li><strong>itch.io:</strong> <a href="https://futurevisionlabs.itch.io/vibe-ide" target="_blank" style="color: #00a2ff;">futurevisionlabs.itch.io/vibe-ide</a></li>
+                <li><strong>GitHub:</strong> <a href="https://github.com/FutureVision-Labs/VIBE-IDE" target="_blank" style="color: #00a2ff;">github.com/FutureVision-Labs/VIBE-IDE</a></li>
+            </ul>
+
+            <h3>Your First Project</h3>
+            <ol>
+                <li>Open VIBE IDE</li>
+                <li>Go to <strong>File → New Project</strong></li>
+                <li>Choose a project template:
+                    <ul>
+                        <li><strong>📄 Blank Project</strong> - Start from scratch with a clean slate</li>
+                        <li><strong>🌐 Web App</strong> - HTML, CSS, and JavaScript web application</li>
+                        <li><strong>🐍 Python Beginner</strong> - Simple Python script to learn the basics</li>
+                        <li><strong>📊 Data Analysis</strong> - Python project for analyzing data</li>
+                        <li><strong>🎮 Platformer Game</strong> - 2D platformer game with Phaser.js</li>
+                        <li><strong>🎯 Shooter Game</strong> - Shooter game template</li>
+                        <li><strong>🧩 Puzzle Game</strong> - Puzzle game template</li>
+                        <li><strong>🏃 Runner Game</strong> - Runner game template</li>
+                    </ul>
+                </li>
+                <li>For game templates, optionally select a genre (helps AI provide better suggestions)</li>
+                <li>Choose a name and location for your project</li>
+                <li>Click <strong>Create</strong></li>
+                <li>Start coding!</li>
+            </ol>
+
+            <div class="tip-box">
+                <strong>💡 Tip:</strong> Your first project will automatically create a <code>PROJECT_JOURNAL.md</code> file to track your progress! Templates come with starter code and project structure to help you get started quickly.
+            </div>
+        </div>
+
+        <div class="content-section" id="features-overview">
+            <h2>✨ Features Overview</h2>
+            
+            <h3>Core Features</h3>
+            <ul>
+                <li><strong>AI-Powered Assistant (Cursy):</strong> Get help, suggestions, and learn as you code</li>
+                <li><strong>Monaco Code Editor:</strong> The same powerful editor used in VS Code and Cursor</li>
+                <li><strong>Project Management:</strong> Organize your code with projects and files</li>
+                <li><strong>CML System:</strong> Track events and generate narrative stories</li>
+                <li><strong>Music & SFX Player:</strong> Search and play music from Freesound.org</li>
+                <li><strong>WYSIWYG Markdown Editor:</strong> Rich text editing with live preview</li>
+                <li><strong>Project Journals:</strong> Automated documentation of your projects</li>
+            </ul>
+
+            <h3>Advanced Features</h3>
+            <ul>
+                <li><strong>Agent Persona Settings:</strong> Customize Cursy's personality and behavior</li>
+                <li><strong>CML Viewer & Editor:</strong> View and edit CML files directly in the IDE</li>
+                <li><strong>Chat-to-CML Recording:</strong> Automatically save conversations as CML</li>
+                <li><strong>Code Implementation:</strong> One-click code implementation from AI responses</li>
+                <li><strong>File Tree Navigation:</strong> Easy project file management</li>
+            </ul>
+        </div>
+
+        <div class="content-section" id="cursys-corner">
+            <h2>🤖 Cursy's Corner</h2>
+            
+            <h3>Meet Cursy</h3>
+            <p>Cursy is your AI coding assistant, powered by GPT-4o-mini. Cursy doesn't just wait for questions—she observes, suggests, and helps you learn as you code!</p>
+
+            <h3>Chatting with Cursy</h3>
+            <p>To chat with Cursy:</p>
+            <ol>
+                <li>Open Cursy's Corner (usually in the right sidebar)</li>
+                <li>Type your question or request in the chat input</li>
+                <li>Press Enter or click Send</li>
+                <li>Cursy will respond with helpful information, code examples, or suggestions</li>
+            </ol>
+
+            <h3>What Cursy Can Do</h3>
+            <ul>
+                <li>Answer coding questions</li>
+                <li>Explain code concepts</li>
+                <li>Help debug errors</li>
+                <li>Suggest code improvements</li>
+                <li>Generate code snippets</li>
+                <li>Update project journals</li>
+                <li>Create CML files</li>
+                <li>And much more!</li>
+            </ul>
+
+            <h3>Customizing Cursy</h3>
+            <p>You can customize Cursy's personality through <strong>File → Agent Persona Settings</strong>:</p>
+            <ul>
+                <li>Choose from pre-made templates (Friendly Helper, Fun Friend, Strict Teacher, etc.)</li>
+                <li>Set personality traits (friendly, funny, patient, etc.)</li>
+                <li>Adjust communication style (conversational, professional, playful, etc.)</li>
+                <li>Control emoji usage</li>
+                <li>Add special instructions</li>
+            </ul>
+
+            <div class="tip-box">
+                <strong>💡 Tip:</strong> You can set a global persona that applies to all projects, or allow project-specific personas to override it!
+            </div>
+
+            <h3>Cursy's Notes</h3>
+            <p>Cursy's Corner includes a notes feature where you can:</p>
+            <ul>
+                <li>Jot down quick ideas</li>
+                <li>Save code snippets</li>
+                <li>Keep reminders</li>
+                <li>Store project-related notes</li>
+            </ul>
+            <p>Notes are saved locally and always accessible while coding. Click the corkboard or pinned notes in Cursy's office to open the notes editor.</p>
+
+            <h3>🎵 Music Player</h3>
+            <p>Cursy's Corner includes a built-in music player! Click the radio/boombox in Cursy's office to open it.</p>
+            <ul>
+                <li><strong>Search Music:</strong> Search for music from Freesound.org using keywords like "lofi", "coding music", "ambient", etc.</li>
+                <li><strong>Play Music:</strong> Click any track to play it while you code</li>
+                <li><strong>Favorites:</strong> Save your favorite tracks for quick access</li>
+                <li><strong>Playlists:</strong> Create and manage playlists of your favorite tracks</li>
+            </ul>
+            <p>The music player uses the Freesound API to search for royalty-free music. Make sure your Freesound API key is configured in your user data folder.</p>
+
+            <h3>📺 Video Player</h3>
+            <p>Click the TV in Cursy's office to open the video player!</p>
+            <ul>
+                <li><strong>Search Videos:</strong> Search for coding tutorials, educational videos, and more</li>
+                <li><strong>Watch Videos:</strong> Play videos directly in Cursy's Corner</li>
+                <li><strong>Learn While You Code:</strong> Keep tutorials open while working on your projects</li>
+            </ul>
+            <div class="tip-box">
+                <strong>⚠️ Note:</strong> Video player integration with Pixabay is coming soon! This feature will allow you to search and play videos directly in Cursy's Corner.
+            </div>
+
+            <h3>🖼️ Poster Selector</h3>
+            <p>Customize Cursy's office by changing the posters and wall decorations! Click any poster or framed art in Cursy's office to open the image gallery.</p>
+            <ul>
+                <li><strong>Search Images:</strong> Search for images using keywords like "abstract art", "coding", "nature", etc.</li>
+                <li><strong>Replace Posters:</strong> Click any image to replace the wall decoration</li>
+                <li><strong>Personalize:</strong> Make Cursy's office reflect your style!</li>
+            </ul>
+            <div class="tip-box">
+                <strong>⚠️ Note:</strong> Poster selector integration with Pixabay is coming soon! This feature will allow you to search and select images to customize Cursy's office decorations.
+            </div>
+        </div>
+
+        <div class="content-section" id="code-editor">
+            <h2>💻 Code Editor</h2>
+            
+            <h3>Monaco Editor</h3>
+            <p>VIBE IDE uses the Monaco Editor—the same powerful editor that powers VS Code and Cursor. This means you get:</p>
+            <ul>
+                <li>Intelligent autocompletion</li>
+                <li>Syntax highlighting for many languages</li>
+                <li>Code folding</li>
+                <li>Multi-cursor editing</li>
+                <li>Find and replace</li>
+                <li>Bracket matching</li>
+                <li>And much more!</li>
+            </ul>
+
+            <h3>Opening Files</h3>
+            <p>To open a file:</p>
+            <ol>
+                <li>Use <strong>File → Open File</strong> from the menu</li>
+                <li>Or click on a file in the file tree</li>
+                <li>The file will open in the editor</li>
+            </ol>
+
+            <h3>Saving Files</h3>
+            <p>To save a file:</p>
+            <ul>
+                <li>Press <code>Ctrl+S</code> (Windows/Linux) or <code>Cmd+S</code> (Mac)</li>
+                <li>Or use <strong>File → Save</strong> from the menu</li>
+                <li>Use <strong>File → Save As</strong> to save with a new name</li>
+            </ul>
+
+            <h3>Editor Features</h3>
+            <ul>
+                <li><strong>Syntax Highlighting:</strong> Automatic color coding based on file type</li>
+                <li><strong>Autocompletion:</strong> Press <code>Ctrl+Space</code> for suggestions</li>
+                <li><strong>Go to Line:</strong> Press <code>Ctrl+G</code> to jump to a specific line</li>
+                <li><strong>Find:</strong> Press <code>Ctrl+F</code> to search in the current file</li>
+                <li><strong>Replace:</strong> Press <code>Ctrl+H</code> to find and replace</li>
+                <li><strong>Multi-cursor:</strong> Hold <code>Alt</code> and click to add multiple cursors</li>
+            </ul>
+        </div>
+
+        <div class="content-section" id="project-management">
+            <h2>📁 Project Management</h2>
+            
+            <h3>Creating a Project</h3>
+            <ol>
+                <li>Go to <strong>File → New Project</strong></li>
+                <li>Enter a project name</li>
+                <li>Choose a location (or use the default)</li>
+                <li>Click <strong>Create</strong></li>
+            </ol>
+
+            <h3>Opening a Project</h3>
+            <ol>
+                <li>Go to <strong>File → Open Project</strong></li>
+                <li>Navigate to your project folder</li>
+                <li>Select the folder and click <strong>Open</strong></li>
+            </ol>
+
+            <h3>Project Structure</h3>
+            <p>When you create a project, VIBE IDE automatically creates:</p>
+            <ul>
+                <li><code>PROJECT_JOURNAL.md</code> - Your project documentation</li>
+                <li><code>cml/</code> - Folder for CML files</li>
+                <li>Your project files (HTML, CSS, JS, etc.)</li>
+            </ul>
+
+            <h3>File Operations</h3>
+            <ul>
+                <li><strong>New File:</strong> <code>File → New File</code> or right-click in file tree</li>
+                <li><strong>Open File:</strong> <code>File → Open File</code> or click in file tree</li>
+                <li><strong>Save File:</strong> <code>Ctrl+S</code> or <code>File → Save</code></li>
+                <li><strong>Save As:</strong> <code>File → Save As</code></li>
+                <li><strong>Rename:</strong> Right-click file → Rename</li>
+                <li><strong>Delete:</strong> Right-click file → Delete</li>
+            </ul>
+
+            <div class="tip-box">
+                <strong>💡 Tip:</strong> The file tree shows all files in your project. Click on any file to open it in the editor!
+            </div>
+        </div>
+
+        <div class="content-section" id="cml-system">
+            <h2>📝 CML System</h2>
+            
+            <h3>What is CML?</h3>
+            <p>CML (Compressed Markup Language) is a custom format for tracking events, decisions, and progress in your projects. CML files can be rendered into narrative stories, devlogs, or timelines.</p>
+
+            <h3>CML Viewer</h3>
+            <p>To view and edit CML files:</p>
+            <ol>
+                <li>Go to <strong>File → CML Viewer</strong></li>
+                <li>Click <strong>Open CML File</strong> to load an existing file</li>
+                <li>Or click <strong>New CML File</strong> to create one</li>
+                <li>Edit the CML source in the left panel</li>
+                <li>Click <strong>Render to Story</strong> to see the narrative version</li>
+                <li>Click <strong>Save CML</strong> to save your changes</li>
+            </ol>
+
+            <h3>Chat-to-CML Recording</h3>
+            <p>You can automatically record chat conversations to CML:</p>
+            <ol>
+                <li>Open <strong>File → CML Viewer</strong></li>
+                <li>Check the <strong>Record Chat to CML</strong> checkbox</li>
+                <li>All future conversations with Cursy will be saved as CML files in your project's <code>cml/</code> folder</li>
+            </ol>
+
+            <div class="tip-box">
+                <strong>💡 Tip:</strong> CML files are saved with timestamps, so you can track your project's evolution over time!
+            </div>
+
+            <h3>CML Format</h3>
+            <p>CML uses a structured format:</p>
+            <pre><code>[timestamp|type|participants|location|tags]{
+  title:"Event Title";
+  description:"Event description";
+  // ... more fields
+}</code></pre>
+
+            <p>For more information about CML syntax, check the CML Viewer help section.</p>
+        </div>
+
+        <div class="content-section" id="music-sfx">
+            <h2>🎵 Music & SFX</h2>
+            
+            <h3>Music & SFX Panel</h3>
+            <p>VIBE IDE includes a built-in music and sound effects player powered by Freesound.org. To access it:</p>
+            <ol>
+                <li>Click the <strong>Music & SFX</strong> button (usually in the footer)</li>
+                <li>The panel will slide up from the bottom</li>
+                <li>Search for music or sound effects</li>
+                <li>Click play to preview</li>
+                <li>Add to favorites or download to your project</li>
+            </ol>
+
+            <h3>Searching for Audio</h3>
+            <ul>
+                <li>Enter keywords in the search box (e.g., "lofi", "coding music", "ambient")</li>
+                <li>Click <strong>Search</strong> to find tracks</li>
+                <li>Browse results and click play to preview</li>
+                <li>Use the ⭐ button to add to favorites</li>
+            </ul>
+
+            <h3>Favorites</h3>
+            <p>You can save your favorite tracks:</p>
+            <ul>
+                <li>Click the ⭐ button on any track to add it to favorites</li>
+                <li>Click the <strong>⭐ Favorites</strong> button to view all favorites</li>
+                <li>Favorites are saved separately for music and SFX</li>
+                <li>Favorites persist between sessions</li>
+            </ul>
+
+            <h3>Downloading Audio</h3>
+            <p>To download audio to your project:</p>
+            <ol>
+                <li>Make sure you have a project open</li>
+                <li>Find the track you want in search results</li>
+                <li>Click the <strong>Download</strong> button</li>
+                <li>The file will be saved to your project's assets folder</li>
+            </ol>
+
+            <div class="warning-box">
+                <strong>⚠️ Note:</strong> You need to have a project open to download audio files!
+            </div>
+
+            <h3>Custom Audio Player</h3>
+            <p>The audio player includes:</p>
+            <ul>
+                <li>Play/Pause controls</li>
+                <li>Progress bar (click to seek)</li>
+                <li>Volume control</li>
+                <li>Time display</li>
+                <li>Auto-stop when another track plays</li>
+            </ul>
+        </div>
+
+        <div class="content-section" id="keyboard-shortcuts">
+            <h2>⌨️ Keyboard Shortcuts</h2>
+            
+            <h3>File Operations</h3>
+            <ul>
+                <li><code>Ctrl+N</code> - New File</li>
+                <li><code>Ctrl+O</code> - Open File</li>
+                <li><code>Ctrl+S</code> - Save File</li>
+                <li><code>Ctrl+Shift+S</code> - Save As</li>
+            </ul>
+
+            <h3>Editor Shortcuts</h3>
+            <ul>
+                <li><code>Ctrl+F</code> - Find</li>
+                <li><code>Ctrl+H</code> - Find and Replace</li>
+                <li><code>Ctrl+G</code> - Go to Line</li>
+                <li><code>Ctrl+Space</code> - Trigger Autocompletion</li>
+                <li><code>Ctrl+/</code> - Toggle Line Comment</li>
+                <li><code>Alt+Click</code> - Add Multiple Cursors</li>
+                <li><code>Ctrl+D</code> - Select Next Occurrence</li>
+                <li><code>Ctrl+Shift+K</code> - Delete Line</li>
+                <li><code>Alt+Up/Down</code> - Move Line Up/Down</li>
+            </ul>
+
+            <h3>General Shortcuts</h3>
+            <ul>
+                <li><code>F11</code> - Toggle Fullscreen</li>
+                <li><code>Ctrl+Shift+P</code> - Command Palette (if available)</li>
+                <li><code>Ctrl+,</code> - Settings (if available)</li>
+            </ul>
+
+            <div class="tip-box">
+                <strong>💡 Tip:</strong> Most shortcuts follow VS Code conventions, so if you're familiar with VS Code, you'll feel right at home!
+            </div>
+        </div>
+
+        <div class="content-section" id="tips-tricks">
+            <h2>💡 Tips & Tricks</h2>
+            
+            <h3>Productivity Tips</h3>
+            <ul>
+                <li><strong>Use Cursy for Quick Help:</strong> Don't hesitate to ask Cursy questions—she's there to help!</li>
+                <li><strong>Enable Chat-to-CML:</strong> Record your conversations to track your learning journey</li>
+                <li><strong>Customize Cursy:</strong> Set up an agent persona that matches your learning style</li>
+                <li><strong>Use Project Journals:</strong> Let Cursy update your project journal automatically</li>
+                <li><strong>Organize with Projects:</strong> Keep related files together in projects</li>
+            </ul>
+
+            <h3>Coding Tips</h3>
+            <ul>
+                <li><strong>Use Autocompletion:</strong> Press <code>Ctrl+Space</code> to see suggestions</li>
+                <li><strong>Multi-cursor Editing:</strong> Hold <code>Alt</code> and click to edit multiple lines at once</li>
+                <li><strong>Code Folding:</strong> Click the fold icons to collapse code blocks</li>
+                <li><strong>Bracket Matching:</strong> Click on a bracket to see its match highlighted</li>
+                <li><strong>Find in Files:</strong> Use search to find text across your project</li>
+            </ul>
+
+            <h3>Workflow Tips</h3>
+            <ul>
+                <li><strong>Save Frequently:</strong> Use <code>Ctrl+S</code> often to save your work</li>
+                <li><strong>Use Favorites:</strong> Save your favorite music tracks for coding sessions</li>
+                <li><strong>Take Notes:</strong> Use Cursy's Notes feature to jot down ideas</li>
+                <li><strong>Track Progress:</strong> Use CML to document your project's evolution</li>
+                <li><strong>Ask for Help:</strong> Cursy is always ready to help—just ask!</li>
+            </ul>
+
+            <div class="success-box">
+                <strong>✅ Pro Tip:</strong> The best way to learn is by doing! Start with small projects and gradually work your way up to more complex ones. Cursy is there to help every step of the way!
+            </div>
+        </div>
+
+        <div class="content-section" id="troubleshooting">
+            <h2>🔧 Troubleshooting</h2>
+            
+            <h3>Common Issues</h3>
+            
+            <h4>Cursy Not Responding</h4>
+            <ul>
+                <li>Check if OpenAI API key is configured in settings</li>
+                <li>Verify your internet connection</li>
+                <li>Try reloading the application</li>
+                <li>Check the console for error messages</li>
+            </ul>
+
+            <h4>Files Not Saving</h4>
+            <ul>
+                <li>Make sure you have write permissions for the project folder</li>
+                <li>Check if the file is read-only</li>
+                <li>Try saving with a different name (Save As)</li>
+                <li>Check the console for error messages</li>
+            </ul>
+
+            <h4>Audio Not Playing</h4>
+            <ul>
+                <li>Check your system volume</li>
+                <li>Try a different audio track</li>
+                <li>Check your internet connection (for streaming)</li>
+                <li>Reload the Music & SFX panel</li>
+            </ul>
+
+            <h4>Code Not Implementing</h4>
+            <ul>
+                <li>Make sure you have a project open</li>
+                <li>Check that the code blocks are properly formatted</li>
+                <li>Verify file paths in the code blocks</li>
+                <li>Check the console for error messages</li>
+            </ul>
+
+            <h3>Getting Help</h3>
+            <p>If you're still having issues:</p>
+            <ul>
+                <li>Check the <a href="#faq" style="color: #00a2ff;">FAQ section</a> below</li>
+                <li>Visit the <a href="https://github.com/FutureVision-Labs/VIBE-IDE" target="_blank" style="color: #00a2ff;">GitHub repository</a> for issues and discussions</li>
+                <li>Contact support through the <a href="https://futurevisionlabs.itch.io/vibe-ide" target="_blank" style="color: #00a2ff;">itch.io page</a></li>
+            </ul>
+        </div>
+
+        <div class="content-section" id="faq">
+            <h2>❓ Frequently Asked Questions</h2>
+            
+            <div class="faq-item">
+                <div class="faq-question">What is VIBE IDE?</div>
+                <div class="faq-answer">
+                    <div class="faq-answer-content">
+                        <p>VIBE IDE is a beginner-friendly coding environment with AI assistance. It's designed to make programming accessible, fun, and collaborative for beginners, kids, and experienced developers alike.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Is VIBE IDE free?</div>
+                <div class="faq-answer">
+                    <div class="faq-answer-content">
+                        <p><strong>Yes! The BYO (Bring Your Own) key version is completely free!</strong> You can use VIBE IDE for free by providing your own OpenAI API key. VIBE IDE is also available on itch.io with additional options. Check the <a href="https://futurevisionlabs.itch.io/vibe-ide" target="_blank" style="color: #00a2ff;">itch.io page</a> for current pricing and availability.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">What programming languages does VIBE IDE support?</div>
+                <div class="faq-answer">
+                    <div class="faq-answer-content">
+                        <p>VIBE IDE supports all programming languages through the Monaco Editor. It includes syntax highlighting, autocompletion, and other features for popular languages like JavaScript, Python, HTML, CSS, and many more.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">How do I configure the OpenAI API key?</div>
+                <div class="faq-answer">
+                    <div class="faq-answer-content">
+                        <p>To use Cursy, you'll need to configure your OpenAI API key. The configuration file location is shown in the console when you start VIBE IDE. Create a JSON file with your API key: <code>{"apiKey": "your-key-here"}</code></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Can I use VIBE IDE offline?</div>
+                <div class="faq-answer">
+                    <div class="faq-answer-content">
+                        <p>Most features work offline, but Cursy (the AI assistant) requires an internet connection and OpenAI API access. File editing, project management, and other core features work completely offline.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">What is CML?</div>
+                <div class="faq-answer">
+                    <div class="faq-answer-content">
+                        <p>CML (Compressed Markup Language) is a custom format for tracking events, decisions, and progress in your projects. CML files can be rendered into narrative stories, devlogs, or timelines. It's a unique feature of VIBE IDE that helps you document your coding journey.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">How do I update my project journal?</div>
+                <div class="faq-answer">
+                    <div class="faq-answer-content">
+                        <p>You can ask Cursy to update your project journal by saying "update journal" or "cursy, update the journal" in the chat. Cursy will analyze your project and automatically update the PROJECT_JOURNAL.md file with current information.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Can I customize Cursy's personality?</div>
+                <div class="faq-answer">
+                    <div class="faq-answer-content">
+                        <p>Yes! Go to <strong>File → Agent Persona Settings</strong> to customize Cursy's personality. You can choose from templates, set personality traits, adjust communication style, control emoji usage, and add special instructions.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Where are my projects saved?</div>
+                <div class="faq-answer">
+                    <div class="faq-answer-content">
+                        <p>Projects are saved in the location you choose when creating them. By default, projects are saved in your Documents folder, but you can choose any location you prefer.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">How do I report a bug or request a feature?</div>
+                <div class="faq-answer">
+                    <div class="faq-answer-content">
+                        <p>You can report bugs or request features through the <a href="https://github.com/FutureVision-Labs/VIBE-IDE" target="_blank" style="color: #00a2ff;">GitHub repository</a> or contact support through the <a href="https://futurevisionlabs.itch.io/vibe-ide" target="_blank" style="color: #00a2ff;">itch.io page</a>.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="back-to-top" id="backToTop" title="Back to Top">⬆️</button>
+
+    <script>
+        // Search functionality
+        const searchInput = document.getElementById('searchInput');
+        const contentSections = document.querySelectorAll('.content-section');
+        const tocLinks = document.querySelectorAll('#tocList a');
+
+        searchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            
+            if (searchTerm === '') {
+                contentSections.forEach(section => {
+                    section.style.display = 'block';
+                });
+                tocLinks.forEach(link => link.classList.remove('active'));
+                return;
+            }
+
+            contentSections.forEach(section => {
+                const text = section.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {
+                    section.style.display = 'block';
+                    // Highlight search term
+                    const regex = new RegExp(`(${searchTerm})`, 'gi');
+                    section.innerHTML = section.innerHTML.replace(regex, '<span class="highlight">$1</span>');
+                } else {
+                    section.style.display = 'none';
+                }
+            });
+        });
+
+        // Smooth scroll for TOC links
+        tocLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const targetId = link.getAttribute('href').substring(1);
+                const targetSection = document.getElementById(targetId);
+                
+                if (targetSection) {
+                    targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    
+                    // Update active link
+                    tocLinks.forEach(l => l.classList.remove('active'));
+                    link.classList.add('active');
+                }
+            });
+        });
+
+        // Back to top button
+        const backToTopBtn = document.getElementById('backToTop');
+        
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 300) {
+                backToTopBtn.classList.add('visible');
+            } else {
+                backToTopBtn.classList.remove('visible');
+            }
+        });
+
+        backToTopBtn.addEventListener('click', () => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        // FAQ expand/collapse
+        const faqItems = document.querySelectorAll('.faq-item');
+        
+        faqItems.forEach(item => {
+            const question = item.querySelector('.faq-question');
+            question.addEventListener('click', () => {
+                const isActive = item.classList.contains('active');
+                
+                // Close all FAQ items
+                faqItems.forEach(i => i.classList.remove('active'));
+                
+                // Open clicked item if it wasn't active
+                if (!isActive) {
+                    item.classList.add('active');
+                }
+            });
+        });
+
+        // Highlight active section in TOC on scroll
+        const sections = document.querySelectorAll('.content-section');
+        
+        window.addEventListener('scroll', () => {
+            let current = '';
+            
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                const sectionHeight = section.clientHeight;
+                if (window.scrollY >= sectionTop - 200) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            tocLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === `#${current}`) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+
