@@ -9371,11 +9371,36 @@ async function handleCodeImplementation(responseText, originalMessage, targetEle
                     // Clean up the file path - remove any markdown formatting or extra text
                     filePathHint = filePathHint.replace(/^###?\s*/, '').replace(/\s*$/, '');
                     
-                    // Remove the file header line from the code
-                    const headerLinePattern = new RegExp(`^###?\\s*File:\\s*${filePathHint.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^\n]*\n?`, 'im');
-                    extractedCode = extractedCode.replace(headerLinePattern, '').trim();
-                    
                     console.log(`🔍 Found file hint INSIDE code block: "${filePathHint}" using pattern ${i + 1}`);
+                    console.log(`📝 Original code length: ${block.code.length} chars`);
+                    
+                    // Remove the file header line from the code - be more careful with the regex
+                    // Try multiple patterns to remove the header line
+                    const headerPatterns = [
+                        new RegExp(`^###?\\s*File:\\s*${filePathHint.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^\n]*\n?`, 'im'),
+                        new RegExp(`^###?\\s*File:\\s*[^\n]*\n?`, 'im'), // Fallback: match any file header
+                        new RegExp(`^###?\\s*File:[^\n]*\n?`, 'im') // Even more permissive
+                    ];
+                    
+                    let codeAfterRemoval = block.code;
+                    for (const headerPattern of headerPatterns) {
+                        const beforeLength = codeAfterRemoval.length;
+                        codeAfterRemoval = codeAfterRemoval.replace(headerPattern, '').trim();
+                        if (codeAfterRemoval.length < beforeLength) {
+                            console.log(`✅ Removed header line (${beforeLength} -> ${codeAfterRemoval.length} chars)`);
+                            break;
+                        }
+                    }
+                    
+                    extractedCode = codeAfterRemoval;
+                    console.log(`📝 Extracted code length: ${extractedCode.length} chars`);
+                    
+                    // Safety check: if extracted code is too short, use original code
+                    if (extractedCode.length < 10 && block.code.length > 50) {
+                        console.warn(`⚠️ Extracted code too short (${extractedCode.length} chars), using original code`);
+                        extractedCode = block.code;
+                    }
+                    
                     break;
                 }
             }
@@ -9645,6 +9670,21 @@ window.implementCode = async function(index) {
             // Ask for confirmation to overwrite
             const confirm = window.confirm(`File ${filePath.split(/[/\\]/).pop()} already exists. Overwrite?`);
             if (!confirm) return;
+        }
+        
+        // Log what we're about to write
+        console.log('💾 Implementing code:', {
+            filePath: filePath,
+            codeLength: impl.code ? impl.code.length : 0,
+            codePreview: impl.code ? impl.code.substring(0, 200) : '(empty)',
+            language: impl.language
+        });
+        
+        // Safety check: don't write empty files
+        if (!impl.code || impl.code.trim().length === 0) {
+            console.error('❌ Cannot implement: code is empty!');
+            showToast(`❌ Cannot implement: code block is empty!`, 'error');
+            return;
         }
         
         // Write the file
