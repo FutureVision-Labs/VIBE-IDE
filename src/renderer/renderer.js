@@ -9753,12 +9753,15 @@ window.implementCode = async function(index) {
             // Open the file
             openFileFromPath(filePath);
             
-            // Remove the implementation offer
-            const offers = document.querySelectorAll('.implementation-offer');
-            offers.forEach(offer => offer.remove());
-            
-            // Clear pending implementations
-            window.pendingImplementations = null;
+            // Remove the implementation offer (only if this is a single implementation, not "implement all")
+            // We'll let implementAllCode handle removing the offer after all files are done
+            if (!window.implementingAll) {
+                const offers = document.querySelectorAll('.implementation-offer');
+                offers.forEach(offer => offer.remove());
+                
+                // Clear pending implementations (only for single implementations)
+                window.pendingImplementations = null;
+            }
         } else {
             showToast(`❌ Failed to implement: ${result.error}`, 'error');
         }
@@ -9771,13 +9774,39 @@ window.implementCode = async function(index) {
 // Implement all code blocks
 window.implementAllCode = async function() {
     if (!window.pendingImplementations || window.pendingImplementations.length === 0) {
+        console.warn('⚠️ No pending implementations to implement');
         return;
     }
     
-    for (let i = 0; i < window.pendingImplementations.length; i++) {
-        await window.implementCode(i);
-        // Small delay between implementations
-        await new Promise(resolve => setTimeout(resolve, 300));
+    // Store the implementations array and length BEFORE starting
+    const implementations = [...window.pendingImplementations]; // Create a copy
+    const count = implementations.length;
+    
+    console.log(`✨ Implementing all ${count} code block(s)...`);
+    
+    // Set flag so implementCode knows we're in "implement all" mode
+    window.implementingAll = true;
+    
+    try {
+        for (let i = 0; i < count; i++) {
+            // Temporarily restore pendingImplementations for each call
+            window.pendingImplementations = implementations;
+            await window.implementCode(i);
+            // Small delay between implementations
+            await new Promise(resolve => setTimeout(resolve, 300));
+        }
+        
+        // Remove the implementation offer after all files are done
+        const offers = document.querySelectorAll('.implementation-offer');
+        offers.forEach(offer => offer.remove());
+        
+        console.log(`✅ All ${count} code block(s) implemented!`);
+    } catch (err) {
+        console.error('Error implementing all code blocks:', err);
+    } finally {
+        // Clear flag and pending implementations
+        window.implementingAll = false;
+        window.pendingImplementations = null;
     }
 };
 
