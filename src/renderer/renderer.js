@@ -9852,6 +9852,241 @@ async function analyzeProjectForJournal() {
     }
 }
 
+// Reusable function to trigger journal update
+async function triggerJournalUpdate() {
+    const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) return;
+    
+    // Show typing indicator
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'chat-message assistant typing';
+    typingDiv.innerHTML = '<p>🤖 Cursy is analyzing the project and updating the journal...</p>';
+    chatMessages.appendChild(typingDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    try {
+        const analysis = await analyzeProjectForJournal();
+        
+        // Check all requirements
+        if (!analysis) {
+            throw new Error('Could not analyze project structure');
+        }
+        if (!state.currentProject) {
+            throw new Error('No project loaded. Please open a project first.');
+        }
+        if (!window.electronAPI || !window.electronAPI.openaiChat) {
+            throw new Error('OpenAI IPC not available. Please restart the app.');
+        }
+        if (!state.useOpenAI) {
+            throw new Error('OpenAI not initialized. Check console for details.');
+        }
+        
+        // All checks passed, proceed
+        if (analysis && state.useOpenAI && window.electronAPI && window.electronAPI.openaiChat) {
+            // Use AI to generate journal update with a very specific prompt
+            const journalPrompt = `You are updating a PROJECT_JOURNAL.md file. IMPORTANT: Return ONLY the complete markdown content of the updated journal file. Do NOT include any commentary, explanations, or text outside the markdown. Start directly with the markdown content.
+
+Based on the following project analysis, update the PROJECT_JOURNAL.md file. Focus on:
+1. Current project structure and key files
+2. Recent work (if any changes detected)
+3. Next steps and priorities
+
+Project Analysis:
+- Project Name: ${analysis.projectName}
+- Total Files: ${analysis.fileCount}
+- File Types: ${JSON.stringify(analysis.fileTypes)}
+- Key Files: ${analysis.keyFiles.map(f => f.split(/[/\\]/).pop()).join(', ')}
+
+${state.projectJournal ? `Current Journal Content (first 2000 chars):\n${state.projectJournal.substring(0, 2000)}...` : 'No existing journal found - create a new one with the template structure.'}
+
+CRITICAL: Return ONLY the complete updated PROJECT_JOURNAL.md markdown content. No explanations, no "here's the updated journal", just the raw markdown starting with "# 🚀 Project Journal"`;
+
+            // Call OpenAI directly via IPC (bypass conversation context for this)
+            try {
+                const systemPrompt = `You are Cursy, an AI assistant. When asked to update a project journal, return ONLY the complete markdown file content with no additional commentary. Start directly with "# 🚀 Project Journal" or "# Project Journal".`;
+                const messages = [{ role: 'user', content: journalPrompt }];
+                
+                console.log('📤 Sending journal update request to OpenAI...');
+                const response = await window.electronAPI.openaiChat(messages, systemPrompt, 4000); // Request 4000 tokens for journal
+                
+                console.log('📥 OpenAI response received:', {
+                    success: response.success,
+                    hasContent: !!response.content,
+                    contentLength: response.content?.length || 0
+                });
+                
+                if (response.success && response.content) {
+                    let journalContent = response.content.trim();
+                    
+                    console.log('📝 Raw response length:', journalContent.length);
+                    console.log('📝 Raw response first 500 chars:', journalContent.substring(0, 500));
+                    
+                    // Remove any leading/trailing commentary
+                    // Look for markdown code blocks first
+                    if (journalContent.includes('```markdown')) {
+                        const match = journalContent.match(/```markdown\s*\n([\s\S]*?)\n```/);
+                        if (match) {
+                            journalContent = match[1].trim();
+                            console.log('📝 Extracted from markdown code block, new length:', journalContent.length);
+                        }
+                    } else if (journalContent.includes('```')) {
+                        const match = journalContent.match(/```[a-z]*\s*\n([\s\S]*?)\n```/);
+                        if (match) {
+                            journalContent = match[1].trim();
+                            console.log('📝 Extracted from code block, new length:', journalContent.length);
+                        }
+                    }
+                    
+                    // Remove any text before the first # heading
+                    const firstHeading = journalContent.indexOf('#');
+                    if (firstHeading > 0 && firstHeading < 200) {
+                        journalContent = journalContent.substring(firstHeading);
+                        console.log('📝 Trimmed before first heading, new length:', journalContent.length);
+                    }
+                    
+                    // Ensure it starts with the journal header
+                    if (!journalContent.startsWith('# 🚀 Project Journal') && !journalContent.startsWith('# Project Journal')) {
+                        // Try to find where the actual journal starts
+                        const journalStart = journalContent.search(/#\s*[🚀]*\s*Project Journal/i);
+                        if (journalStart > 0 && journalStart < 500) {
+                            journalContent = journalContent.substring(journalStart);
+                            console.log('📝 Found journal start at position', journalStart, 'new length:', journalContent.length);
+                        } else {
+                            // If we can't find the header, prepend it
+                            console.warn('⚠️ Journal header not found, prepending it');
+                            journalContent = '# 🚀 Project Journal\n\n' + journalContent;
+                        }
+                    }
+                    
+                    // Only proceed if we have substantial content
+                    if (journalContent.length > 100) {
+                        console.log('✅ Journal content ready to write, length:', journalContent.length);
+                        console.log('📝 First 300 chars:', journalContent.substring(0, 300));
+                        
+                        const result = await updateProjectJournal(journalContent);
+                        console.log('📝 Write result:', result);
+                        
+                        if (result.success) {
+                            // Reload the journal to verify it was written
+                            await loadProjectJournal(state.currentProject.path);
+                            
+                            // Verify the content was actually written
+                            if (state.projectJournal && state.projectJournal.length > 100) {
+                                console.log('✅ Journal successfully written and verified, length:', state.projectJournal.length);
+                                
+                                // If PROJECT_JOURNAL.md is currently open in a tab, refresh it
+                                const journalPath = state.currentProject.path.replace(/[/\\]$/, '') + (state.currentProject.path.includes('\\') ? '\\' : '/') + 'PROJECT_JOURNAL.md';
+                                const journalTab = state.openTabs.find(t => t.path === journalPath || t.path.replace(/\\/g, '/') === journalPath.replace(/\\/g, '/'));
+                                if (journalTab) {
+                                    console.log('📝 PROJECT_JOURNAL.md is open in a tab, refreshing from disk...');
+                                    
+                                    // Re-read from disk to ensure we have the actual file content
+                                    const readResult = await window.electronAPI.readFile(journalPath);
+                                    if (readResult.success) {
+                                        const freshContent = readResult.content;
+                                        console.log('📝 Fresh content from disk, length:', freshContent.length);
+                                        
+                                        // Update the tab content with fresh content from disk
+                                        journalTab.content = freshContent;
+                                        journalTab.isDirty = false;
+                                        
+                                        // Force editor refresh
+                                        const wasActive = journalTab.id === state.activeTab;
+                                        if (wasActive) {
+                                            // Update tab content first
+                                            journalTab.content = freshContent;
+                                            
+                                            // If editor is ready, update it directly
+                                            if (state.monacoEditor) {
+                                                state.monacoEditor.setValue(freshContent);
+                                                console.log('✅ Editor content refreshed with fresh content from disk');
+                                            } else {
+                                                // Editor not ready, try again after a delay
+                                                setTimeout(() => {
+                                                    if (state.monacoEditor && journalTab.id === state.activeTab) {
+                                                        state.monacoEditor.setValue(freshContent);
+                                                        console.log('✅ Editor content refreshed (delayed)');
+                                                    }
+                                                }, 200);
+                                            }
+                                            
+                                            // Also force a tab switch to trigger reload
+                                            const otherTab = state.openTabs.find(t => t.id !== journalTab.id);
+                                            if (otherTab) {
+                                                // Quick switch away and back to force reload
+                                                const originalTab = journalTab.id;
+                                                switchToTab(otherTab.id);
+                                                setTimeout(() => {
+                                                    switchToTab(originalTab);
+                                                    // Ensure content is set after switch
+                                                    if (state.monacoEditor) {
+                                                        state.monacoEditor.setValue(freshContent);
+                                                        console.log('✅ Editor content refreshed (via tab switch)');
+                                                    }
+                                                }, 100);
+                                            }
+                                        }
+                                        
+                                        // Re-render tabs to update the dirty indicator
+                                        renderTabs();
+                                    } else {
+                                        console.warn('⚠️ Could not re-read journal file for refresh:', readResult.error);
+                                    }
+                                } else {
+                                    console.log('📝 PROJECT_JOURNAL.md is not currently open in a tab');
+                                }
+                                
+                                typingDiv.remove();
+                                const responseDiv = document.createElement('div');
+                                responseDiv.className = 'chat-message assistant';
+                                responseDiv.innerHTML = parseSimpleMarkdown('✅ **Project journal updated!**\n\nI\'ve analyzed your project structure and updated the PROJECT_JOURNAL.md file with current information. Check it out! 📝');
+                                chatMessages.appendChild(responseDiv);
+                                addMessageToHistory('assistant', 'Project journal updated successfully!');
+                                chatMessages.scrollTop = chatMessages.scrollHeight;
+                                updateCursyState('celebrating', 'Journal updated!');
+                                setTimeout(() => updateCursyState('idle', 'Ready to help!'), 2000);
+                                return;
+                            } else {
+                                console.error('❌ Journal was written but reload failed or content is empty');
+                                console.error('Reloaded journal length:', state.projectJournal?.length || 0);
+                                throw new Error('Journal update verification failed');
+                            }
+                        } else {
+                            console.error('❌ Failed to update journal file:', result.error);
+                            throw new Error(result.error || 'Failed to write journal file');
+                        }
+                    } else {
+                        console.warn('⚠️ Extracted journal content too short:', journalContent.length);
+                        console.warn('⚠️ Content preview:', journalContent.substring(0, 500));
+                        throw new Error('Extracted journal content is too short or invalid');
+                    }
+                } else {
+                    console.error('❌ OpenAI response failed or empty:', response);
+                    throw new Error(response.error || 'OpenAI response was empty');
+                }
+            } catch (err) {
+                console.error('Error calling OpenAI for journal update:', err);
+                throw err;
+            }
+        } else {
+            throw new Error('AI not available or project not loaded');
+        }
+    } catch (err) {
+        console.error('Journal update error:', err);
+        console.error('Error stack:', err.stack);
+        typingDiv.remove();
+        const responseDiv = document.createElement('div');
+        responseDiv.className = 'chat-message assistant';
+        const errorMsg = err.message || 'Unknown error';
+        responseDiv.innerHTML = parseSimpleMarkdown(`❌ Sorry, I encountered an error while updating the journal: ${errorMsg}\n\nYou can manually edit \`PROJECT_JOURNAL.md\` in your project root, or check the console for more details!`);
+        chatMessages.appendChild(responseDiv);
+        addMessageToHistory('assistant', `Error updating journal: ${errorMsg}`);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        updateCursyState('error', 'Update failed');
+        setTimeout(() => updateCursyState('idle', 'Ready to help!'), 2000);
+    }
+}
+
 // ============================================
 // OpenAI Integration (Phase 2)
 // ============================================
@@ -10635,260 +10870,40 @@ function sendChatMessage() {
     // - "cursy update journal" / "cursy, update journal" / "cursy, update the journal"
     // - "can you update journal" / "please update journal" / "update journal please"
     // - "journal update" / "update my journal" / "update the project journal"
+    // - "then update journal" / "and update journal" (at end of message)
     const journalUpdatePatterns = [
-        /^(cursy[,]?\s*)?(can\s+you\s+|please\s+|will\s+you\s+)?(update|refresh|regenerate)\s+(the\s+)?(project\s+)?journal/i,
-        /^(update|refresh|regenerate)\s+(the\s+)?(project\s+)?journal(\s+please|\s+cursy)?/i,
-        /^(project\s+)?journal\s+(update|refresh|regenerate)/i,
-        /^(cursy[,]?\s*)?(update|refresh|regenerate)\s+(the\s+)?journal/i
+        /^(cursy[,]?\s*)?(can\s+you\s+|please\s+|will\s+you\s+)?(update|refresh|regenerate)\s+(the\s+)?(project\s+)?journal/i, // At start
+        /^(update|refresh|regenerate)\s+(the\s+)?(project\s+)?journal(\s+please|\s+cursy)?/i, // At start
+        /^(project\s+)?journal\s+(update|refresh|regenerate)/i, // At start
+        /^(cursy[,]?\s*)?(update|refresh|regenerate)\s+(the\s+)?journal/i, // At start
+        /\b(then|and|also)\s+(update|refresh|regenerate)\s+(the\s+)?(project\s+)?journal/i, // "then update journal" anywhere
+        /\b(update|refresh|regenerate)\s+(the\s+)?(project\s+)?journal\s*$/i // "update journal" at end
     ];
     
     const isJournalUpdateCommand = journalUpdatePatterns.some(pattern => pattern.test(messageLower));
     
-    if (isJournalUpdateCommand) {
-        // Trigger journal update
-        typingDiv.innerHTML = '<p>🤖 Cursy is analyzing the project and updating the journal...</p>';
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-        
-        (async () => {
-            try {
-                const analysis = await analyzeProjectForJournal();
-                
-                // Check all requirements
-                if (!analysis) {
-                    throw new Error('Could not analyze project structure');
-                }
-                if (!state.currentProject) {
-                    throw new Error('No project loaded. Please open a project first.');
-                }
-                if (!window.electronAPI || !window.electronAPI.openaiChat) {
-                    throw new Error('OpenAI IPC not available. Please restart the app.');
-                }
-                if (!state.useOpenAI) {
-                    throw new Error('OpenAI not initialized. Check console for details.');
-                }
-                
-                // All checks passed, proceed
-                if (analysis && state.useOpenAI && window.electronAPI && window.electronAPI.openaiChat) {
-                    // Use AI to generate journal update with a very specific prompt
-                    const journalPrompt = `You are updating a PROJECT_JOURNAL.md file. IMPORTANT: Return ONLY the complete markdown content of the updated journal file. Do NOT include any commentary, explanations, or text outside the markdown. Start directly with the markdown content.
-
-Based on the following project analysis, update the PROJECT_JOURNAL.md file. Focus on:
-1. Current project structure and key files
-2. Recent work (if any changes detected)
-3. Next steps and priorities
-
-Project Analysis:
-- Project Name: ${analysis.projectName}
-- Total Files: ${analysis.fileCount}
-- File Types: ${JSON.stringify(analysis.fileTypes)}
-- Key Files: ${analysis.keyFiles.map(f => f.split(/[/\\]/).pop()).join(', ')}
-
-${state.projectJournal ? `Current Journal Content (first 2000 chars):\n${state.projectJournal.substring(0, 2000)}...` : 'No existing journal found - create a new one with the template structure.'}
-
-CRITICAL: Return ONLY the complete updated PROJECT_JOURNAL.md markdown content. No explanations, no "here's the updated journal", just the raw markdown starting with "# 🚀 Project Journal"`;
-
-                    // Call OpenAI directly via IPC (bypass conversation context for this)
-                    try {
-                        const systemPrompt = `You are Cursy, an AI assistant. When asked to update a project journal, return ONLY the complete markdown file content with no additional commentary. Start directly with "# 🚀 Project Journal" or "# Project Journal".`;
-                        const messages = [{ role: 'user', content: journalPrompt }];
-                        
-                        console.log('📤 Sending journal update request to OpenAI...');
-                        const response = await window.electronAPI.openaiChat(messages, systemPrompt, 4000); // Request 4000 tokens for journal
-                        
-                        console.log('📥 OpenAI response received:', {
-                            success: response.success,
-                            hasContent: !!response.content,
-                            contentLength: response.content?.length || 0
-                        });
-                        
-                        if (response.success && response.content) {
-                            let journalContent = response.content.trim();
-                            
-                            console.log('📝 Raw response length:', journalContent.length);
-                            console.log('📝 Raw response first 500 chars:', journalContent.substring(0, 500));
-                            
-                            // Remove any leading/trailing commentary
-                            // Look for markdown code blocks first
-                            if (journalContent.includes('```markdown')) {
-                                const match = journalContent.match(/```markdown\s*\n([\s\S]*?)\n```/);
-                                if (match) {
-                                    journalContent = match[1].trim();
-                                    console.log('📝 Extracted from markdown code block, new length:', journalContent.length);
-                                }
-                            } else if (journalContent.includes('```')) {
-                                const match = journalContent.match(/```[a-z]*\s*\n([\s\S]*?)\n```/);
-                                if (match) {
-                                    journalContent = match[1].trim();
-                                    console.log('📝 Extracted from code block, new length:', journalContent.length);
-                                }
-                            }
-                            
-                            // Remove any text before the first # heading
-                            const firstHeading = journalContent.indexOf('#');
-                            if (firstHeading > 0 && firstHeading < 200) {
-                                journalContent = journalContent.substring(firstHeading);
-                                console.log('📝 Trimmed before first heading, new length:', journalContent.length);
-                            }
-                            
-                            // Ensure it starts with the journal header
-                            if (!journalContent.startsWith('# 🚀 Project Journal') && !journalContent.startsWith('# Project Journal')) {
-                                // Try to find where the actual journal starts
-                                const journalStart = journalContent.search(/#\s*[🚀]*\s*Project Journal/i);
-                                if (journalStart > 0 && journalStart < 500) {
-                                    journalContent = journalContent.substring(journalStart);
-                                    console.log('📝 Found journal start at position', journalStart, 'new length:', journalContent.length);
-                                } else {
-                                    // If we can't find the header, prepend it
-                                    console.warn('⚠️ Journal header not found, prepending it');
-                                    journalContent = '# 🚀 Project Journal\n\n' + journalContent;
-                                }
-                            }
-                            
-                            // Only proceed if we have substantial content
-                            if (journalContent.length > 100) {
-                                console.log('✅ Journal content ready to write, length:', journalContent.length);
-                                console.log('📝 First 300 chars:', journalContent.substring(0, 300));
-                                
-                                const result = await updateProjectJournal(journalContent);
-                                console.log('📝 Write result:', result);
-                                
-                                if (result.success) {
-                                    // Reload the journal to verify it was written
-                                    await loadProjectJournal(state.currentProject.path);
-                                    
-                                    // Verify the content was actually written
-                                    if (state.projectJournal && state.projectJournal.length > 100) {
-                                        console.log('✅ Journal successfully written and verified, length:', state.projectJournal.length);
-                                        
-                                        // If PROJECT_JOURNAL.md is currently open in a tab, refresh it
-                                        const journalPath = state.currentProject.path.replace(/[/\\]$/, '') + (state.currentProject.path.includes('\\') ? '\\' : '/') + 'PROJECT_JOURNAL.md';
-                                        const journalTab = state.openTabs.find(t => t.path === journalPath || t.path.replace(/\\/g, '/') === journalPath.replace(/\\/g, '/'));
-                                        if (journalTab) {
-                                            console.log('📝 PROJECT_JOURNAL.md is open in a tab, refreshing from disk...');
-                                            
-                                            // Re-read from disk to ensure we have the actual file content
-                                            const readResult = await window.electronAPI.readFile(journalPath);
-                                            if (readResult.success) {
-                                                const freshContent = readResult.content;
-                                                console.log('📝 Fresh content from disk, length:', freshContent.length);
-                                                
-                                                // Update the tab content with fresh content from disk
-                                                journalTab.content = freshContent;
-                                                journalTab.isDirty = false;
-                                                
-                                                // Force editor refresh
-                                                const wasActive = journalTab.id === state.activeTab;
-                                                if (wasActive) {
-                                                    // Update tab content first
-                                                    journalTab.content = freshContent;
-                                                    
-                                                    // If editor is ready, update it directly
-                                                    if (state.monacoEditor) {
-                                                        state.monacoEditor.setValue(freshContent);
-                                                        console.log('✅ Editor content refreshed with fresh content from disk');
-                                                    } else {
-                                                        // Editor not ready, try again after a delay
-                                                        setTimeout(() => {
-                                                            if (state.monacoEditor && journalTab.id === state.activeTab) {
-                                                                state.monacoEditor.setValue(freshContent);
-                                                                console.log('✅ Editor content refreshed (delayed)');
-                                                            }
-                                                        }, 200);
-                                                    }
-                                                    
-                                                    // Also force a tab switch to trigger reload
-                                                    const otherTab = state.openTabs.find(t => t.id !== journalTab.id);
-                                                    if (otherTab) {
-                                                        // Quick switch away and back to force reload
-                                                        const originalTab = journalTab.id;
-                                                        switchToTab(otherTab.id);
-                                                        setTimeout(() => {
-                                                            switchToTab(originalTab);
-                                                            // Ensure content is set after switch
-                                                            if (state.monacoEditor) {
-                                                                state.monacoEditor.setValue(freshContent);
-                                                                console.log('✅ Editor content refreshed (via tab switch)');
-                                                            }
-                                                        }, 100);
-                                                    }
-                                                }
-                                                
-                                                // Re-render tabs to update the dirty indicator
-                                                renderTabs();
-                                            } else {
-                                                console.warn('⚠️ Could not re-read journal file for refresh:', readResult.error);
-                                            }
-                                        } else {
-                                            console.log('📝 PROJECT_JOURNAL.md is not currently open in a tab');
-                                        }
-                                        
-                                        typingDiv.remove();
-                                        const responseDiv = document.createElement('div');
-                                        responseDiv.className = 'chat-message assistant';
-                                        responseDiv.innerHTML = parseSimpleMarkdown('✅ **Project journal updated!**\n\nI\'ve analyzed your project structure and updated the PROJECT_JOURNAL.md file with current information. Check it out! 📝');
-                                        chatMessages.appendChild(responseDiv);
-                                        addMessageToHistory('assistant', 'Project journal updated successfully!');
-                                        chatMessages.scrollTop = chatMessages.scrollHeight;
-                                        updateCursyState('celebrating', 'Journal updated!');
-                                        setTimeout(() => updateCursyState('idle', 'Ready to help!'), 2000);
-                                        return;
-                                    } else {
-                                        console.error('❌ Journal was written but reload failed or content is empty');
-                                        console.error('Reloaded journal length:', state.projectJournal?.length || 0);
-                                        throw new Error('Journal update verification failed');
-                                    }
-                                } else {
-                                    console.error('❌ Failed to update journal file:', result.error);
-                                    throw new Error(result.error || 'Failed to write journal file');
-                                }
-                            } else {
-                                console.warn('⚠️ Extracted journal content too short:', journalContent.length);
-                                console.warn('⚠️ Content preview:', journalContent.substring(0, 500));
-                                throw new Error('Extracted journal content is too short or invalid');
-                            }
-                        } else {
-                            console.error('❌ OpenAI response failed or empty:', response);
-                            throw new Error(response.error || 'OpenAI response was empty');
-                        }
-                    } catch (err) {
-                        console.error('Error calling OpenAI for journal update:', err);
-                        throw err;
-                    }
-                } else {
-                    throw new Error('AI not available or project not loaded');
-                }
-                
-                // Fallback response (shouldn't reach here if everything worked)
-                typingDiv.remove();
-                const responseDiv = document.createElement('div');
-                responseDiv.className = 'chat-message assistant';
-                responseDiv.innerHTML = parseSimpleMarkdown('I can help update the project journal! However, I need AI access to analyze and update it properly. The journal file is located at `PROJECT_JOURNAL.md` in your project root. You can also manually update it, or ask me specific questions about what to add! 📝');
-                chatMessages.appendChild(responseDiv);
-                addMessageToHistory('assistant', responseDiv.textContent);
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-                updateCursyState('idle', 'Ready to help!');
-            } catch (err) {
-                console.error('Journal update error:', err);
-                console.error('Error stack:', err.stack);
-                typingDiv.remove();
-                const responseDiv = document.createElement('div');
-                responseDiv.className = 'chat-message assistant';
-                const errorMsg = err.message || 'Unknown error';
-                responseDiv.innerHTML = parseSimpleMarkdown(`❌ Sorry, I encountered an error while updating the journal: ${errorMsg}\n\nYou can manually edit \`PROJECT_JOURNAL.md\` in your project root, or check the console for more details!`);
-                chatMessages.appendChild(responseDiv);
-                addMessageToHistory('assistant', `Error updating journal: ${errorMsg}`);
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-                updateCursyState('error', 'Update failed');
-                setTimeout(() => updateCursyState('idle', 'Ready to help!'), 2000);
-            }
-        })();
+    // Check if this is ALSO an implementation request (code + journal update)
+    const isImplementationRequest = messageMarkdown.toLowerCase().match(/\b(implement|create|write|add to|update|modify|change|edit|build|make|generate|setup|set up)\b/) && 
+                                    (messageMarkdown.toLowerCase().includes('file') || messageMarkdown.toLowerCase().includes('code') || messageMarkdown.toLowerCase().includes('script') || 
+                                     messageMarkdown.toLowerCase().includes('html') || messageMarkdown.toLowerCase().includes('css') || messageMarkdown.toLowerCase().includes('js') ||
+                                     messageMarkdown.toLowerCase().includes('webpage') || messageMarkdown.toLowerCase().includes('page'));
+    
+    // If it's BOTH implementation AND journal update, we'll handle journal update AFTER the response
+    // Otherwise, if it's ONLY journal update, handle it immediately
+    if (isJournalUpdateCommand && !isImplementationRequest) {
+        // Trigger journal update (standalone journal update command)
+        triggerJournalUpdate();
         return;
     }
     
-    // Check if this is an implementation request (using messageMarkdown)
-    const isImplementationRequest = messageMarkdown.toLowerCase().match(/\b(implement|create|write|add to|update|modify|change|edit|build|make|generate)\b/) && 
+    // Check if this is an implementation request (using messageMarkdown) - check BEFORE journal update
+    const isImplementationRequest = messageMarkdown.toLowerCase().match(/\b(implement|create|write|add to|update|modify|change|edit|build|make|generate|setup|set up)\b/) && 
                                     (messageMarkdown.toLowerCase().includes('file') || messageMarkdown.toLowerCase().includes('code') || messageMarkdown.toLowerCase().includes('script') || 
-                                     messageMarkdown.toLowerCase().includes('html') || messageMarkdown.toLowerCase().includes('css') || messageMarkdown.toLowerCase().includes('js'));
+                                     messageMarkdown.toLowerCase().includes('html') || messageMarkdown.toLowerCase().includes('css') || messageMarkdown.toLowerCase().includes('js') ||
+                                     messageMarkdown.toLowerCase().includes('webpage') || messageMarkdown.toLowerCase().includes('page'));
+    
+    // Store flag for journal update after response (if both implementation and journal update requested)
+    const shouldUpdateJournalAfter = isJournalUpdateCommand && isImplementationRequest;
     
     // Try OpenAI first, fall back to mock if unavailable
     (async () => {
@@ -10989,11 +11004,33 @@ CRITICAL: Return ONLY the complete updated PROJECT_JOURNAL.md markdown content. 
                     await handleCodeImplementation(responseText, messageMarkdown, responseDivRef);
                     // Scroll again after implementation offer is added
                     chatMessages.scrollTop = chatMessages.scrollHeight;
+                    
+                    // If journal update was requested, trigger it after code implementation
+                    if (shouldUpdateJournalAfter) {
+                        console.log('📝 Journal update requested after implementation, triggering now...');
+                        // Small delay to let implementation buttons appear first
+                        setTimeout(async () => {
+                            await triggerJournalUpdate();
+                        }, 500);
+                    }
                 } else {
                     console.log('⚠️ No code blocks or file updates detected in response');
+                    
+                    // If journal update was requested but no code blocks, trigger it anyway
+                    if (shouldUpdateJournalAfter) {
+                        console.log('📝 Journal update requested, triggering now...');
+                        setTimeout(async () => {
+                            await triggerJournalUpdate();
+                        }, 300);
+                    }
                 }
             } else {
                 console.log('⚠️ No project or response text for implementation check');
+                
+                // If journal update was requested but no project, show error
+                if (shouldUpdateJournalAfter) {
+                    showToast('❌ Cannot update journal: No project loaded', 'error');
+                }
             }
         }, 300);
         
