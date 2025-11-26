@@ -1897,15 +1897,77 @@ ipcMain.handle('openai:chat', async (event, { messages, systemPrompt, maxTokens 
       ...messages
     ];
 
+    // Define function for structured code blocks
+    const functions = [
+      {
+        name: 'provide_code_block',
+        description: 'Provide code blocks for file implementation. Use this function when you want to provide code that can be automatically implemented into files.',
+        parameters: {
+          type: 'object',
+          properties: {
+            filePath: {
+              type: 'string',
+              description: 'The path to the file (e.g., "index.html", "src/app.js", "styles.css")'
+            },
+            language: {
+              type: 'string',
+              description: 'The programming language (e.g., "html", "javascript", "css", "python")'
+            },
+            code: {
+              type: 'string',
+              description: 'The complete code content for the file'
+            }
+          },
+          required: ['filePath', 'code']
+        }
+      }
+    ];
+
     const response = await openaiClient.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: chatMessages,
+      functions: functions,
+      function_call: 'auto', // Let the model decide when to call the function
       temperature: 0.7,
       max_tokens: maxTokens || 1000
     });
 
-    const aiResponse = response.choices[0].message.content;
-    return { success: true, content: aiResponse };
+    const message = response.choices[0].message;
+    const aiResponse = message.content || '';
+    const functionCalls = [];
+
+    // Check for function calls
+    if (message.function_call) {
+      // Single function call
+      try {
+        const functionArgs = JSON.parse(message.function_call.arguments);
+        functionCalls.push({
+          name: message.function_call.name,
+          arguments: functionArgs
+        });
+      } catch (err) {
+        console.error('Error parsing function call arguments:', err);
+      }
+    } else if (message.tool_calls) {
+      // Multiple function calls (tool_calls format)
+      for (const toolCall of message.tool_calls) {
+        try {
+          const functionArgs = JSON.parse(toolCall.function.arguments);
+          functionCalls.push({
+            name: toolCall.function.name,
+            arguments: functionArgs
+          });
+        } catch (err) {
+          console.error('Error parsing tool call arguments:', err);
+        }
+      }
+    }
+
+    return { 
+      success: true, 
+      content: aiResponse,
+      functionCalls: functionCalls.length > 0 ? functionCalls : undefined
+    };
   } catch (error) {
     console.error('OpenAI API error:', error);
     return { 

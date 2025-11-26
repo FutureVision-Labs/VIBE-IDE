@@ -21,6 +21,7 @@ const state = {
     autoReload: true,
     previewRunning: false,
     autoBundle: true, // prefer bundling for real projects
+    currentCodeBlocks: [], // Store code blocks from OpenAI function calls
     mdPreviewMode: false, // Track if markdown preview is active
     theme: localStorage.getItem('vibe-ide-theme') || 'dark',
     leftSidebarWidth: parseInt(localStorage.getItem('vibe-ide-left-sidebar-width') || '260', 10),
@@ -9311,13 +9312,31 @@ async function handleCodeImplementation(responseText, originalMessage, targetEle
         hasResponseText: !!responseText,
         responseLength: responseText?.length,
         hasTargetElement: !!targetElement,
-        hasCodeBlocks: responseText?.includes('```')
+        hasCodeBlocks: responseText?.includes('```'),
+        hasStoredCodeBlocks: !!(state.currentCodeBlocks && state.currentCodeBlocks.length > 0)
     });
     
     try {
         const implementations = [];
         
-        // 1. Extract code blocks with potential file paths
+        // FIRST: Check for stored code blocks from function calls (preferred method!)
+        if (state.currentCodeBlocks && state.currentCodeBlocks.length > 0) {
+            console.log(`✨ Using ${state.currentCodeBlocks.length} stored code block(s) from function calls!`);
+            for (const codeBlock of state.currentCodeBlocks) {
+                implementations.push({
+                    filePath: codeBlock.filePath,
+                    language: codeBlock.language,
+                    code: codeBlock.code
+                });
+                console.log(`📝 Added stored code block: ${codeBlock.filePath} (${codeBlock.language}), ${codeBlock.code.length} chars`);
+            }
+            // Clear stored code blocks after using them
+            state.currentCodeBlocks = [];
+        } else {
+            // FALLBACK: Parse code blocks from markdown (legacy method)
+            console.log('⚠️ No stored code blocks found, falling back to markdown parsing...');
+            
+            // 1. Extract code blocks with potential file paths
         // Strategy: Find all code blocks first, then look backwards for file hints
         // This handles multiple formats:
         // - "### File: index.html" followed by code block
@@ -9550,8 +9569,9 @@ async function handleCodeImplementation(responseText, originalMessage, targetEle
                 }
             }
         }
+        } // End of else block for markdown parsing fallback
         
-        // If we found code blocks, offer to implement them
+        // If we found code blocks (from either method), offer to implement them
         console.log(`🔍 Implementation check: Found ${implementations.length} code block(s)`);
         if (implementations.length > 0) {
             console.log(`✅ Found ${implementations.length} code block(s) to implement:`, implementations.map(i => ({ file: i.filePath, lang: i.language, codeLength: i.code.length })));
@@ -9959,37 +9979,29 @@ async function callOpenAI(message) {
 
 **YOU CAN MODIFY FILES DIRECTLY!** When users ask you to make changes to files, you should:
 
-1. **Provide the complete code** in a code block with the file path, like this:
-   \`\`\`
-   ### File: index.html
-   \`\`\`html
-   [your code here]
-   \`\`\`
+**PREFERRED METHOD - Use the provide_code_block function:**
+- When providing code for files, use the provide_code_block function to provide structured code blocks
+- This ensures perfect code extraction and supports multiple files
+- You can still show the code in markdown format in your response for the user to see
+- The function will be called automatically when you provide code
 
-2. **The system will automatically detect your code** and show "Implement This" buttons below your response.
+**FALLBACK METHOD - Markdown code blocks:**
+- If you provide code in markdown, format it clearly with the file path
+- Use this format: \`\`\`html\n[code here]\n\`\`\` with the file path mentioned before the code block
+- The system will try to extract code from markdown, but the function method is preferred
 
-3. **Users can click these buttons** to apply your changes directly to their files.
+**IMPORTANT:**
+1. **ALWAYS use the provide_code_block function when providing code** - it's the most reliable method!
+2. **You can still show code in markdown** in your response so users can see it
+3. **The system will automatically detect your code** and show "Implement This" buttons below your response
+4. **Users can click these buttons** to apply your changes directly to their files
+5. **DO NOT say you can't modify files** - you can! Just use the function and the system handles the rest
+6. **For multiple files**, call the function multiple times (once per file)
 
-4. **DO NOT say you can't modify files** - you can! Just provide the code and the system handles the rest.
-
-5. **When asked to update a file**, provide the complete updated file content (or the relevant section) in a code block with the file path clearly indicated.
-
-**Example format:**
-\`\`\`
-### File: index.html
-\`\`\`html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>My App</title>
-</head>
-<body>
-    <h1>Hello World!</h1>
-</body>
-</html>
-\`\`\`
-
-This will automatically show an "Implement This" button that users can click to apply your changes!`;
+**Example:**
+- Use the provide_code_block function with filePath, language, and code parameters
+- In your response, you can still show: "Here's the code for index.html:" followed by a markdown code block
+- The function ensures perfect code extraction, while the markdown shows the user what you're providing!`;
         
         // Add Global Agent Persona if available (applies to all projects)
         if (state.globalAgentPersona) {
@@ -10067,6 +10079,31 @@ This will automatically show an "Implement This" button that users can click to 
             }
             
             return null;
+        }
+
+        // Process function calls and store code blocks
+        if (response.functionCalls && response.functionCalls.length > 0) {
+            console.log('✨ Function calls detected:', response.functionCalls.length);
+            
+            // Initialize code blocks array if not exists
+            if (!state.currentCodeBlocks) {
+                state.currentCodeBlocks = [];
+            }
+            
+            // Store code blocks from function calls
+            for (const funcCall of response.functionCalls) {
+                if (funcCall.name === 'provide_code_block' && funcCall.arguments) {
+                    const { filePath, language, code } = funcCall.arguments;
+                    console.log(`📝 Stored code block: ${filePath} (${language || 'text'}), ${code.length} chars`);
+                    state.currentCodeBlocks.push({
+                        filePath: filePath,
+                        language: language || 'text',
+                        code: code
+                    });
+                }
+            }
+            
+            console.log(`✅ Total code blocks stored: ${state.currentCodeBlocks.length}`);
         }
 
         const aiResponse = response.content;
@@ -10492,6 +10529,9 @@ function sendChatMessage() {
     const chatGifCode = document.getElementById('chatGifCode');
     
     if (!chatInput || !chatMessages) return;
+    
+    // Clear stored code blocks from previous response
+    state.currentCodeBlocks = [];
     
     // Get content from WYSIWYG input
     let messageHtml = '';
