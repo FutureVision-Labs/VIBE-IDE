@@ -397,7 +397,7 @@
             <h2>🤖 Cursy's Corner</h2>
             
             <h3>Meet Cursy</h3>
-            <p>Cursy is your AI coding assistant, powered by GPT-4o-mini. Cursy doesn't just wait for questions—she observes, suggests, and helps you learn as you code!</p>
+            <p>Cursy is your AI coding assistant, powered by <strong>Gemini Flash (bring your own API key)</strong>. Your project files stay on your machine; Cursy drafts in the cloud when you add a key in User Settings. She doesn't just wait for questions—she suggests, explains, and helps you learn as you code!</p>
 
             <h3>Chatting with Cursy</h3>
             <p>To chat with Cursy:</p>
@@ -419,6 +419,12 @@
                 <li>Create CML files</li>
                 <li>And much more!</li>
             </ul>
+
+            <h3>Image attachments</h3>
+            <p>Click <strong>🖼️</strong> in the chat toolbar to attach a mockup, screenshot, or reference (PNG, JPEG, WebP, GIF — 3 per message). Images are sent to Gemini at up to 4 MB each; larger files are auto-compressed (usually to JPEG) so big screenshots still work. Great for “match this vibe” or “what’s wrong with this UI?”</p>
+
+            <h3>@agent (bounded file agent)</h3>
+            <p>Prefix a message with <code>@agent</code> (or use Auto mode) for step-by-step file work. Cursy can <strong>search the project</strong>, read files, propose <strong>small patches</strong> or full files, and always waits for your <strong>Approve</strong> before saving. You need a Gemini key and an open project.</p>
 
             <h3>Customizing Cursy</h3>
             <p>You can customize Cursy's personality through <strong>File → Agent Persona Settings</strong>:</p>
@@ -732,7 +738,9 @@
             
             <h4>Cursy Not Responding</h4>
             <ul>
-                <li>Check if OpenAI API key is configured in settings</li>
+                <li>Check the top bar: green <strong>Cursy · Cloud</strong> means your Gemini key is loaded</li>
+                <li>Add or update your key: <strong>File → User Settings</strong> (saved as <code>google-config.json</code> in app data)</li>
+                <li>Try <code>@agent goal</code> for bounded file agent (approve writes)</li>
                 <li>Verify your internet connection</li>
                 <li>Try reloading the application</li>
                 <li>Check the console for error messages</li>
@@ -787,7 +795,7 @@
                 <div class="faq-question">Is VIBE IDE free?</div>
                 <div class="faq-answer">
                     <div class="faq-answer-content">
-                        <p><strong>Yes! The BYO (Bring Your Own) key version is completely free!</strong> You can use VIBE IDE for free by providing your own OpenAI API key. VIBE IDE is also available on itch.io with additional options. Check the <a href="https://futurevisionlabs.itch.io/vibe-ide" target="_blank" style="color: #00a2ff;">itch.io page</a> for current pricing and availability.</p>
+                        <p><strong>Yes!</strong> VIBE IDE is free to download on itch.io. Chat and <code>@agent</code> need a <strong>Google AI Studio API key</strong> (you bring your own; Google has a free tier). Editing, templates, and preview work without a key.</p>
                     </div>
                 </div>
             </div>
@@ -802,10 +810,10 @@
             </div>
 
             <div class="faq-item">
-                <div class="faq-question">How do I configure the OpenAI API key?</div>
+                <div class="faq-question">How do I configure Cursy (Gemini API key)?</div>
                 <div class="faq-answer">
                     <div class="faq-answer-content">
-                        <p>To use Cursy, you'll need to configure your OpenAI API key. The configuration file location is shown in the console when you start VIBE IDE. Create a JSON file with your API key: <code>{"apiKey": "your-key-here"}</code></p>
+                        <p>Open <strong>File → User Settings</strong> and paste your key from <a href="https://aistudio.google.com/apikey" target="_blank" style="color: #00a2ff;">Google AI Studio</a>. It is saved locally as <code>google-config.json</code> in VIBE's app data folder. The top bar shows <strong>Cursy · Cloud</strong> when chat and agent are ready.</p>
                     </div>
                 </div>
             </div>
@@ -814,7 +822,7 @@
                 <div class="faq-question">Can I use VIBE IDE offline?</div>
                 <div class="faq-answer">
                     <div class="faq-answer-content">
-                        <p>Most features work offline, but Cursy (the AI assistant) requires an internet connection and OpenAI API access. File editing, project management, and other core features work completely offline.</p>
+                        <p>Editing, templates, and preview work offline. <strong>Chat and <code>@agent</code> need internet</strong> for Gemini. Project Recall v1 downloads the MiniLM indexer once (~22MB) the first time you use it. GIF search uses Giphy when online.</p>
                     </div>
                 </div>
             </div>

@@ -18,18 +18,27 @@ const state = {
     genreContext: null, // Store genre-specific AI context
     previewFrame: null,
     previewLoaded: false,
+    previewPopoutOpen: false,
+    previewPreferPopout: localStorage.getItem('vibe-ide-preview-popout') !== 'false',
+    previewInlineExpanded: localStorage.getItem('vibe-ide-preview-inline') === 'true',
     autoReload: true,
     previewRunning: false,
     autoBundle: true, // prefer bundling for real projects
-    currentCodeBlocks: [], // Store code blocks from OpenAI function calls
+    currentCodeBlocks: [], // Code blocks from AI tool calls (provide_code_block)
+    lastAssistantRawForImplement: null, // Full model text (incl. fences) for Implement UI; chat shows collapsed copy
     mdPreviewMode: false, // Track if markdown preview is active
     theme: localStorage.getItem('vibe-ide-theme') || 'dark',
     leftSidebarWidth: parseInt(localStorage.getItem('vibe-ide-left-sidebar-width') || '260', 10),
+    // Default 320px: matches Cursy's Corner scene (absolutely positioned assets in buildCursyOffice)
     rightSidebarWidth: parseInt(localStorage.getItem('vibe-ide-right-sidebar-width') || '320', 10),
     previewHeight: parseInt(localStorage.getItem('vibe-ide-preview-height') || '250', 10),
     leftSidebarCollapsed: localStorage.getItem('vibe-ide-left-sidebar-collapsed') === 'true',
     rightSidebarCollapsed: localStorage.getItem('vibe-ide-right-sidebar-collapsed') === 'true',
-    previewCollapsed: localStorage.getItem('vibe-ide-preview-collapsed') === 'true',
+    previewCollapsed: (() => {
+        const stored = localStorage.getItem('vibe-ide-preview-collapsed');
+        if (stored === null) return true;
+        return stored === 'true';
+    })(),
     genreEditor: {
         overlay: null,
         jsonEditor: null,
@@ -51,16 +60,20 @@ const state = {
     chatHistory: [], // Store chat messages for persistence
     undoStack: [], // Store last file operation for undo (rename/delete)
     giphyApiKey: 'aYiZhypI5Grja4m0hgYobklPHipQI98e', // GIPHY API key (100 calls/hour limit)
-    openaiApiKey: null, // OpenAI API key - loaded from config file or env var
-    openaiClient: null, // OpenAI client instance
-    useOpenAI: true, // Toggle between OpenAI and mock responses
-    conversationContext: [], // Store conversation context for OpenAI
+    aiReady: false, // Gemini available via main process IPC
+    aiEnabled: true, // Prefer live AI when key configured; falls back to mock
+    cloudBrainStatus: null, // Gemini BYOK status from main
+    pendingChatImages: [], // { mimeType, data, previewUrl, name } for multimodal send
+    conversationContext: [], // Chat turns for Gemini history
     agentPersona: null, // Agent_Persona.md content (project-specific)
     globalAgentPersona: localStorage.getItem('vibe-ide-global-agent-persona') || null, // Global agent persona
     allowProjectPersonaOverrides: localStorage.getItem('vibe-ide-allow-project-persona-overrides') !== 'false', // Default to true
     projectJournal: null, // PROJECT_JOURNAL.md content
+    projectCmlBrief: null, // Recent cml/ episodic memory for prompts
+    recallPins: [], // Pinned file snippets for Project Recall
     userName: localStorage.getItem('vibe-ide-user-name') || null, // User's name (for CML recording, future login)
-    recordChatToCML: localStorage.getItem('vibe-ide-record-chat-to-cml') === 'true' // CML recording enabled state
+    recordChatToCML: localStorage.getItem('vibe-ide-record-chat-to-cml') === 'true', // CML recording enabled state
+    cursyInteractionMode: localStorage.getItem('vibe-ide-cursy-mode') || 'auto', // auto | chat | agent
 };
 
 // Welcome screen functions (exposed globally for HTML onclick handlers)
@@ -321,6 +334,7 @@ async function handleSaveFile() {
                 tab.isDirty = false;
                 renderTabs();
                 showToast(`File saved: ${tab.name}`, 'success', 2000);
+                scheduleRecallReindex();
             } else {
                 showToast('Error saving file: ' + result.error, 'error');
             }
@@ -398,33 +412,42 @@ async function handleNewProject() {
 
 function showTemplateDialog() {
     return new Promise(async (resolve) => {
-        // Get available genres
+        const catalogResult = await window.electronAPI.listProjectTemplates();
+        const templateList = catalogResult?.success && Array.isArray(catalogResult.templates)
+            ? catalogResult.templates
+            : [];
+        const categoryLabels = catalogResult?.categoryLabels || {};
+        const templateById = Object.fromEntries(templateList.map((t) => [t.id, t]));
+
         const genresResult = await window.electronAPI.listAvailableGenres();
         const availableGenres = genresResult.success && Array.isArray(genresResult.genres)
-            ? genresResult.genres.map(g => g.name)
-            : ['platformer', 'shooter', 'puzzle', 'runner'];
-        
-        // Template to genre mapping
-        const templateToGenre = {
-            blank: null,
-            'web-app': null,
-            'python-beginner': null,
-            'data-analysis': null,
-            platformer: 'platformer',
-            shooter: 'shooter',
-            puzzle: 'puzzle',
-            runner: 'runner'
-        };
-        
-        // Template metadata (for display)
-        const templateMetadata = {
-            blank: { name: 'Blank Project', description: 'Start from scratch with a clean slate', icon: '📄' },
-            'web-app': { name: 'Web App', description: 'HTML, CSS, and JavaScript web application', icon: '🌐' },
-            'python-beginner': { name: 'Python Beginner', description: 'Simple Python script to learn the basics', icon: '🐍' },
-            'data-analysis': { name: 'Data Analysis', description: 'Python project for analyzing data', icon: '📊' },
-            platformer: { name: 'Platformer Game', description: '2D platformer game with Phaser.js', icon: '🎮' }
-        };
-        
+            ? genresResult.genres.map((g) => g.name)
+            : [];
+
+        const categoryOrder = ['general', 'web', 'content', 'python', 'tools', 'games'];
+        const grouped = categoryOrder
+            .map((cat) => ({
+                cat,
+                label: categoryLabels[cat] || cat,
+                items: templateList.filter((t) => t.category === cat),
+            }))
+            .filter((g) => g.items.length > 0);
+
+        const templateOptions = grouped
+            .map(
+                (g) =>
+                    `<optgroup label="${g.label}">${g.items
+                        .map((t) => `<option value="${t.id}">${t.icon} ${t.name}</option>`)
+                        .join('')}</optgroup>`
+            )
+            .join('');
+
+        const formatGenreLabel = (name) =>
+            name
+                .split('-')
+                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                .join(' ');
+
         const dialog = document.createElement('div');
         dialog.style.cssText = `
             position: fixed;
@@ -436,16 +459,13 @@ function showTemplateDialog() {
             border-radius: 8px;
             padding: 20px;
             z-index: 10000;
-            min-width: 350px;
-            max-width: 500px;
+            min-width: 380px;
+            max-width: 520px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         `;
-        
-        // Build template options HTML
-        const templateOptions = Object.entries(templateMetadata).map(([key, meta]) => 
-            `<option value="${key}">${meta.icon} ${meta.name}</option>`
-        ).join('');
-        
+
+        const firstTemplate = templateList[0] || { id: 'blank', description: '', defaultGenre: null };
+
         dialog.innerHTML = `
             <h3 style="margin-top: 0; color: #fff;">Create New Project</h3>
             <div style="margin: 15px 0;">
@@ -461,7 +481,7 @@ function showTemplateDialog() {
                     font-size: 14px;
                     cursor: pointer;
                 ">
-                    ${templateOptions}
+                    ${templateOptions || '<option value="blank">📄 Blank Project</option>'}
                 </select>
                 <div id="template-description" style="
                     background: #2a2a2a;
@@ -469,11 +489,17 @@ function showTemplateDialog() {
                     border-radius: 4px;
                     color: #aaa;
                     font-size: 12px;
-                    margin-bottom: 15px;
+                    margin-bottom: 8px;
                     min-height: 20px;
-                ">${templateMetadata.blank.description}</div>
+                "></div>
+                <div id="template-genre-hint" style="
+                    color: #7eb8ff;
+                    font-size: 12px;
+                    margin-bottom: 15px;
+                    min-height: 16px;
+                "></div>
                 
-                <label style="display: block; color: #ccc; margin-bottom: 8px;">Genre (optional):</label>
+                <label style="display: block; color: #ccc; margin-bottom: 8px;">Genre (AI context):</label>
                 <select id="genre-select" style="
                     width: 100%;
                     padding: 8px;
@@ -481,12 +507,12 @@ function showTemplateDialog() {
                     color: #fff;
                     border: 1px solid #666;
                     border-radius: 4px;
-                    margin-bottom: 15px;
+                    margin-bottom: 8px;
                 ">
-                    <option value="">None (infer from template)</option>
-                    ${availableGenres.map(g => `<option value="${g}">${g.charAt(0).toUpperCase() + g.slice(1)}</option>`).join('')}
+                    <option value="">None</option>
+                    ${availableGenres.map((g) => `<option value="${g}">${formatGenreLabel(g)}</option>`).join('')}
                 </select>
-                <small style="color: #888; font-size: 12px;">Genre helps AI provide better suggestions</small>
+                <small style="color: #888; font-size: 12px;">Picked automatically from template; change if you want a different AI rule set.</small>
             </div>
             <div style="display: flex; gap: 10px;">
                 <button id="template-create" style="
@@ -498,7 +524,6 @@ function showTemplateDialog() {
                     border-radius: 4px;
                     cursor: pointer;
                     font-weight: bold;
-                    transition: background 0.2s;
                 ">Create</button>
                 <button id="template-cancel" style="
                     flex: 1;
@@ -508,38 +533,57 @@ function showTemplateDialog() {
                     border: 1px solid #888;
                     border-radius: 4px;
                     cursor: pointer;
-                    transition: background 0.2s;
                 ">Cancel</button>
             </div>
         `;
-        
+
         document.body.appendChild(dialog);
-        
-        // Auto-select genre based on template
+
         const templateSelect = document.getElementById('template-select');
         const genreSelect = document.getElementById('genre-select');
-        
-        // Update description when template changes
         const descriptionDiv = document.getElementById('template-description');
-        templateSelect.addEventListener('change', () => {
-            const template = templateSelect.value;
-            const meta = templateMetadata[template];
-            if (meta && descriptionDiv) {
-                descriptionDiv.textContent = meta.description;
+        const genreHint = document.getElementById('template-genre-hint');
+        let genreManuallyChanged = false;
+
+        function syncTemplateUi(templateId) {
+            const meta = templateById[templateId];
+            if (!meta) return;
+            if (descriptionDiv) descriptionDiv.textContent = meta.description;
+            const suggested = meta.defaultGenre || '';
+            if (genreHint) {
+                genreHint.textContent = suggested
+                    ? `Suggested genre: ${formatGenreLabel(suggested)} (from template)`
+                    : 'No default genre for this template.';
             }
-            const inferredGenre = templateToGenre[template];
-            if (inferredGenre && genreSelect.value === '') {
-                genreSelect.value = inferredGenre;
+            if (!genreManuallyChanged) {
+                genreSelect.value = suggested;
             }
+        }
+
+        genreSelect.addEventListener('change', () => {
+            const meta = templateById[templateSelect.value];
+            const suggested = meta?.defaultGenre || '';
+            genreManuallyChanged = genreSelect.value !== suggested;
         });
-        
+
+        templateSelect.addEventListener('change', () => {
+            genreManuallyChanged = false;
+            syncTemplateUi(templateSelect.value);
+        });
+
+        syncTemplateUi(templateSelect.value || firstTemplate.id);
+
         document.getElementById('template-create').addEventListener('click', () => {
             const template = templateSelect.value;
-            const genre = genreSelect.value || null;
+            const meta = templateById[template];
+            const genre =
+                genreSelect.value ||
+                (meta && meta.defaultGenre) ||
+                null;
             document.body.removeChild(dialog);
             resolve({ template, genre });
         });
-        
+
         document.getElementById('template-cancel').addEventListener('click', () => {
             document.body.removeChild(dialog);
             resolve(null);
@@ -804,10 +848,11 @@ function startCursyAnimation(state) {
     if (!character) return;
     
     const animation = cursyAnimations[state];
-    if (!animation || !animation.frames.length) {
+    const frames = animation && Array.isArray(animation.frames) ? animation.frames : [];
+    if (!animation || frames.length === 0) {
         // Fallback: show first frame if available
-        if (animation && animation.frames[0]) {
-            character.src = animation.frames[0];
+        if (frames[0]) {
+            character.src = frames[0];
             character.style.display = 'block';
         }
         return;
@@ -817,29 +862,34 @@ function startCursyAnimation(state) {
     character.style.display = 'block';
     
     // Cycle through frames
-    const frameDelay = 1000 / animation.fps;
+    const frameDelay = 1000 / (animation.fps || 6);
     cursyAnimationInterval = setInterval(() => {
-        cursyCurrentFrame = (cursyCurrentFrame + 1) % animation.frames.length;
-        const framePath = animation.frames[cursyCurrentFrame];
+        cursyCurrentFrame = (cursyCurrentFrame + 1) % frames.length;
+        const framePath = frames[cursyCurrentFrame];
         
         // Try to load the frame, with fallback
         character.src = framePath;
         character.onerror = () => {
             // If frame doesn't exist, try first frame as fallback
-            if (animation.frames[0]) {
-                character.src = animation.frames[0];
+            if (frames[0]) {
+                character.src = frames[0];
             }
         };
     }, frameDelay);
     
     // Set initial frame
-    if (animation.frames[0]) {
-        character.src = animation.frames[0];
+    if (frames[0]) {
+        character.src = frames[0];
     }
 }
 
 function updateCursyState(newState, statusText = null) {
     console.log('🔵 updateCursyState called:', newState, statusText);
+
+    if (newState === 'typing' && cursyState === 'typing') {
+        startCursyAnimation('typing');
+        return;
+    }
     
     const character = document.getElementById('cursyCharacter');
     const roomPropsLayer = document.getElementById('roomPropsLayer');
@@ -3369,6 +3419,7 @@ window.handleCMLViewer = async function() {
     const openFileBtn = document.getElementById('cmlOpenFileBtn');
     const openFolderBtn = document.getElementById('cmlOpenFolderBtn');
     const newFileBtn = document.getElementById('cmlNewFileBtn');
+    const restoreChatBtn = document.getElementById('cmlRestoreChatBtn');
     const renderBtn = document.getElementById('cmlRenderBtn');
     const saveBtn = document.getElementById('cmlSaveBtn');
     const cmlRecordingCheckbox = document.getElementById('cmlRecordingEnabled');
@@ -3439,6 +3490,16 @@ window.handleCMLViewer = async function() {
         };
     }
     
+    if (restoreChatBtn) {
+        restoreChatBtn.onclick = async () => {
+            const replace = confirm(
+                'Rebuild Cursy\'s Corner from chat-conversation CML files in this project\'s cml/ folder?\n\nOK = replace current chat\nCancel = abort'
+            );
+            if (!replace) return;
+            await window.restoreChatFromRecentCml({ merge: false });
+        };
+    }
+
     // New CML file
     if (newFileBtn) {
         newFileBtn.onclick = () => {
@@ -3562,10 +3623,228 @@ window.handleCMLViewer = async function() {
     setTimeout(() => sourceTextarea.focus(), 100);
 };
 
+function recallPinsStorageKey(projectPath) {
+    return `vibe-ide-recall-pins:${projectPath}`;
+}
+
+function loadRecallPinsForProject(projectPath) {
+    if (!projectPath) {
+        state.recallPins = [];
+        return;
+    }
+    try {
+        const raw = localStorage.getItem(recallPinsStorageKey(projectPath));
+        state.recallPins = raw ? JSON.parse(raw) : [];
+    } catch {
+        state.recallPins = [];
+    }
+}
+
+function saveRecallPinsForProject() {
+    if (!state.currentProject?.path) return;
+    localStorage.setItem(
+        recallPinsStorageKey(state.currentProject.path),
+        JSON.stringify(state.recallPins || [])
+    );
+}
+
+function getPinnedRecallPromptBlock() {
+    if (!state.recallPins?.length) return '';
+    return state.recallPins
+        .map(
+            (p, i) =>
+                `[pin ${i + 1}] **${p.relPath}**\n${String(p.snippet || '').slice(0, 1200)}`
+        )
+        .join('\n\n');
+}
+
+function isFilePinned(relPath) {
+    return state.recallPins.some((p) => p.relPath === relPath);
+}
+
+async function pinFileToRecall(file) {
+    if (!file?.path || !state.currentProject?.path || file.type !== 'file') return;
+    const root = state.currentProject.path.replace(/[/\\]$/, '');
+    const rel = file.path.replace(/\\/g, '/').replace(root.replace(/\\/g, '/'), '').replace(/^\//, '');
+    try {
+        const read = await window.electronAPI.readFile(file.path);
+        if (!read.success) {
+            showToast('Could not read file to pin', 'warning');
+            return;
+        }
+        state.recallPins = state.recallPins.filter((p) => p.relPath !== rel);
+        state.recallPins.push({
+            relPath: rel,
+            snippet: String(read.content).slice(0, 4000),
+            pinnedAt: new Date().toISOString(),
+        });
+        if (state.recallPins.length > 12) state.recallPins = state.recallPins.slice(-12);
+        saveRecallPinsForProject();
+        showToast(`📌 Pinned ${rel} to Recall`, 'success');
+    } catch (err) {
+        showToast('Pin failed: ' + err.message, 'error');
+    }
+}
+
+function unpinFileFromRecall(file) {
+    if (!state.currentProject?.path) return;
+    const root = state.currentProject.path.replace(/[/\\]$/, '');
+    const rel = file.path.replace(/\\/g, '/').replace(root.replace(/\\/g, '/'), '').replace(/^\//, '');
+    state.recallPins = state.recallPins.filter((p) => p.relPath !== rel);
+    saveRecallPinsForProject();
+    showToast('Unpinned from Recall', 'info');
+}
+
+function getGifReactionLevel() {
+    return localStorage.getItem('vibe-ide-gif-level') || 'normal';
+}
+
+function shouldAttachGif(gifTerm) {
+    if (!gifTerm) return false;
+    const level = getGifReactionLevel();
+    if (level === 'off') return false;
+    if (level === 'party') return true;
+    return true;
+}
+
+function getPhaserContextPacket() {
+    const cfg = state.currentProject?.config || {};
+    const template = cfg.template || state.currentProject?.template;
+    const isPhaser =
+        template === 'platformer' ||
+        (state.projectJournal && /phaser/i.test(state.projectJournal)) ||
+        (state.openTabs && state.openTabs.some((t) => /game\.js|phaser/i.test(t.name + (t.path || ''))));
+    if (!isPhaser) return '';
+    return `## Phaser game context
+This project uses **Phaser 3** (VIBE IDE game template). Key ideas for the user:
+- Scenes, preload/create/update lifecycle
+- \`this.add.sprite\`, physics arcade, \`this.input\`
+- Preview may use the built-in game preview / Cursy's Corner
+- Prefer small, testable changes to \`game.js\` and assets under the project folder`;
+}
+
+let recallReindexTimer = null;
+function scheduleRecallReindex() {
+    if (!state.currentProject?.path || !window.RecallNeural?.syncProjectIndex) return;
+    clearTimeout(recallReindexTimer);
+    recallReindexTimer = setTimeout(() => {
+        window.RecallNeural.syncProjectIndex(state.currentProject.path, true);
+    }, 4500);
+}
+window.scheduleRecallReindex = scheduleRecallReindex;
+
+window.restoreChatFromRecentCml = async function restoreChatFromRecentCml(options = {}) {
+    const { merge = false, limit = 120 } = options;
+    if (!state.currentProject?.path) {
+        showToast('Open the project that was active during chat first', 'warning');
+        return { ok: false };
+    }
+    if (!window.electronAPI?.chatImportFromCml) {
+        showToast('Restore needs a fresh app restart (chat import IPC)', 'warning');
+        return { ok: false };
+    }
+    const res = await window.electronAPI.chatImportFromCml(state.currentProject.path, limit);
+    if (!res?.success || !res.messages?.length) {
+        showToast(res?.error || 'No chat-conversation CML files found in cml/', 'warning', 5000);
+        return { ok: false };
+    }
+    if (!merge) {
+        applyLoadedChatHistory(res.messages.slice(-100));
+    } else {
+        applyLoadedChatHistory([...(state.chatHistory || []), ...res.messages].slice(-100));
+    }
+    saveChatHistory();
+    showToast(`Restored ${res.fileCount} CML chat log(s) → ${state.chatHistory.length} messages`, 'success', 5500);
+    return { ok: true, fileCount: res.fileCount };
+};
+
+window.exportChatThreadToCML = async function exportChatThreadToCML() {
+    if (!state.currentProject?.path) {
+        showToast('Open a project first', 'warning');
+        return;
+    }
+    if (!state.chatHistory?.length) {
+        showToast('No chat messages to export', 'warning');
+        return;
+    }
+    const userName = (state.userName || 'damo').toLowerCase();
+    const projectName = state.currentProject.path.split(/[/\\]/).pop();
+    const now = new Date();
+    const timestamp = now.toISOString();
+    const lines = state.chatHistory.map((m) => `${m.role}: ${m.content}`).join('\n\n---\n\n');
+    const cmlContent = `[${timestamp}|chat|${userName},cursy|${projectName}|type:thread-export]{
+  summary: "Exported chat thread from VIBE IDE";
+  messageCount: ${state.chatHistory.length};
+  body: "${lines.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').slice(0, 12000)}";
+}`;
+    const root = state.currentProject.path.replace(/[/\\]$/, '');
+    const sep = root.includes('\\') ? '\\' : '/';
+    const fileName = `${now.toISOString().split('T')[0]}-thread-export.cml`;
+    const filePath = root + sep + 'cml' + sep + fileName;
+    try {
+        const exists = await window.electronAPI.fileExists(root + sep + 'cml');
+        if (!exists.exists) await window.electronAPI.createFolder(root + sep + 'cml');
+        const w = await window.electronAPI.writeFile(filePath, cmlContent);
+        if (w.success) {
+            showToast(`Exported to cml/${fileName}`, 'success');
+            loadProjectCmlBrief(state.currentProject.path);
+        } else {
+            showToast(w.error || 'Export failed', 'error');
+        }
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+};
+
+async function refreshRecallStatus() {
+    const chip = document.getElementById('recallStatusChip');
+    if (!chip) return;
+    if (!state.currentProject?.path || !window.electronAPI?.recallStats) {
+        chip.textContent = '🧠 Recall —';
+        return;
+    }
+    try {
+        const stats = await window.electronAPI.recallStats(state.currentProject.path);
+        const n = stats?.count || 0;
+        chip.textContent = n > 0 ? `🧠 Recall ${n}` : '🧠 Recall 0';
+        chip.title = n > 0 ? `Project Recall v1 · ${n} indexed chunks` : 'Project Recall · open a project to index';
+        state.recallChunkCount = n;
+    } catch {
+        chip.textContent = '🧠 Recall —';
+    }
+}
+window.refreshRecallStatus = refreshRecallStatus;
+
+function buildUnifiedDiffPreview(oldText, newText) {
+    const oldLines = String(oldText || '').split('\n');
+    const newLines = String(newText || '').split('\n');
+    const max = Math.max(oldLines.length, newLines.length);
+    const lines = [];
+    let changes = 0;
+    for (let i = 0; i < max && changes < 40; i++) {
+        const o = oldLines[i];
+        const n = newLines[i];
+        if (o === n) continue;
+        if (o !== undefined) {
+            lines.push(`<span class="diff-del">- ${escapeHtml(o)}</span>`);
+            changes++;
+        }
+        if (n !== undefined) {
+            lines.push(`<span class="diff-add">+ ${escapeHtml(n)}</span>`);
+            changes++;
+        }
+    }
+    if (lines.length === 0) {
+        return '<em>(new file or no line changes in preview)</em>';
+    }
+    return lines.join('\n');
+}
+
 // User Settings
-window.handleUserSettings = function() {
+window.handleUserSettings = async function() {
     const overlay = document.getElementById('userSettingsModalOverlay');
     const userNameInput = document.getElementById('userNameInput');
+    const geminiApiKeyInput = document.getElementById('geminiApiKeyInput');
     const closeBtn = document.getElementById('userSettingsModalClose');
     const saveBtn = document.getElementById('userSettingsSaveBtn');
     const cancelBtn = document.getElementById('userSettingsCancelBtn');
@@ -3575,10 +3854,14 @@ window.handleUserSettings = function() {
         return;
     }
     
-    // Load current user name
     userNameInput.value = state.userName || '';
-    
-    // Show modal
+
+    if (geminiApiKeyInput) geminiApiKeyInput.value = '';
+    const gifLevel = document.getElementById('gifReactionLevel');
+    if (gifLevel) gifLevel.value = getGifReactionLevel();
+    const cursyModeEl = document.getElementById('cursyInteractionMode');
+    if (cursyModeEl) cursyModeEl.value = getCursyInteractionMode();
+
     overlay.style.display = 'flex';
     
     // Close button
@@ -3604,18 +3887,37 @@ window.handleUserSettings = function() {
     
     // Save button
     if (saveBtn) {
-        saveBtn.onclick = () => {
+        saveBtn.onclick = async () => {
             const userName = userNameInput.value.trim();
             state.userName = userName || null;
             
             if (userName) {
                 localStorage.setItem('vibe-ide-user-name', userName);
-                showToast(`✨ User name saved: ${userName}!`, 'success');
             } else {
                 localStorage.removeItem('vibe-ide-user-name');
-                showToast('✨ User name cleared!', 'success');
+            }
+
+            const newKey = geminiApiKeyInput?.value.trim();
+            if (newKey && window.electronAPI?.googleSaveConfig) {
+                const saveKey = await window.electronAPI.googleSaveConfig(newKey);
+                if (saveKey.success) {
+                    showToast('☁️ Gemini key saved — Cursy is online', 'success');
+                    if (typeof refreshCloudBrainChip === 'function') await refreshCloudBrainChip(true);
+                    if (typeof initAI === 'function') await initAI();
+                } else {
+                    showToast(saveKey.error || 'Could not save API key', 'warning');
+                }
             }
             
+            const gifLevel = document.getElementById('gifReactionLevel');
+            if (gifLevel) localStorage.setItem('vibe-ide-gif-level', gifLevel.value);
+            const cursyModeEl = document.getElementById('cursyInteractionMode');
+            if (cursyModeEl) {
+                state.cursyInteractionMode = cursyModeEl.value || 'auto';
+                localStorage.setItem('vibe-ide-cursy-mode', state.cursyInteractionMode);
+            }
+
+            showToast(userName ? `✨ Saved (${userName})` : '✨ Settings saved', 'success');
             overlay.style.display = 'none';
         };
     }
@@ -3730,6 +4032,14 @@ async function loadProject(projectPath) {
     
     // Load PROJECT_JOURNAL.md if it exists
     await loadProjectJournal(projectPath);
+
+    await loadProjectCmlBrief(projectPath);
+    loadRecallPinsForProject(projectPath);
+
+    if (window.RecallNeural?.syncProjectIndex) {
+      setTimeout(() => window.RecallNeural.syncProjectIndex(projectPath), 800);
+    }
+    refreshRecallStatus();
     
     await loadProjectFiles(projectPath);
     
@@ -3940,6 +4250,7 @@ function initResizers() {
             if (newWidth >= 150 && newWidth <= 600) {
                 state.leftSidebarWidth = newWidth;
                 leftSidebar.style.width = newWidth + 'px';
+                layoutMonacoEditor();
             }
         }
     });
@@ -3949,6 +4260,7 @@ function initResizers() {
             leftResizing = false;
             leftResizer.classList.remove('dragging');
             localStorage.setItem('vibe-ide-left-sidebar-width', state.leftSidebarWidth.toString());
+            layoutMonacoEditor();
         }
     });
 
@@ -3966,6 +4278,7 @@ function initResizers() {
             if (newWidth >= 150 && newWidth <= 600) {
                 state.rightSidebarWidth = newWidth;
                 rightSidebar.style.width = newWidth + 'px';
+                layoutMonacoEditor();
             }
         }
     });
@@ -3975,6 +4288,7 @@ function initResizers() {
             rightResizing = false;
             rightResizer.classList.remove('dragging');
             localStorage.setItem('vibe-ide-right-sidebar-width', state.rightSidebarWidth.toString());
+            layoutMonacoEditor();
         }
     });
 
@@ -3992,6 +4306,7 @@ function initResizers() {
             if (newHeight >= 100 && newHeight <= window.innerHeight - 200) {
                 state.previewHeight = newHeight;
                 previewPane.style.height = newHeight + 'px';
+                layoutMonacoEditor();
             }
         }
     });
@@ -4001,6 +4316,7 @@ function initResizers() {
             previewResizing = false;
             previewResizer.classList.remove('dragging');
             localStorage.setItem('vibe-ide-preview-height', state.previewHeight.toString());
+            layoutMonacoEditor();
         }
     });
 }
@@ -4021,6 +4337,7 @@ function toggleLeftSidebar() {
     }
     
     localStorage.setItem('vibe-ide-left-sidebar-collapsed', state.leftSidebarCollapsed.toString());
+    layoutMonacoEditor();
 }
 
 function toggleRightSidebar() {
@@ -4041,6 +4358,7 @@ function toggleRightSidebar() {
     }
     
     localStorage.setItem('vibe-ide-right-sidebar-collapsed', state.rightSidebarCollapsed.toString());
+    layoutMonacoEditor();
 }
 
 function togglePreview() {
@@ -4051,13 +4369,112 @@ function togglePreview() {
     if (state.previewCollapsed) {
         pane.classList.add('collapsed');
         toggle.textContent = '▲';
+        if (state.previewPreferPopout) {
+            state.previewInlineExpanded = false;
+            pane.classList.remove('inline-expanded');
+            localStorage.setItem('vibe-ide-preview-inline', 'false');
+        }
     } else {
         pane.classList.remove('collapsed');
         pane.style.height = state.previewHeight + 'px';
         toggle.textContent = '▼';
+        if (state.previewPreferPopout) {
+            state.previewInlineExpanded = true;
+            pane.classList.add('inline-expanded');
+            localStorage.setItem('vibe-ide-preview-inline', 'true');
+            if (!state.previewLoaded) {
+                loadPreviewWithPhaser();
+            }
+        }
     }
     
     localStorage.setItem('vibe-ide-preview-collapsed', state.previewCollapsed.toString());
+    syncPreviewLayoutChrome();
+    layoutMonacoEditor();
+}
+
+function syncPreviewLayoutChrome() {
+    const pane = document.getElementById('previewPane');
+    const resizer = document.getElementById('previewResizer');
+    const hint = document.getElementById('previewModeHint');
+    if (pane) {
+        if (state.previewPreferPopout) {
+            pane.classList.add('popout-primary');
+            if (state.previewInlineExpanded && !state.previewCollapsed) {
+                pane.classList.add('inline-expanded');
+                pane.style.height = state.previewHeight + 'px';
+            } else {
+                pane.classList.remove('inline-expanded');
+                pane.style.height = '35px';
+            }
+        } else {
+            pane.classList.remove('popout-primary', 'inline-expanded');
+            if (!state.previewCollapsed) {
+                pane.style.height = state.previewHeight + 'px';
+            }
+        }
+    }
+    if (resizer) {
+        const hideResizer = state.previewPreferPopout && !state.previewInlineExpanded;
+        resizer.style.display = hideResizer ? 'none' : '';
+    }
+    if (hint) {
+        if (state.previewPopoutOpen) {
+            hint.textContent = '(pop-out · live)';
+        } else if (state.previewPreferPopout) {
+            hint.textContent = '(pop-out)';
+        } else {
+            hint.textContent = '(inline)';
+        }
+    }
+    layoutMonacoEditor();
+}
+
+async function ensurePreviewPopout() {
+    if (!window.electronAPI?.previewOpenPopout) return false;
+    if (state.previewPopoutOpen) {
+        const status = await window.electronAPI.previewIsPopoutOpen();
+        if (status?.open) return true;
+        state.previewPopoutOpen = false;
+    }
+    const res = await window.electronAPI.previewOpenPopout();
+    if (res?.success) {
+        state.previewPopoutOpen = true;
+        syncPreviewLayoutChrome();
+        return true;
+    }
+    console.warn('Preview pop-out failed:', res?.error);
+    return false;
+}
+
+async function deliverPreviewMessage(payload) {
+    let delivered = false;
+    if (state.previewPreferPopout || state.previewPopoutOpen) {
+        const ok = await ensurePreviewPopout();
+        if (ok && window.electronAPI?.previewPopoutMessage) {
+            const res = await window.electronAPI.previewPopoutMessage(payload);
+            delivered = !!(res && res.success);
+        }
+    }
+    if (!state.previewPreferPopout && state.previewFrame) {
+        try {
+            state.previewFrame.postMessage(payload, '*');
+            delivered = true;
+        } catch (e) {
+            console.warn('Inline preview postMessage failed:', e.message);
+        }
+    } else if (state.previewInlineExpanded && state.previewFrame) {
+        try {
+            state.previewFrame.postMessage(payload, '*');
+        } catch (e) {
+            /* optional mirror */
+        }
+    }
+    return delivered;
+}
+
+function isPreviewChannelActive() {
+    return state.previewPopoutOpen || state.previewLoaded;
 }
 
 // Load and display recent projects
@@ -4120,8 +4537,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Ensure welcome screen is shown on startup
     state.activeTab = null;
     state.openTabs = []; // Clear any tabs
-    document.getElementById('welcomeScreen').style.display = 'block';
-    document.getElementById('monacoEditor').style.display = 'none';
+    setEditorPaneVisibility({ welcome: true });
     
     // Render tabs to show Welcome tab
     renderTabs();
@@ -4130,10 +4546,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load recent projects
     loadRecentProjects();
     
-    // Initialize OpenAI client
+    // Initialize AI backend status (Gemini BYOK)
     setTimeout(() => {
-        initOpenAI();
+        initAI();
     }, 500);
+
+    const ollamaChip = document.getElementById('ollamaStatusChip');
+    if (ollamaChip) {
+        ollamaChip.addEventListener('click', () => {
+            refreshCloudBrainChip(true);
+            if (!state.aiReady && typeof handleUserSettings === 'function') {
+                handleUserSettings();
+            }
+        });
+    }
     
     // Initialize Pixabay API (check key on startup)
     setTimeout(() => {
@@ -4171,9 +4597,21 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('previewPane').classList.add('collapsed');
         document.getElementById('togglePreview').textContent = '▲';
     }
+    if (state.previewPreferPopout && state.previewInlineExpanded && !state.previewCollapsed) {
+        document.getElementById('previewPane').classList.add('inline-expanded');
+    }
+    syncPreviewLayoutChrome();
+    if (window.electronAPI?.onPreviewPopoutClosed) {
+        window.electronAPI.onPreviewPopoutClosed(() => {
+            state.previewPopoutOpen = false;
+            syncPreviewLayoutChrome();
+        });
+    }
     
     // Initialize resizers
     initResizers();
+    getVibeMonacoHost()?.attachUiHandlers();
+    syncEditorShellClass();
     
     // Add event listeners
     document.getElementById('themeToggle').addEventListener('click', toggleTheme);
@@ -4340,17 +4778,8 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('✅ Theme toggle initialized');
     console.log('✅ Window state persistence initialized');
     
-    // Initialize Monaco Editor when ready
     window.initMonacoEditor = initMonacoEditor;
-    
-    // If Monaco is already loaded, initialize it
-    if (typeof monaco !== 'undefined') {
-        initMonacoEditor();
-        setTimeout(() => {
-            setupHotReload();
-        }, 500);
-    }
-    
+
     // Initialize preview system
     initPreview();
     initPreviewControls();
@@ -4426,71 +4855,143 @@ function update() {
     }, 1000);
 }
 
-// Monaco Editor Initialization
-function initMonacoEditor() {
-    if (state.monacoEditor) {
-        console.log('Monaco Editor already initialized');
-        return;
-    }
-    
-    const editorContainer = document.getElementById('monacoEditor');
-    if (!editorContainer) {
-        console.error('Monaco Editor container not found');
-        return;
-    }
-    
-    if (typeof monaco === 'undefined') {
-        console.error('Monaco Editor library not loaded');
-        editorContainer.innerHTML = '<div style="padding: 20px; color: #f48771;">Monaco Editor failed to load. Please refresh the app.</div>';
-        return;
-    }
-    
-    try {
-        // Don't show editor container - it will be shown when a tab is opened
-        // editorContainer.style.display = 'block'; // Only show when tab is active
-        editorContainer.style.width = '100%';
-        editorContainer.style.height = '100%';
-        
-        // Check if there's a pending tab with content to load
-        const activeTab = state.openTabs.find(t => t.id === state.activeTab);
-        const initialValue = activeTab?.pendingContent || activeTab?.content || '// Welcome to VIBE IDE!\n// Start coding your project here...\n\nconsole.log("Hello, VIBE IDE!");';
-        const initialLanguage = activeTab ? getLanguageFromFileName(activeTab.name) : 'javascript';
-        
-        // Create Monaco Editor instance
-        state.monacoEditor = monaco.editor.create(editorContainer, {
-            value: initialValue,
-            language: initialLanguage,
-            theme: state.theme === 'dark' ? 'vs-dark' : 'vs',
-            fontSize: 14,
-            lineNumbers: 'on',
-            minimap: { enabled: true },
-            automaticLayout: true,
-            scrollBeyondLastLine: false,
-            wordWrap: 'on',
-            formatOnPaste: true,
-            formatOnType: true,
-            tabSize: 2
-        });
-        
-        console.log('✅ Monaco Editor initialized successfully');
-        
-        // If there was pending content, clear it now that it's set
-        if (activeTab && activeTab.pendingContent) {
-            activeTab.pendingContent = undefined;
-            console.log('✅ Set pending content in Monaco Editor');
+function isMonacoEditorPaneActive() {
+    return document.body.classList.contains('editor-monaco-active');
+}
+
+/** Inline preview must not mount a second iframe while the Monaco frame is active. */
+function deferInlinePreviewIfMonacoActive() {
+    if (!isMonacoEditorPaneActive()) return false;
+    state.previewUpdateQueued = true;
+    return true;
+}
+
+/** Preview iframe + Monaco iframe in one window breaks scroll paint on Chromium — park preview while editing. */
+function syncPreviewForMonacoEditing(monacoOn) {
+    const previewFrame = document.getElementById('previewFrame');
+    if (!previewFrame) return;
+
+    if (monacoOn) {
+        if (previewFrame.dataset.vibeSuspended === '1') return;
+        previewFrame.dataset.vibeSuspended = '1';
+        previewFrame.dataset.vibeWasDisplay = previewFrame.style.display || '';
+        const src = previewFrame.getAttribute('src') || '';
+        if (src && src !== 'about:blank') {
+            previewFrame.dataset.vibeSavedSrc = src;
         }
-        
-        // Initial layout
-        setTimeout(() => {
-            if (state.monacoEditor) {
-                state.monacoEditor.layout();
-                setupHotReload();
-            }
-        }, 100);
-    } catch (error) {
-        console.error('Error initializing Monaco Editor:', error);
-        editorContainer.innerHTML = `<div style="padding: 20px; color: #f48771;">Error initializing Monaco Editor: ${error.message}</div>`;
+        if (previewFrame.srcdoc) {
+            previewFrame.dataset.vibeSavedSrcdoc = previewFrame.srcdoc;
+            previewFrame.removeAttribute('srcdoc');
+        }
+        previewFrame.src = 'about:blank';
+        previewFrame.style.display = 'none';
+        state.previewFrame = null;
+        return;
     }
+
+    if (previewFrame.dataset.vibeSuspended !== '1') return;
+    delete previewFrame.dataset.vibeSuspended;
+    if (previewFrame.dataset.vibeSavedSrcdoc) {
+        previewFrame.srcdoc = previewFrame.dataset.vibeSavedSrcdoc;
+        delete previewFrame.dataset.vibeSavedSrcdoc;
+    } else if (previewFrame.dataset.vibeSavedSrc) {
+        previewFrame.src = previewFrame.dataset.vibeSavedSrc;
+        delete previewFrame.dataset.vibeSavedSrc;
+    }
+    previewFrame.style.display = previewFrame.dataset.vibeWasDisplay || '';
+    delete previewFrame.dataset.vibeWasDisplay;
+    if (state.previewUpdateQueued) {
+        state.previewUpdateQueued = false;
+        setTimeout(() => {
+            updatePreview().catch((e) => console.warn('Queued preview update failed:', e));
+        }, 50);
+    }
+}
+
+function syncEditorShellClass() {
+    const monacoOn = document.getElementById('monacoEditor')?.classList.contains('editor-pane-active');
+    document.body.classList.toggle('editor-monaco-active', !!monacoOn);
+    syncPreviewForMonacoEditing(!!monacoOn);
+    if (monacoOn) {
+        stopCursyAnimation();
+    }
+}
+
+function getVibeMonacoHost() {
+    return window.vibeMonacoHost;
+}
+
+function setEditorPaneVisibility({ welcome = false, monaco = false, mdPreview = false } = {}) {
+    const map = [
+        ['welcomeScreen', welcome],
+        ['monacoEditor', monaco],
+        ['mdPreview', mdPreview]
+    ];
+    map.forEach(([id, active]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.toggle('editor-pane-active', active);
+        el.classList.toggle('editor-pane-hidden', !active);
+        el.setAttribute('aria-hidden', active ? 'false' : 'true');
+    });
+    syncEditorShellClass();
+    if (monaco && state.monacoEditor) {
+        requestAnimationFrame(() => {
+            layoutMonacoEditor();
+            requestAnimationFrame(() => layoutMonacoEditor());
+        });
+    }
+}
+
+async function repairMonacoEditor() {
+    const vibeHost = getVibeMonacoHost();
+    if (!vibeHost) return null;
+
+    const tab = state.openTabs.find(t => t.id === state.activeTab);
+    if (!tab) return null;
+
+    const initialValue = tab.content ?? tab.pendingContent ?? '';
+    const initialLanguage = getLanguageFromFileName(tab.name);
+    const ed = await vibeHost.createEditor(initialValue, initialLanguage, state.theme);
+    if (ed) {
+        state.monacoEditor = ed;
+        if (tab.pendingContent) tab.pendingContent = undefined;
+        setupHotReload();
+    }
+    return state.monacoEditor;
+}
+
+function layoutMonacoEditor() {
+    /* Frame uses automaticLayout — avoid parent layout() during scroll (repaint glitch). */
+    getVibeMonacoHost()?.nudgeFrameLayout?.();
+}
+
+function setupMonacoEditorLayoutObserver() {
+    /* Main editor: automaticLayout inside monaco-frame.html */
+}
+
+async function createMonacoEditorInstance(initialValue, initialLanguage) {
+    const vibeHost = getVibeMonacoHost();
+    if (!vibeHost) return null;
+    const ed = await vibeHost.createEditor(initialValue, initialLanguage, state.theme);
+    if (ed) {
+        state.monacoEditor = ed;
+        setupHotReload();
+    }
+    return state.monacoEditor;
+}
+
+async function initMonacoEditor() {
+    const vibeHost = getVibeMonacoHost();
+    if (!vibeHost) return;
+
+    if (!state.activeTab) {
+        console.log('[monaco-host] defer editor until a file tab opens');
+        return;
+    }
+
+    await repairMonacoEditor();
+    console.log('✅ Monaco editor initialized (isolated frame)');
 }
 
 // Tab System
@@ -4555,9 +5056,8 @@ function renderTabs() {
 async function switchToTab(tabId) {
     if (tabId === 'welcome') {
         state.activeTab = null;
-        document.getElementById('welcomeScreen').style.display = 'block';
+        setEditorPaneVisibility({ welcome: true });
         loadRecentProjects(); // Refresh recent projects when showing welcome screen
-        document.getElementById('monacoEditor').style.display = 'none';
         renderTabs();
         return;
     }
@@ -4566,74 +5066,28 @@ async function switchToTab(tabId) {
     if (!tab) return;
     
     state.activeTab = tabId;
+    setEditorPaneVisibility({ monaco: true });
     
-    // Show editor, hide welcome
-    document.getElementById('welcomeScreen').style.display = 'none';
     const editorContainer = document.getElementById('monacoEditor');
-    editorContainer.style.display = 'block';
     
-    // Ensure Monaco Editor is initialized
     if (!state.monacoEditor) {
-        console.log('Monaco Editor not initialized, checking if Monaco library is loaded...');
-        
-        // Wait for Monaco library to load
-        let monacoLoaded = typeof monaco !== 'undefined';
-        if (!monacoLoaded) {
-            console.log('⏳ Waiting for Monaco library to load...');
-            let retries = 0;
-            const maxRetries = 50; // Wait up to 10 seconds
-            while (!monacoLoaded && retries < maxRetries) {
-                await new Promise(resolve => setTimeout(resolve, 200));
-                monacoLoaded = typeof monaco !== 'undefined';
-                retries++;
-            }
-        }
-        
-        if (monacoLoaded) {
-            console.log('✅ Monaco library loaded, initializing editor...');
-            // Initialize Monaco directly - don't rely on window.initMonacoEditor which might be placeholder
-            try {
-                const editorContainer = document.getElementById('monacoEditor');
-                if (!editorContainer) {
-                    console.error('❌ Monaco Editor container not found');
-                    return;
-                }
-                
-                if (state.monacoEditor) {
-                    console.log('Monaco Editor already initialized');
-                } else {
-                    // Create Monaco Editor instance directly
-                    state.monacoEditor = monaco.editor.create(editorContainer, {
-                        value: '',
-                        language: 'plaintext',
-                        theme: state.theme === 'dark' ? 'vs-dark' : 'vs',
-                        fontSize: 14,
-                        lineNumbers: 'on',
-                        minimap: { enabled: true },
-                        automaticLayout: true,
-                        scrollBeyondLastLine: false,
-                        wordWrap: 'on',
-                        formatOnPaste: true,
-                        formatOnType: true,
-                        tabSize: 2
-                    });
-                    console.log('✅ Monaco Editor initialized successfully');
-                }
-            } catch (err) {
-                console.error('❌ Error initializing Monaco Editor:', err);
-            }
-        } else {
-            console.error('❌ Monaco library failed to load after waiting');
-            editorContainer.innerHTML = '<div style="padding: 20px; color: #f48771;">Monaco Editor failed to load. Please refresh the app.</div>';
-            renderTabs();
-            return;
-        }
+        await repairMonacoEditor();
     }
-    
-    // Double-check Monaco is ready before proceeding
+
+    let retries = 0;
+    while (!state.monacoEditor && retries < 60) {
+        await new Promise((r) => setTimeout(r, 100));
+        if (!state.monacoEditor) {
+            await repairMonacoEditor();
+        }
+        retries++;
+    }
+
     if (!state.monacoEditor) {
         console.warn('⚠️ Monaco Editor still not ready after initialization attempt');
-        editorContainer.innerHTML = '<div style="padding: 20px; color: #f48771;">Monaco Editor is still initializing... Please wait.</div>';
+        getVibeMonacoHost()?.showLoadError(
+            'Monaco Editor failed to start. Quit VIBE completely and relaunch (needs nodeIntegrationInSubFrames). Check DevTools console for [monaco-host].'
+        );
         renderTabs();
         return;
     }
@@ -4662,22 +5116,13 @@ async function switchToTab(tabId) {
         console.warn('⚠️ Cannot refresh file - missing path or electronAPI');
     }
     
-    // Update Monaco editor content - wait for Monaco to be ready
     if (tab.content !== undefined) {
-        // Wait for Monaco to be ready if it's not yet
-        let monacoReady = false;
-        let retries = 0;
-        while (!state.monacoEditor && retries < 20) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            retries++;
-        }
-        
         if (state.monacoEditor) {
             console.log('✅ Monaco Editor ready, setting content for:', tab.name);
-            state.monacoEditor.setValue(tab.content);
-            // Set language based on file extension
             const language = getLanguageFromFileName(tab.name);
-            monaco.editor.setModelLanguage(state.monacoEditor.getModel(), language);
+            if (state.monacoEditor) {
+                getVibeMonacoHost()?.setDocument(tab.content, language);
+            }
             
             // Setup markdown preview listener
             setupMarkdownPreviewListener();
@@ -4734,20 +5179,14 @@ async function switchToTab(tabId) {
                     }
                     
                     console.log('✅ Showing WYSIWYG preview for:', tab.name);
-                    console.log('   Editor display:', editorEl.style.display);
-                    console.log('   Preview display before:', previewEl.style.display);
                     
-                    // Hide editor first
-                    editorEl.style.display = 'none';
+                    setEditorPaneVisibility({ mdPreview: true });
                     
-                    // Show preview and make it editable
-                    previewEl.style.display = 'block';
                     previewEl.style.visibility = 'visible';
                     previewEl.contentEditable = 'true'; // Make preview editable for WYSIWYG!
                     previewEl.setAttribute('spellcheck', 'true');
                     previewEl.setAttribute('tabindex', '0'); // Make it focusable
                     
-                    console.log('   Preview display after:', previewEl.style.display);
                     console.log('   Preview visibility:', previewEl.style.visibility);
                     console.log('   Preview contentEditable:', previewEl.contentEditable);
                     
@@ -4778,8 +5217,7 @@ async function switchToTab(tabId) {
                     console.log('✅ Showing markdown editor for:', tab.name);
                     
                     previewEl.contentEditable = 'false';
-                    editorEl.style.display = 'block';
-                    previewEl.style.display = 'none';
+                    setEditorPaneVisibility({ monaco: true });
                     if (state.monacoEditor) {
                         state.monacoEditor.focus();
                     }
@@ -4791,17 +5229,10 @@ async function switchToTab(tabId) {
                 const toolbar = document.getElementById('mdToolbar');
                 if (toolbar) toolbar.style.display = 'none';
                 
-                // Show editor, hide preview
-                document.getElementById('monacoEditor').style.display = 'block';
-                document.getElementById('mdPreview').style.display = 'none';
+                setEditorPaneVisibility({ monaco: true });
             }
             
-            // Trigger layout update
-            setTimeout(() => {
-                if (state.monacoEditor) {
-                    state.monacoEditor.layout();
-                }
-            }, 100);
+            setTimeout(() => layoutMonacoEditor(), 100);
             
             // Update preview if it's a JS or HTML file
             if (tab.name.endsWith('.js') || tab.name.endsWith('.html')) {
@@ -5841,15 +6272,22 @@ function showContextMenu(e, file) {
     const renameBtn = document.getElementById('ctxRename');
     const deleteBtn = document.getElementById('ctxDelete');
     const copyPathBtn = document.getElementById('ctxCopyPath');
+    const pinBtn = document.getElementById('ctxPinRecall');
+    const unpinBtn = document.getElementById('ctxUnpinRecall');
     
     if (file.type === 'folder') {
-        // For folders, show new file/folder options
         if (newFileBtn) newFileBtn.style.display = 'flex';
         if (newFolderBtn) newFolderBtn.style.display = 'flex';
+        if (pinBtn) pinBtn.style.display = 'none';
+        if (unpinBtn) unpinBtn.style.display = 'none';
     } else {
-        // For files, hide new file/folder options
         if (newFileBtn) newFileBtn.style.display = 'none';
         if (newFolderBtn) newFolderBtn.style.display = 'none';
+        const root = state.currentProject?.path?.replace(/[/\\]$/, '') || '';
+        const rel = file.path.replace(/\\/g, '/').replace(root.replace(/\\/g, '/'), '').replace(/^\//, '');
+        const pinned = isFilePinned(rel);
+        if (pinBtn) pinBtn.style.display = pinned ? 'none' : 'flex';
+        if (unpinBtn) unpinBtn.style.display = pinned ? 'flex' : 'none';
     }
 }
 
@@ -5859,6 +6297,8 @@ function setupContextMenuActions() {
     const ctxRename = document.getElementById('ctxRename');
     const ctxDelete = document.getElementById('ctxDelete');
     const ctxCopyPath = document.getElementById('ctxCopyPath');
+    const ctxPinRecall = document.getElementById('ctxPinRecall');
+    const ctxUnpinRecall = document.getElementById('ctxUnpinRecall');
     
     if (ctxNewFile) {
         ctxNewFile.addEventListener('click', () => {
@@ -5887,6 +6327,18 @@ function setupContextMenuActions() {
     if (ctxCopyPath) {
         ctxCopyPath.addEventListener('click', () => {
             handleCopyPath();
+        });
+    }
+    if (ctxPinRecall) {
+        ctxPinRecall.addEventListener('click', () => {
+            if (currentContextFile) pinFileToRecall(currentContextFile);
+            document.getElementById('fileTreeContextMenu').style.display = 'none';
+        });
+    }
+    if (ctxUnpinRecall) {
+        ctxUnpinRecall.addEventListener('click', () => {
+            if (currentContextFile) unpinFileFromRecall(currentContextFile);
+            document.getElementById('fileTreeContextMenu').style.display = 'none';
         });
     }
 }
@@ -6042,8 +6494,7 @@ async function handleDeleteFile() {
                 if (state.activeTab) {
                     switchToTab(state.activeTab);
                 } else {
-                    document.getElementById('monacoEditor').style.display = 'none';
-                    document.getElementById('welcomeScreen').style.display = 'block';
+                    setEditorPaneVisibility({ welcome: true });
                 }
             }
             
@@ -6212,9 +6663,7 @@ function updateFileTreeSelection(filePath) {
 
 // Update theme for Monaco Editor
 function updateMonacoTheme() {
-    if (state.monacoEditor) {
-        monaco.editor.setTheme(state.theme === 'dark' ? 'vs-dark' : 'vs');
-    }
+    getVibeMonacoHost()?.setTheme(state.theme);
     if (state.genreEditor && state.genreEditor.jsonEditor) {
         state.genreEditor.jsonEditor.updateOptions({
             theme: state.theme === 'dark' ? 'vs-dark' : 'vs'
@@ -6225,15 +6674,21 @@ function updateMonacoTheme() {
 // Preview System (Phase 3)
 function initPreview() {
     const previewFrame = document.getElementById('previewFrame');
-    const previewLoading = document.getElementById('previewLoading');
     
     if (!previewFrame) return;
     
-    // Load Phaser and inject into preview HTML
+    if (state.previewPreferPopout && !state.previewInlineExpanded) {
+        showPreviewMessage('▶ Play or 🪟 Pop out opens your game in a dedicated window.');
+        return;
+    }
+    
     loadPreviewWithPhaser();
 }
 
 function loadPreviewWithPhaser() {
+    if (deferInlinePreviewIfMonacoActive()) {
+        return;
+    }
     const previewFrame = document.getElementById('previewFrame');
     const previewLoading = document.getElementById('previewLoading');
     
@@ -6330,7 +6785,16 @@ function loadPreviewWithPhaser() {
 }
 
 async function updatePreview() {
-    if (!state.previewLoaded) {
+    if (deferInlinePreviewIfMonacoActive()) {
+        return;
+    }
+    if (state.previewPreferPopout) {
+        const ok = await ensurePreviewPopout();
+        if (!ok) {
+            showPreviewMessage('Could not open preview window. Click 🪟 Pop out.');
+            return;
+        }
+    } else if (!state.previewLoaded) {
         showPreviewMessage('📝 Preview not ready. Click Play to start!');
         return;
     }
@@ -6473,22 +6937,22 @@ console.log('📦 [VIBE IDE] Phaser.Game instance created:', !!window.gameInstan
                 state.lastBundledCode = wrappedCode;
                 setBundleLog(`${isSimpleTemplate ? 'Read' : 'Bundle'} OK (size ${wrappedCode.length} bytes) for ${entryPath}`);
                 console.log(`✅ ${isSimpleTemplate ? 'Read' : 'Bundle'} succeeded, size:`, wrappedCode.length);
-                const previewFrame = document.getElementById('previewFrame');
-                if (previewFrame && previewFrame.contentWindow) {
-                    try {
-                        const baseUrl = 'gf:///' + projectRoot.replace(/\\/g, '/') + '/';
-                        previewFrame.contentWindow.postMessage({ type: 'set-base-url', baseUrl }, '*');
-                        console.log('Sent base URL to preview:', baseUrl);
-                    } catch (e) { console.warn('Failed sending base URL:', e.message); }
-                    
-                    previewFrame.contentWindow.postMessage({ type: 'update-code', code: wrappedCode }, '*');
-                    const previewLoading = document.getElementById('previewLoading');
-                    previewLoading.style.display = 'none';
-                    previewFrame.style.display = 'block';
-                    state.previewRunning = true;
-                    updatePreviewControls();
-                    return;
+                try {
+                    const baseUrl = 'gf:///' + projectRoot.replace(/\\/g, '/') + '/';
+                    await deliverPreviewMessage({ type: 'set-base-url', baseUrl });
+                    console.log('Sent base URL to preview:', baseUrl);
+                    await deliverPreviewMessage({ type: 'update-code', code: wrappedCode });
+                } catch (e) {
+                    console.warn('Failed sending to preview:', e.message);
                 }
+                const previewLoading = document.getElementById('previewLoading');
+                const previewFrame = document.getElementById('previewFrame');
+                if (previewLoading) previewLoading.style.display = 'none';
+                if (previewFrame && state.previewInlineExpanded) previewFrame.style.display = 'block';
+                state.previewRunning = true;
+                updatePreviewControls();
+                syncPreviewLayoutChrome();
+                return;
             }
         } catch (e) {
             setBundleLog('Auto-bundle error: ' + e.message, true);
@@ -6524,7 +6988,21 @@ console.log('📦 [VIBE IDE] Phaser.Game instance created:', !!window.gameInstan
         console.log('📄 HTML Has body tag:', chosen.includes('<body'));
         console.log('📄 HTML Has closing body tag:', chosen.includes('</body>'));
         
-        // Directly set iframe srcdoc to replace the entire document (avoid nested iframe)
+        if (state.previewPreferPopout || state.previewPopoutOpen) {
+            try {
+                await deliverPreviewMessage({ type: 'update-html', html: chosen });
+                state.previewRunning = true;
+                updatePreviewControls();
+                syncPreviewLayoutChrome();
+                document.getElementById('previewLoading').style.display = 'none';
+                console.log('✅ HTML sent to pop-out preview');
+                return;
+            } catch (error) {
+                console.error('Error sending HTML to preview:', error);
+                showPreviewMessage('❌ Error updating preview: ' + error.message);
+                return;
+            }
+        }
         const previewFrameEl = document.getElementById('previewFrame');
         if (previewFrameEl) {
             try {
@@ -6551,20 +7029,19 @@ console.log('📦 [VIBE IDE] Phaser.Game instance created:', !!window.gameInstan
         return;
     }
     let gameCode = generateGameCode(jsFiles);
-    if (state.previewFrame) {
-        try {
-            state.previewFrame.postMessage({ type: 'update-code', code: gameCode }, '*');
-            state.previewRunning = true;
-            updatePreviewControls();
-            const previewLoading = document.getElementById('previewLoading');
-            const previewFrame = document.getElementById('previewFrame');
-            previewLoading.style.display = 'none';
-            previewFrame.style.display = 'block';
-            console.log('✅ Game code sent to preview');
-        } catch (error) {
-            console.error('Error sending code to preview:', error);
-            showPreviewMessage('❌ Error updating preview: ' + error.message);
-        }
+    try {
+        await deliverPreviewMessage({ type: 'update-code', code: gameCode });
+        state.previewRunning = true;
+        updatePreviewControls();
+        const previewLoading = document.getElementById('previewLoading');
+        const previewFrame = document.getElementById('previewFrame');
+        if (previewLoading) previewLoading.style.display = 'none';
+        if (previewFrame && state.previewInlineExpanded) previewFrame.style.display = 'block';
+        syncPreviewLayoutChrome();
+        console.log('✅ Game code sent to preview');
+    } catch (error) {
+        console.error('Error sending code to preview:', error);
+        showPreviewMessage('❌ Error updating preview: ' + error.message);
     }
 }
 
@@ -6728,30 +7205,42 @@ function initPreviewControls() {
     const pauseBtn = document.getElementById('previewPause');
     const restartBtn = document.getElementById('previewRestart');
     const reloadBtn = document.getElementById('previewReload');
+    const popOutBtn = document.getElementById('previewPopOut');
+    
+    if (popOutBtn) {
+        popOutBtn.addEventListener('click', async () => {
+            state.previewPreferPopout = true;
+            localStorage.setItem('vibe-ide-preview-popout', 'true');
+            syncPreviewLayoutChrome();
+            await ensurePreviewPopout();
+            await updatePreview();
+        });
+    }
     
     if (playBtn) {
-        playBtn.addEventListener('click', () => {
+        playBtn.addEventListener('click', async () => {
+            if (state.previewPreferPopout) {
+                await ensurePreviewPopout();
+                await updatePreview();
+                return;
+            }
             if (!state.previewLoaded) {
                 initPreview();
             } else {
-                updatePreview();
+                await updatePreview();
             }
         });
     }
     
     if (pauseBtn) {
         pauseBtn.addEventListener('click', () => {
-            if (state.previewFrame) {
-                state.previewFrame.postMessage({ type: 'pause' }, '*');
-            }
+            deliverPreviewMessage({ type: 'pause' });
         });
     }
     
     if (restartBtn) {
         restartBtn.addEventListener('click', () => {
-            if (state.previewFrame) {
-                state.previewFrame.postMessage({ type: 'reload-game' }, '*');
-            }
+            deliverPreviewMessage({ type: 'reload-game' });
         });
     }
     
@@ -6846,7 +7335,9 @@ async function showJournalSettingsModal() {
 // Watch Monaco Editor for changes (hot reload)
 function setupHotReload() {
     if (!state.monacoEditor) return;
-    
+    if (state.monacoEditor.__vibeHotReloadBound) return;
+    state.monacoEditor.__vibeHotReloadBound = true;
+
     state.monacoEditor.onDidChangeModelContent(() => {
         // Save content to current tab
         if (state.activeTab) {
@@ -6859,7 +7350,7 @@ function setupHotReload() {
         }
         
         // Auto-reload preview if enabled and JS file is open
-        if (state.autoReload && state.previewLoaded) {
+        if (state.autoReload && isPreviewChannelActive()) {
             const tab = state.openTabs.find(t => t.id === state.activeTab);
             if (tab && tab.name.endsWith('.js')) {
                 // Debounce reload
@@ -7161,7 +7652,15 @@ function populateGenreForm(rule) {
     }
 }
 
-function ensureGenreJsonEditor(forceLayout = false) {
+async function ensureGenreJsonEditor(forceLayout = false) {
+    if (typeof ensureMonacoParentLibrary === 'function') {
+        try {
+            await ensureMonacoParentLibrary();
+        } catch (e) {
+            console.error('Genre Monaco load failed:', e);
+            return;
+        }
+    }
     if (typeof monaco === 'undefined') return;
     const container = document.getElementById('genreJsonEditor');
     if (!container) return;
@@ -8289,9 +8788,7 @@ function toggleMarkdownPreview() {
     const previewEl = document.getElementById('mdPreview');
     
     if (state.mdPreviewMode) {
-        // Show preview, hide editor - make it editable!
-        editorEl.style.display = 'none';
-        previewEl.style.display = 'block';
+        setEditorPaneVisibility({ mdPreview: true });
         previewEl.contentEditable = 'true'; // Make preview editable!
         previewEl.setAttribute('spellcheck', 'true');
         updateMarkdownPreview();
@@ -8299,10 +8796,8 @@ function toggleMarkdownPreview() {
         // Focus the preview
         setTimeout(() => previewEl.focus(), 100);
     } else {
-        // Show editor, hide preview
         previewEl.contentEditable = 'false';
-        editorEl.style.display = 'block';
-        previewEl.style.display = 'none';
+        setEditorPaneVisibility({ monaco: true });
         if (state.monacoEditor) {
             state.monacoEditor.focus();
         }
@@ -8310,6 +8805,7 @@ function toggleMarkdownPreview() {
     
     // Update toggle button text
     updatePreviewToggleButton();
+    layoutMonacoEditor();
     renderTabs();
 }
 
@@ -8688,13 +9184,166 @@ function updateMarkdownPreview() {
 
 // Listen for editor changes to update preview in real-time
 function setupMarkdownPreviewListener() {
-    if (state.monacoEditor) {
-        state.monacoEditor.onDidChangeModelContent(() => {
-            if (state.mdPreviewMode) {
-                updateMarkdownPreview();
-            }
-        });
+    if (!state.monacoEditor || state._mdPreviewListenerBound) return;
+    state._mdPreviewListenerBound = true;
+    state.monacoEditor.onDidChangeModelContent(() => {
+        if (state.mdPreviewMode) {
+            updateMarkdownPreview();
+        }
+    });
+}
+
+const CHAT_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
+const CHAT_IMAGE_RAW_MAX_BYTES = 40 * 1024 * 1024;
+const CHAT_IMAGE_MAX_DIMENSION = 2560;
+const CHAT_IMAGE_MAX_COUNT = 3;
+
+function formatChatImageByteSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function readBlobOrFileAsBase64(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const dataUrl = reader.result;
+            resolve(typeof dataUrl === 'string' ? dataUrl.split(',')[1] || '' : '');
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+    });
+}
+
+/**
+ * Keep chat payloads under CHAT_IMAGE_MAX_BYTES. Large screenshots are resized/re-encoded as JPEG.
+ */
+async function prepareChatImagePayload(file) {
+    if (file.size <= CHAT_IMAGE_MAX_BYTES) {
+        const data = await readBlobOrFileAsBase64(file);
+        return {
+            mimeType: file.type || 'image/jpeg',
+            data,
+            previewBlob: file,
+            name: file.name,
+            compressed: false,
+            originalBytes: file.size,
+        };
     }
+
+    if (file.size > CHAT_IMAGE_RAW_MAX_BYTES) {
+        throw new Error(`too large to compress (max ${formatChatImageByteSize(CHAT_IMAGE_RAW_MAX_BYTES)} raw)`);
+    }
+
+    if (typeof createImageBitmap !== 'function') {
+        throw new Error('too large (max 4 MB) — update Electron/Chromium for auto-compress');
+    }
+
+    const bitmap = await createImageBitmap(file);
+    try {
+        const baseW = bitmap.width;
+        const baseH = bitmap.height;
+        const dimScale = Math.min(1, CHAT_IMAGE_MAX_DIMENSION / Math.max(baseW, baseH));
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('could not compress (no canvas)');
+
+        for (let shrink = 0; shrink < 12; shrink++) {
+            const scale = dimScale * Math.pow(0.88, shrink);
+            const width = Math.max(360, Math.round(baseW * scale));
+            const height = Math.max(270, Math.round(baseH * scale));
+            for (const quality of [0.9, 0.84, 0.78, 0.72, 0.66, 0.6, 0.54]) {
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(bitmap, 0, 0, width, height);
+                const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+                if (blob && blob.size <= CHAT_IMAGE_MAX_BYTES) {
+                    const data = await readBlobOrFileAsBase64(blob);
+                    const baseName = String(file.name || 'image').replace(/\.[^.]+$/, '');
+                    return {
+                        mimeType: 'image/jpeg',
+                        data,
+                        previewBlob: blob,
+                        name: `${baseName}.jpg`,
+                        compressed: true,
+                        originalBytes: file.size,
+                        outputBytes: blob.size,
+                    };
+                }
+            }
+        }
+        throw new Error('could not compress under 4 MB — try a smaller screenshot');
+    } finally {
+        if (typeof bitmap.close === 'function') bitmap.close();
+    }
+}
+
+function refreshChatImagePreviewStrip() {
+    const strip = document.getElementById('chatImagePreviewStrip');
+    if (!strip) return;
+    const pending = state.pendingChatImages || [];
+    if (!pending.length) {
+        strip.style.display = 'none';
+        strip.innerHTML = '';
+        return;
+    }
+    strip.style.display = 'flex';
+    strip.innerHTML = pending
+        .map(
+            (img, idx) =>
+                `<div class="chat-image-preview-item" title="${escapeHtml(img.name || 'image')}">` +
+                `<img src="${img.previewUrl}" alt="">` +
+                `<button type="button" class="chat-image-preview-remove" data-idx="${idx}" aria-label="Remove">×</button></div>`
+        )
+        .join('');
+    strip.querySelectorAll('.chat-image-preview-remove').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const i = Number(btn.getAttribute('data-idx'));
+            const removed = state.pendingChatImages.splice(i, 1)[0];
+            if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
+            refreshChatImagePreviewStrip();
+        });
+    });
+}
+
+function clearPendingChatImages() {
+    for (const img of state.pendingChatImages || []) {
+        if (img.previewUrl) URL.revokeObjectURL(img.previewUrl);
+    }
+    state.pendingChatImages = [];
+    refreshChatImagePreviewStrip();
+}
+
+async function addChatImageFiles(fileList) {
+    if (!fileList?.length) return;
+    for (const file of fileList) {
+        if ((state.pendingChatImages || []).length >= CHAT_IMAGE_MAX_COUNT) {
+            showToast(`Max ${CHAT_IMAGE_MAX_COUNT} images per message`, 'warning');
+            break;
+        }
+        if (!file.type.startsWith('image/')) continue;
+        try {
+            const payload = await prepareChatImagePayload(file);
+            if (!payload?.data) continue;
+            if (payload.compressed) {
+                showToast(
+                    `Compressed ${file.name} for chat (${formatChatImageByteSize(payload.originalBytes)} → ${formatChatImageByteSize(payload.outputBytes)})`,
+                    'info',
+                    4000
+                );
+            }
+            state.pendingChatImages.push({
+                mimeType: payload.mimeType,
+                data: payload.data,
+                previewUrl: URL.createObjectURL(payload.previewBlob),
+                name: payload.name,
+            });
+        } catch (err) {
+            showToast(`${file.name}: ${err.message || 'could not attach'}`, 'warning', 5000);
+        }
+    }
+    refreshChatImagePreviewStrip();
 }
 
 function initChatInterface() {
@@ -8753,6 +9402,18 @@ function initChatInterface() {
         
         // GIF picker initialization
         initGifPicker();
+
+        const chatImageAttachBtn = document.getElementById('chatImageAttachBtn');
+        const chatImageFileInput = document.getElementById('chatImageFileInput');
+        if (chatImageAttachBtn && chatImageFileInput) {
+            chatImageAttachBtn.addEventListener('click', () => chatImageFileInput.click());
+            chatImageFileInput.addEventListener('change', async () => {
+                await addChatImageFiles(chatImageFileInput.files);
+                chatImageFileInput.value = '';
+            });
+        }
+
+        initCursyLiveVoice();
         
         // Formatting buttons
         formatBtns.forEach(btn => {
@@ -8770,7 +9431,8 @@ function initChatInterface() {
                 // For contentEditable, check if it's empty or just whitespace
                 if (chatInput.contentEditable === 'true') {
                     const text = chatInput.textContent.trim();
-                    if (!text && !chatInput.querySelector('img')) {
+                    const hasAttach = (state.pendingChatImages || []).length > 0;
+                    if (!text && !chatInput.querySelector('img') && !hasAttach) {
                         return; // Don't send empty messages
                     }
                 }
@@ -8802,6 +9464,7 @@ function initChatInterface() {
             clearChatBtn.addEventListener('click', () => {
                 if (confirm('Clear all chat history? This cannot be undone.')) {
                     state.chatHistory = [];
+                    state.conversationContext = [];
                     saveChatHistory();
                     renderChatHistory();
                 }
@@ -9194,38 +9857,7 @@ function updateAIContextWithGenre() {
 }
 
 function updateChatWelcomeMessage() {
-    const chatMessages = document.getElementById('chatMessages');
-    if (!chatMessages) return;
-    
-    const welcomeDiv = chatMessages.querySelector('.chat-welcome');
-    if (welcomeDiv) {
-        if (state.currentProject && state.currentProject.genre) {
-            const genreName = state.currentProject.genre.charAt(0).toUpperCase() + state.currentProject.genre.slice(1);
-            welcomeDiv.innerHTML = `
-                <p>👋 Hey! I'm <strong>Cursy</strong>, your AI coding buddy!</p>
-                <p>🎮 <strong>Active Project Type:</strong> ${genreName}</p>
-                <p>I'm currently in <strong>offline mode</strong> - but I can still help with code explanations, debugging, and learning the basics! 😊</p>
-                <p style="font-size: 0.9em; opacity: 0.7; margin-top: 10px;">💡 Full AI chat coming soon when API credits are configured!</p>
-            `;
-        } else {
-            // Default welcome message (already set in HTML, but update if needed)
-            const aiStatus = state.useOpenAI && state.openaiClient ? '🟢 **AI Enabled**' : '🟡 **Offline Mode**';
-            welcomeDiv.innerHTML = `
-                <p>👋 Hey! I'm <strong>Cursy</strong>, your AI coding buddy!</p>
-                <p>Status: ${aiStatus}</p>
-                <p>I can help with:</p>
-                <ul style="text-align: left; margin: 10px 0; padding-left: 20px;">
-                    <li>Code explanations (functions, variables, loops, arrays)</li>
-                    <li>Debugging tips and error fixing</li>
-                    <li>Getting started with projects</li>
-                    <li>Learning the basics and advanced topics</li>
-                    <li>Any coding questions you have!</li>
-                </ul>
-                <p>Try asking: <em>"How do I create a function?"</em> or <em>"What is a variable?"</em> 😊</p>
-                <p style="font-size: 0.9em; opacity: 0.7; margin-top: 10px;">💡 ${state.useOpenAI && state.openaiClient ? 'AI chat is active! Ask me anything!' : 'AI chat will be available when API is configured!'}</p>
-            `;
-        }
-    }
+    updateWelcomeMessage();
 }
 
 // ============================================
@@ -9274,6 +9906,41 @@ async function loadProjectJournal(projectPath) {
     }
 }
 
+/** Recent cml/ files → short episodic brief for Cursy (Project Recall v0). */
+async function loadProjectCmlBrief(projectPath) {
+    state.projectCmlBrief = null;
+    if (!window.electronAPI?.recallRecentCml || !projectPath) return false;
+    try {
+        const result = await window.electronAPI.recallRecentCml(projectPath, 4);
+        if (!result.success || !result.files?.length) return false;
+
+        const lines = [];
+        for (const file of result.files) {
+            let snippet = file.text;
+            if (window.CMLUtils?.parseCML && window.CMLUtils?.renderCMLToStory) {
+                const parsed = window.CMLUtils.parseCML(file.text);
+                if (parsed) {
+                    snippet = window.CMLUtils.renderCMLToStory(parsed);
+                }
+            }
+            snippet = String(snippet || '').trim();
+            if (snippet.length > 1200) snippet = snippet.slice(0, 1200) + '…';
+            lines.push(`### ${file.name}\n${snippet}`);
+        }
+
+        state.projectCmlBrief = lines.join('\n\n');
+        console.log(`✅ CML memory brief: ${result.files.length} file(s)`);
+        if (typeof showToast === 'function') {
+            showToast(`🧠 Project Recall: ${result.files.length} CML memory file(s) loaded`, 'success', 2500);
+        }
+        return true;
+    } catch (err) {
+        console.warn('Could not load CML brief:', err);
+        state.projectCmlBrief = null;
+        return false;
+    }
+}
+
 // Update PROJECT_JOURNAL.md with AI-generated content
 async function updateProjectJournal(updates) {
     if (!state.currentProject || !state.currentProject.path) {
@@ -9301,6 +9968,314 @@ async function updateProjectJournal(updates) {
     }
 }
 
+function collapseCodeFencesInChat(text, toolBlocks = null) {
+    if (!text || typeof text !== 'string') return text;
+    let blockIndex = 0;
+
+    const replaceBlock = (full, lang) => {
+        blockIndex += 1;
+        const tb = toolBlocks?.[blockIndex - 1];
+        const name = tb?.filePath || `file ${blockIndex}`;
+        const language = lang || tb?.language || 'code';
+        const lineCount = full.split('\n').length;
+        const sizeHint = lineCount > 18 ? 'full file' : 'snippet';
+        return `\n\n📄 **${name}** (\`${language}\`, ${sizeHint}) — use **Implement** below; file body is not pasted in chat.\n\n`;
+    };
+
+    let out = text.replace(/```(\w+)?\s*\n?[\s\S]*?```/g, replaceBlock);
+
+    const fences = text.match(/```/g);
+    if (fences && fences.length % 2 === 1) {
+        out = out.replace(/```(\w+)?\s*\n[\s\S]+$/, (full, lang) => replaceBlock(full, lang));
+    }
+
+    return out;
+}
+
+function hasRecentAssistantShipOfferInChat() {
+    const recent = (state.conversationContext || []).slice(-8);
+    for (let i = recent.length - 1; i >= 0; i--) {
+        if (recent[i].role !== 'assistant') continue;
+        const t = String(recent[i].content || '').toLowerCase();
+        if (
+            /\b(implement|revamp|update|fix|polish|sending over|provide_code_block|styles\.css|index\.html)\b/.test(
+                t
+            ) &&
+            /\b(css|styles|html|files?|landing|page|button|styling)\b/.test(t)
+        ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function prefersStructuredCodeChat(messageMarkdown, wantsAgentWork) {
+    if (!state.currentProject?.path) return false;
+    if (messageForcesChatOnly(messageMarkdown)) return false;
+    if (looksLikePlanningOrAdvice(String(messageMarkdown || '').toLowerCase())) return false;
+    // In-place CSS / scoped edits belong on the agent harness (grep → patch), not chat Implement + full file.
+    if (goalTargetsCssOnly(messageMarkdown) || goalHtmlReadOnlyForCssImplement(messageMarkdown)) {
+        return false;
+    }
+    if (isScopedEditRequest(messageMarkdown)) return false;
+    if (wantsAgentWork) return true;
+
+    const m = String(messageMarkdown || '').toLowerCase();
+    if (isAffirmativeCssOrShipMessage(m) && (hasRecentCssShipIntentInChat() || hasRecentAssistantShipOfferInChat())) {
+        return true;
+    }
+    if (hasRecentAssistantShipOfferInChat() && /\b(yes|yeah|do it|go|ship|implement|party|start|ready)\b/.test(m)) {
+        return true;
+    }
+    if (/\b(let'?s code|write the|generate the|scaffold|give me the (html|css|code|files))\b/.test(m)) {
+        return true;
+    }
+    if (
+        /\b(html|css|javascript|index\.html|styles\.css|landing page|webpage)\b/.test(m) &&
+        /\b(make|create|build|code|implement|spin up|draft)\b/.test(m)
+    ) {
+        return true;
+    }
+    return false;
+}
+
+/** Read markup for selectors, ship CSS only (e.g. "check html for classes, implement css fixes"). */
+function goalHtmlReadOnlyForCssImplement(messageMarkdown) {
+    const g = String(messageMarkdown || '').toLowerCase();
+    if (
+        /\b(edit|change|update|fix|rewrite|modify|write|patch|ship)\s+(the\s+)?(html|index\.html|markup)\b/.test(g)
+    ) {
+        return false;
+    }
+    const readHtml =
+        /\b(check|read|look at|inspect|grep|scan|open|use)\s+(the\s+)?(html|index\.html|markup)\b/.test(g) ||
+        /\b(html|index\.html|markup)\s+for\s+(the\s+)?(classes|class names|selectors|ids|structure)\b/.test(g) ||
+        /\b(classes|class names|selectors)\s+(in|from)\s+(the\s+)?(html|index\.html|markup)\b/.test(g);
+    const cssWork =
+        /\b(css|stylesheet|styles?\.css)\b/.test(g) &&
+        /\b(implement|apply|fix|ship|write|update|polish|change|edit|do)\b/.test(g);
+    return readHtml && cssWork;
+}
+
+/** User asked to change stylesheet only — do not pull index.html from chat brief or grep planner. */
+function goalTargetsCssOnly(messageMarkdown) {
+    const g = String(messageMarkdown || '').toLowerCase();
+    if (goalHtmlReadOnlyForCssImplement(messageMarkdown)) return true;
+    const wantsHtml =
+        /\b(index\.html|\.html\b|markup|structure|the html|html file)\b/.test(g) &&
+        !/\b(no html|not html|don't touch html|without html|css only|stylesheet only)\b/.test(g);
+    if (wantsHtml) return false;
+    if (/\bstyles?\.css\b/.test(g) && !/\bindex\.html\b/.test(g)) return true;
+    if (
+        /\b(edit|update|fix|apply|polish|change|tweak|ship|write|implement)\s+(the\s+)?(css|stylesheet)\b/.test(g)
+    ) {
+        return true;
+    }
+    if (
+        /\b(the\s+)?css\b/.test(g) &&
+        /\b(those fixes|these fixes|fixes from|with those|per chat|per plan|from chat|from above)\b/.test(g)
+    ) {
+        return true;
+    }
+    if (/\bcss\b/.test(g) && /\bonly\b/.test(g)) return true;
+    return false;
+}
+
+/** Small layout/CSS tweaks — not a full theme reboot (project-agnostic). */
+function isScopedEditRequest(messageMarkdown) {
+    const m = String(messageMarkdown || '').toLowerCase();
+    if (goalTargetsCssOnly(messageMarkdown)) return true;
+    if (/\b(only|just|don't change|do not change|keep the theme|without changing|same theme)\b/.test(m)) {
+        return true;
+    }
+    if (
+        /\b(fix|adjust|make|put|change|tweak|edit|apply|so the|can you|could you|want the)\b/.test(m) &&
+        /\b(features|feature|nav|hero|grid|card|cards|footer|header|section|layout|waitlist|button|squid|spacing|css|stylesheet|styles)\b/.test(
+            m
+        )
+    ) {
+        return true;
+    }
+    return false;
+}
+
+function inferScopedEditTargetFiles(messageMarkdown) {
+    if (goalTargetsCssOnly(messageMarkdown)) return ['styles.css'];
+    const m = String(messageMarkdown || '').toLowerCase();
+    const files = new Set();
+    if (/\b(html|markup|section|structure|index)\b/.test(m)) files.add('index.html');
+    if (/\b(css|styles|theme|color|font|grid|card|layout|glow|pastel|neon)\b/.test(m) || !files.size) {
+        files.add('styles.css');
+    }
+    if (/\b(feature|grid|card|section)\b/.test(m)) {
+        files.add('styles.css');
+        files.add('index.html');
+    }
+    return [...files].slice(0, 2);
+}
+
+function extractHarnessSearchTerms(text) {
+    const blob = String(text || '');
+    const terms = [];
+    const quoted = blob.match(/["'`]([^"'`]{2,48})["'`]/g);
+    if (quoted) {
+        for (const q of quoted) {
+            const inner = q.slice(1, -1).trim();
+            if (inner && !/^https?:/i.test(inner)) terms.push(inner);
+        }
+    }
+    const idClass = blob.match(/\b(?:#|\.)([a-zA-Z][\w-]{2,32})/g);
+    if (idClass) {
+        for (const t of idClass) terms.push(t.replace(/^[#.]/, ''));
+    }
+    const sectionWords =
+        /\b(hero|features?|feature-grid|nav|navbar|footer|waitlist|card|cards|squid|cta|header|section|grid|layout)\b/gi;
+    let m;
+    while ((m = sectionWords.exec(blob)) !== null) {
+        terms.push(m[1]);
+    }
+    return [...new Set(terms.map((t) => String(t).trim()).filter((t) => t.length >= 3))].slice(0, 5);
+}
+
+async function buildGrepContextBlock(projectPath, text, maxMatches = 10) {
+    if (!projectPath || !window.electronAPI?.projectGrep) return '';
+    const terms = extractHarnessSearchTerms(text);
+    if (!terms.length) return '';
+    const lines = [];
+    for (const term of terms) {
+        const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        try {
+            const res = await window.electronAPI.projectGrep(projectPath, escaped);
+            if (!res?.ok || !res.matches?.length) continue;
+            for (const hit of res.matches.slice(0, maxMatches)) {
+                lines.push(`${hit.file}:${hit.line} — ${hit.text}`);
+            }
+        } catch (err) {
+            console.warn('buildGrepContextBlock:', err);
+        }
+        if (lines.length >= maxMatches) break;
+    }
+    if (!lines.length) return '';
+    return `### Project grep (where to edit)\n${lines.join('\n')}`;
+}
+
+async function buildScopedEditFileContext(projectPath, messageMarkdown) {
+    if (!projectPath) return '';
+    const targets = inferScopedEditTargetFiles(messageMarkdown);
+    const chunks = [];
+    const grepBlock = await buildGrepContextBlock(projectPath, messageMarkdown);
+    if (grepBlock) chunks.push(grepBlock);
+    for (const rel of targets) {
+        const cap = rel.endsWith('.css') ? 9000 : 7000;
+        const body = await readProjectFileSnippet(projectPath, rel, cap);
+        if (body) chunks.push(`### Current ${rel} (edit in place)\n\`\`\`\n${body}\n\`\`\``);
+    }
+    return chunks.join('\n\n');
+}
+
+/** Files the user named in a planning / advice turn (read-only context, no ship). */
+function inferPlanningTargetFiles(messageMarkdown) {
+    const m = String(messageMarkdown || '').toLowerCase();
+    const files = new Set();
+    const pathRe =
+        /\b([a-z0-9_./-]+\.(?:html?|css|scss|js|jsx|tsx?|ts))\b/gi;
+    let match;
+    while ((match = pathRe.exec(String(messageMarkdown || ''))) !== null) {
+        let rel = match[1].replace(/\\/g, '/').replace(/^\.\//, '');
+        if (!rel.includes('..')) files.add(rel);
+    }
+    if (/\b(index\.html|the html|your html|markup|structure)\b/.test(m)) files.add('index.html');
+    if (/\b(styles\.css|stylesheet|the css|redo the css|rewrite css)\b/.test(m)) files.add('styles.css');
+    if (/\b(look at|have a look|peek at|read the|review the)\b/.test(m) && !files.size) {
+        files.add('index.html');
+    }
+    return [...files].slice(0, 3);
+}
+
+async function buildPlanningFileContext(projectPath, messageMarkdown) {
+    if (!projectPath) return '';
+    const targets = inferPlanningTargetFiles(messageMarkdown);
+    if (!targets.length) return '';
+    const chunks = [];
+    for (const rel of targets) {
+        const cap = rel.endsWith('.css') ? 6000 : 8000;
+        const body = await readProjectFileSnippet(projectPath, rel, cap);
+        if (body) {
+            chunks.push(
+                `### On disk: ${rel} (read-only — plan from this, do not invent structure)\n\`\`\`\n${body}\n\`\`\``
+            );
+        } else {
+            chunks.push(`### ${rel}\n*(File missing or empty on disk — say so in chat.)*`);
+        }
+    }
+    const grepBlock = await buildGrepContextBlock(projectPath, messageMarkdown, 8);
+    if (grepBlock) chunks.unshift(grepBlock);
+    return chunks.join('\n\n');
+}
+
+function collectCodeBlocksFromMarkdown(responseText) {
+    const allCodeBlocks = [];
+    const codeBlockRegex = /```(\w+)?\s*\n?([\s\S]*?)```/g;
+    let match;
+    while ((match = codeBlockRegex.exec(responseText)) !== null) {
+        allCodeBlocks.push({
+            index: match.index,
+            language: match[1] || 'text',
+            code: match[2].trim(),
+            truncated: false,
+        });
+    }
+
+    const fenceMarkers = responseText.match(/```/g);
+    if (fenceMarkers && fenceMarkers.length % 2 === 1) {
+        const lastOpen = responseText.lastIndexOf('```');
+        const tail = responseText.slice(lastOpen + 3);
+        const langMatch = tail.match(/^(\w+)?\s*\n?/);
+        const language = langMatch && langMatch[1] ? langMatch[1] : 'text';
+        const codeStart = langMatch ? langMatch[0].length : 0;
+        const code = tail.slice(codeStart).trim();
+        const alreadyCaptured = allCodeBlocks.some((b) => b.index === lastOpen);
+        if (!alreadyCaptured && code.length >= 10) {
+            allCodeBlocks.push({
+                index: lastOpen,
+                language,
+                code,
+                truncated: true,
+            });
+        }
+    }
+
+    return allCodeBlocks;
+}
+
+function inferFilePathHint(beforeBlock, codeFirstLines, language) {
+    const fileHintPatterns = [
+        /(?:#{1,6}\s*)?\*{0,2}File:\s*[`"]?([^\n`"*]+)[`"]?/i,
+        /(?:#{1,6}\s*)?File:\s*([^\n]+)/i,
+        /(?:here'?s|here is|revised|updated).*?([^\s:]+\.(?:html|js|css|json|md|ts|tsx|jsx|py|java|cpp|c|h|php|rb|go|rs|swift|kt)):?/i,
+        /(?:file|path):\s*([^\s\n]+\.(?:html|js|css|json|md|ts|tsx|jsx|py|java|cpp|c|h|php|rb|go|rs|swift|kt))/i,
+    ];
+
+    for (const pattern of fileHintPatterns) {
+        const inside = codeFirstLines.match(pattern);
+        if (inside && inside[1]) {
+            return inside[1].trim().replace(/^[`"*\s]+|[`"*\s]+$/g, '');
+        }
+    }
+    for (const pattern of fileHintPatterns) {
+        const before = beforeBlock.match(pattern);
+        if (before && before[1]) {
+            return before[1].trim().replace(/^[`"*\s]+|[`"*\s]+$/g, '');
+        }
+    }
+
+    const lang = (language || 'text').toLowerCase();
+    if (lang === 'html') return 'index.html';
+    if (lang === 'css') return 'styles.css';
+    if (lang === 'javascript' || lang === 'js') return 'script.js';
+    return null;
+}
+
 // Extract code blocks and file paths from AI response for implementation
 async function handleCodeImplementation(responseText, originalMessage, targetElement = null) {
     if (!state.currentProject || !window.electronAPI) {
@@ -9318,11 +10293,17 @@ async function handleCodeImplementation(responseText, originalMessage, targetEle
     
     try {
         const implementations = [];
+        let sawTruncatedBlock = false;
+        let skippedCssSnippet = false;
         
         // FIRST: Check for stored code blocks from function calls (preferred method!)
         if (state.currentCodeBlocks && state.currentCodeBlocks.length > 0) {
             console.log(`✨ Using ${state.currentCodeBlocks.length} stored code block(s) from function calls!`);
             for (const codeBlock of state.currentCodeBlocks) {
+                if (cssBlockIsLikelySnippet(codeBlock.filePath, codeBlock.code)) {
+                    console.warn(`Skipping stored block ${codeBlock.filePath} — snippet, not full file`);
+                    continue;
+                }
                 implementations.push({
                     filePath: codeBlock.filePath,
                     language: codeBlock.language,
@@ -9344,22 +10325,11 @@ async function handleCodeImplementation(responseText, originalMessage, targetEle
         // - "Here's the revised index.html file:" followed by code block
         // - Just code blocks (will prompt user for file path)
         
-        const codeBlockRegex = /```(\w+)?\n?([\s\S]*?)```/g;
-        const allCodeBlocks = [];
-        let match;
-        
-        // Find all code blocks with their positions
-        while ((match = codeBlockRegex.exec(responseText)) !== null) {
-            allCodeBlocks.push({
-                index: match.index,
-                language: match[1] || 'text',
-                code: match[2].trim(),
-                fullMatch: match[0]
-            });
-        }
-        
+        const allCodeBlocks = collectCodeBlocksFromMarkdown(responseText);
+
         // For each code block, look for file hints (both before AND inside the code block)
         allCodeBlocks.forEach(block => {
+            if (block.truncated) sawTruncatedBlock = true;
             if (block.code.length < 10) return; // Skip tiny code blocks
             
             // Look backwards up to 500 chars for file hints
@@ -9368,29 +10338,14 @@ async function handleCodeImplementation(responseText, originalMessage, targetEle
             // Also check the first few lines of the code block itself for file headers
             const codeFirstLines = block.code.split('\n').slice(0, 5).join('\n');
             
-            // Try multiple patterns to find file hints
-            // Pattern 1: "### File: path" or "## File: path" (markdown headers) - capture only the path
-            // Pattern 2: "File: path" (simple format)
-            // Pattern 3: "Here's the revised/updated path:" or similar
-            const fileHintPatterns = [
-                /(?:###?\s*)?File:\s*([^\n\s]+(?:\s+[^\n\s]+)*)/i,  // Captures path after "File:"
-                /(?:here'?s|here is|revised|updated).*?([^\s:]+\.(?:html|js|css|json|md|ts|tsx|jsx|py|java|cpp|c|h|php|rb|go|rs|swift|kt)):?/i,
-                /(?:file|path):\s*([^\s\n]+\.(?:html|js|css|json|md|ts|tsx|jsx|py|java|cpp|c|h|php|rb|go|rs|swift|kt))/i
-            ];
-            
-            let filePathHint = null;
+            let filePathHint = inferFilePathHint(beforeBlock, codeFirstLines, block.language);
             let extractedCode = block.code;
             
-            // First, check if file header is INSIDE the code block (at the start)
-            for (let i = 0; i < fileHintPatterns.length; i++) {
-                const pattern = fileHintPatterns[i];
-                const fileHintMatch = codeFirstLines.match(pattern);
-                if (fileHintMatch && fileHintMatch[1]) {
-                    filePathHint = fileHintMatch[1].trim();
-                    // Clean up the file path - remove any markdown formatting or extra text
-                    filePathHint = filePathHint.replace(/^###?\s*/, '').replace(/\s*$/, '');
-                    
-                    console.log(`🔍 Found file hint INSIDE code block: "${filePathHint}" using pattern ${i + 1}`);
+            // File header line inside code (legacy)
+            if (filePathHint && codeFirstLines.match(/File:/i)) {
+                const fileHintMatch = codeFirstLines.match(/(?:#{1,6}\s*)?File:\s*[^\n]+/i);
+                if (fileHintMatch) {
+                    console.log(`🔍 Found file hint INSIDE code block: "${filePathHint}"`);
                     console.log(`📝 Original code length: ${block.code.length} chars`);
                     console.log(`📝 Original code preview: "${block.code.substring(0, 100)}"`);
                     
@@ -9405,7 +10360,7 @@ async function handleCodeImplementation(responseText, originalMessage, targetEle
                     // Find the header line (should be first line)
                     for (let lineIdx = 0; lineIdx < Math.min(lines.length, 3); lineIdx++) {
                         const line = lines[lineIdx];
-                        if (line.match(/^###?\s*File:\s*/i)) {
+                        if (line.match(/^#{1,6}\s*File:\s*/i)) {
                             headerLineIndex = lineIdx;
                             console.log(`📝 Found header line at index ${lineIdx}: "${line}"`);
                             break;
@@ -9455,23 +10410,9 @@ async function handleCodeImplementation(responseText, originalMessage, targetEle
                         // Keep extractedCode as empty - the safety check in implementCode will catch this
                     }
                     
-                    break;
                 }
-            }
-            
-            // If not found inside, check BEFORE the code block
-            if (!filePathHint) {
-                for (let i = 0; i < fileHintPatterns.length; i++) {
-                    const pattern = fileHintPatterns[i];
-                    const fileHintMatch = beforeBlock.match(pattern);
-                    if (fileHintMatch && fileHintMatch[1]) {
-                        filePathHint = fileHintMatch[1].trim();
-                        // Clean up the file path - remove any markdown formatting or extra text
-                        filePathHint = filePathHint.replace(/^###?\s*/, '').replace(/\s*$/, '');
-                        console.log(`🔍 Found file hint BEFORE code block: "${filePathHint}" using pattern ${i + 1}`);
-                        break;
-                    }
-                }
+            } else if (filePathHint) {
+                console.log(`🔍 File hint for block: "${filePathHint}"`);
             }
             
             if (!filePathHint) {
@@ -9480,14 +10421,25 @@ async function handleCodeImplementation(responseText, originalMessage, targetEle
                 console.log(`   Code first lines: "${codeFirstLines.substring(0, 200)}"`);
             }
             
+            const resolvedPath =
+                filePathHint ||
+                (block.language === 'css' ? 'styles.css' : inferFilePathHint('', '', block.language));
+            if (cssBlockIsLikelySnippet(resolvedPath, extractedCode)) {
+                skippedCssSnippet = true;
+                console.warn(
+                    `Skipping markdown CSS block for ${resolvedPath || 'styles.css'} — snippet only (${extractedCode.length} chars)`
+                );
+                return;
+            }
+
             // Add to implementations (use extracted code if header was removed)
             implementations.push({
-                filePath: filePathHint,
+                filePath: resolvedPath,
                 language: block.language,
                 code: extractedCode
             });
-            
-            console.log(`📝 Found code block: ${filePathHint || 'unnamed'} (${block.language}), ${extractedCode.length} chars`);
+
+            console.log(`📝 Found code block: ${resolvedPath || 'unnamed'} (${block.language}), ${extractedCode.length} chars`);
         });
         
         // 2. Detect file updates in natural language responses (e.g., "Here's the updated PROJECT_JOURNAL.md:")
@@ -9571,6 +10523,14 @@ async function handleCodeImplementation(responseText, originalMessage, targetEle
         }
         } // End of else block for markdown parsing fallback
         
+        if (implementations.length === 0 && skippedCssSnippet) {
+            showToast(
+                'CSS snippet only — not saved. Use @agent write styles.css per the plan in chat.',
+                'info',
+                7000
+            );
+        }
+
         // If we found code blocks (from either method), offer to implement them
         console.log(`🔍 Implementation check: Found ${implementations.length} code block(s)`);
         if (implementations.length > 0) {
@@ -9671,6 +10631,17 @@ async function handleCodeImplementation(responseText, originalMessage, targetEle
             }
         } else {
             console.log('ℹ️ No code blocks found in response (or they were too short)');
+            if (responseText.includes('```') || /<!DOCTYPE/i.test(responseText)) {
+                showToast(
+                    'Code looked truncated or fences were incomplete — try “send index.html only” or use @agent',
+                    'warning',
+                    6000
+                );
+            }
+        }
+
+        if (sawTruncatedBlock && implementations.length > 0) {
+            showToast('Reply hit the token limit — review code before Implement (may be incomplete)', 'warning', 6000);
         }
     } catch (err) {
         console.error('Error handling code implementation:', err);
@@ -9741,11 +10712,35 @@ window.implementCode = async function(index) {
             showToast(`❌ Cannot implement: code block is empty!`, 'error');
             return;
         }
+
+        if (window.electronAPI?.agentValidateWrite && state.currentProject?.path) {
+            const root = state.currentProject.path.replace(/[/\\]$/, '');
+            const rel = filePath.replace(/\\/g, '/').replace(root.replace(/\\/g, '/'), '').replace(/^\/+/, '');
+            const v = await window.electronAPI.agentValidateWrite(state.currentProject.path, rel, impl.code);
+            if (v.success && v.allowed === false) {
+                showToast(v.error || 'Refusing incomplete Implement write', 'error', 8000);
+                return;
+            }
+        }
         
         // Write the file
         const result = await window.electronAPI.writeFile(filePath, impl.code);
         if (result.success) {
             showToast(`✅ Implemented: ${filePath.split(/[/\\]/).pop()}`, 'success');
+
+            // Sync open tabs + Monaco immediately (avoid stale buffer before disk round-trip)
+            const norm = (p) => p.replace(/\\/g, '/').toLowerCase();
+            const targetNorm = norm(filePath);
+            for (const tab of state.openTabs) {
+                if (norm(tab.path) === targetNorm) {
+                    tab.content = impl.code;
+                    tab.isDirty = false;
+                    if (state.monacoEditor && tab.id === state.activeTab) {
+                        getVibeMonacoHost()?.setDocument(impl.code, getLanguageFromFileName(tab.name));
+                    }
+                    break;
+                }
+            }
             
             // Reload file tree
             await loadProjectFiles(projectPath);
@@ -9874,15 +10869,15 @@ async function triggerJournalUpdate() {
         if (!state.currentProject) {
             throw new Error('No project loaded. Please open a project first.');
         }
-        if (!window.electronAPI || !window.electronAPI.openaiChat) {
-            throw new Error('OpenAI IPC not available. Please restart the app.');
+        if (!window.electronAPI || !window.electronAPI.aiChat) {
+            throw new Error('AI service IPC not available. Please restart the app.');
         }
-        if (!state.useOpenAI) {
-            throw new Error('OpenAI not initialized. Check console for details.');
+        if (!state.aiEnabled) {
+            throw new Error('AI not initialized. Add google-config.json with your Gemini API key (see console for path).');
         }
         
         // All checks passed, proceed
-        if (analysis && state.useOpenAI && window.electronAPI && window.electronAPI.openaiChat) {
+        if (analysis && state.aiEnabled && window.electronAPI && window.electronAPI.aiChat) {
             // Use AI to generate journal update with a very specific prompt
             const journalPrompt = `You are updating a PROJECT_JOURNAL.md file. IMPORTANT: Return ONLY the complete markdown content of the updated journal file. Do NOT include any commentary, explanations, or text outside the markdown. Start directly with the markdown content.
 
@@ -9901,15 +10896,15 @@ ${state.projectJournal ? `Current Journal Content (first 2000 chars):\n${state.p
 
 CRITICAL: Return ONLY the complete updated PROJECT_JOURNAL.md markdown content. No explanations, no "here's the updated journal", just the raw markdown starting with "# 🚀 Project Journal"`;
 
-            // Call OpenAI directly via IPC (bypass conversation context for this)
+            // Journal update via IPC (Gemini)
             try {
                 const systemPrompt = `You are Cursy, an AI assistant. When asked to update a project journal, return ONLY the complete markdown file content with no additional commentary. Start directly with "# 🚀 Project Journal" or "# Project Journal".`;
                 const messages = [{ role: 'user', content: journalPrompt }];
                 
-                console.log('📤 Sending journal update request to OpenAI...');
-                const response = await window.electronAPI.openaiChat(messages, systemPrompt, 4000); // Request 4000 tokens for journal
+                console.log('📤 Sending journal update request to Gemini...');
+                const response = await window.electronAPI.aiChat(messages, systemPrompt, 16000);
                 
-                console.log('📥 OpenAI response received:', {
+                console.log('📥 Journal AI response received:', {
                     success: response.success,
                     hasContent: !!response.content,
                     contentLength: response.content?.length || 0
@@ -10061,11 +11056,11 @@ CRITICAL: Return ONLY the complete updated PROJECT_JOURNAL.md markdown content. 
                         throw new Error('Extracted journal content is too short or invalid');
                     }
                 } else {
-                    console.error('❌ OpenAI response failed or empty:', response);
-                    throw new Error(response.error || 'OpenAI response was empty');
+                    console.error('❌ Journal AI response failed or empty:', response);
+                    throw new Error(response.error || 'Journal AI response was empty');
                 }
             } catch (err) {
-                console.error('Error calling OpenAI for journal update:', err);
+                console.error('Error calling Gemini for journal update:', err);
                 throw err;
             }
         } else {
@@ -10087,11 +11082,60 @@ CRITICAL: Return ONLY the complete updated PROJECT_JOURNAL.md markdown content. 
     }
 }
 
-// ============================================
-// OpenAI Integration (Phase 2)
-// ============================================
+// Cloud brain chip (Gemini Flash BYOK)
+function applyCloudBrainChip(status) {
+    const chip = document.getElementById('ollamaStatusChip');
+    const label = document.getElementById('ollamaStatusLabel');
+    if (!chip || !label) return;
 
-// Initialize OpenAI client (via IPC)
+    chip.classList.remove('ollama-status--checking', 'ollama-status--online', 'ollama-status--warn', 'ollama-status--offline');
+
+    if (status?.initialized && status?.hasApiKey) {
+        chip.classList.add('ollama-status--online');
+        label.textContent = 'Cursy · Cloud';
+        chip.title = `Gemini ${status.model || 'Flash'} (BYOK)\nClick to refresh or open settings`;
+        return;
+    }
+    if (status?.hasApiKey) {
+        chip.classList.add('ollama-status--warn');
+        label.textContent = 'Key issue';
+        chip.title = 'API key present but client failed — check key in User Settings';
+        return;
+    }
+    chip.classList.add('ollama-status--offline');
+    label.textContent = 'Add API key';
+    chip.title = 'File → User Settings → paste a Gemini API key from Google AI Studio';
+}
+
+async function refreshCloudBrainChip(fromUserClick = false) {
+    const chip = document.getElementById('ollamaStatusChip');
+    if (chip) {
+        chip.classList.remove('ollama-status--online', 'ollama-status--warn', 'ollama-status--offline');
+        chip.classList.add('ollama-status--checking');
+    }
+    if (!window.electronAPI?.aiCheckStatus) {
+        applyCloudBrainChip({ hasApiKey: false });
+        return false;
+    }
+    try {
+        const status = await window.electronAPI.aiCheckStatus();
+        state.cloudBrainStatus = status;
+        state.aiReady = !!(status.initialized && status.hasApiKey);
+        state.aiEnabled = state.aiReady;
+        applyCloudBrainChip(status);
+        if (fromUserClick) console.log('Cloud brain status:', status);
+        if (typeof updateWelcomeMessage === 'function') updateWelcomeMessage();
+        return state.aiReady;
+    } catch (err) {
+        console.error('Cloud brain status check failed:', err);
+        applyCloudBrainChip({ hasApiKey: false });
+        state.aiReady = false;
+        state.aiEnabled = false;
+        return false;
+    }
+}
+
+// Gemini / AI backend (IPC from main process)
 // Initialize Pixabay API key check on startup
 async function initializePixabay() {
     try {
@@ -10107,70 +11151,77 @@ async function initializePixabay() {
     }
 }
 
-async function initOpenAI() {
+async function initAI() {
     try {
-        console.log('🔧 Checking OpenAI status via IPC...');
+        console.log('🔧 Checking AI backend status (Gemini) via IPC...');
         
         // Wait a bit for electronAPI to be available
         if (!window.electronAPI) {
             console.warn('⚠️ electronAPI not yet available, retrying in 500ms...');
-            setTimeout(() => initOpenAI(), 500);
+            setTimeout(() => initAI(), 500);
             return false;
         }
         
-        if (window.electronAPI.openaiCheckStatus) {
-            const status = await window.electronAPI.openaiCheckStatus();
-            console.log('OpenAI status:', status);
+        if (window.electronAPI.aiCheckStatus) {
+            const status = await window.electronAPI.aiCheckStatus();
+            console.log('AI backend status:', status);
             
-            if (status.initialized) {
-                state.useOpenAI = true;
-                state.openaiClient = true; // Mark as available (actual client is in main process)
-                console.log('✅ OpenAI client is available via IPC');
-                console.log('✅ AI mode: ENABLED');
-                
-                // Update welcome message if it exists
-                setTimeout(() => {
-                    if (typeof updateWelcomeMessage === 'function') {
-                        updateWelcomeMessage();
-                    }
-                }, 100);
-                
-                return true;
+            state.aiReady = !!(status.initialized && status.hasApiKey);
+            state.aiEnabled = state.aiReady;
+            if (state.aiReady) {
+                console.log('✅ Gemini client ready via IPC');
+            } else if (status.hasApiKey) {
+                console.warn('⚠️ Gemini key present but client not initialized');
             } else {
-                console.warn('⚠️ OpenAI client not initialized in main process');
-                state.useOpenAI = false;
-                return false;
+                console.warn('⚠️ No Gemini API key — add one in User Settings');
             }
+            applyCloudBrainChip(status);
+            setTimeout(() => {
+                if (typeof updateWelcomeMessage === 'function') updateWelcomeMessage();
+            }, 100);
+            return state.aiReady;
         } else {
-            console.warn('⚠️ OpenAI IPC methods not available, retrying in 500ms...');
-            setTimeout(() => initOpenAI(), 500);
+            console.warn('⚠️ AI IPC methods not available, retrying in 500ms...');
+            setTimeout(() => initAI(), 500);
             return false;
         }
     } catch (error) {
-        console.error('❌ Failed to check OpenAI status:', error);
+        console.error('❌ Failed to check AI backend status:', error);
         console.error('Error details:', error.message);
         // Retry once after error
         setTimeout(() => {
-            console.log('🔄 Retrying OpenAI initialization...');
-            initOpenAI();
+            console.log('🔄 Retrying AI initialization...');
+            initAI();
         }, 1000);
-        state.useOpenAI = false;
+        state.aiEnabled = false;
         return false;
     }
 }
 
-// Update welcome message to reflect AI status
+// Update welcome message to reflect AI status (and optional project genre)
 function updateWelcomeMessage() {
     const welcomeDiv = document.querySelector('.chat-welcome');
     if (welcomeDiv) {
-        const aiStatus = state.useOpenAI && state.openaiClient ? '🟢 **AI Enabled**' : '🟡 **Offline Mode**';
-        // Update status in welcome message
-        const currentHtml = welcomeDiv.innerHTML;
-        if (currentHtml.includes('Status:')) {
-            welcomeDiv.innerHTML = currentHtml.replace(/Status:.*?<br>/i, `Status: ${aiStatus}<br>`);
-        } else if (currentHtml.includes('offline mode')) {
-            // Update the old offline mode message
-            welcomeDiv.innerHTML = currentHtml.replace(/offline mode/i, aiStatus);
+        let genreLine = '';
+        if (state.currentProject?.genre) {
+            const genreName =
+                state.currentProject.genre.charAt(0).toUpperCase() + state.currentProject.genre.slice(1);
+            genreLine = `<p>🎮 <strong>Active project type:</strong> ${escapeHtml(genreName)}</p>`;
+        }
+        if (state.aiReady) {
+            welcomeDiv.innerHTML = `
+                <p>👋 Hey! I'm <strong>Cursy</strong>, your coding buddy!</p>
+                ${genreLine}
+                <p>🟢 <strong>Cloud chat is on</strong> — Gemini Flash on your API key. Project files stay on your machine.</p>
+                <p>Ask anything — <strong>build / fix / make a website</strong> requests auto-use the bounded agent (approve before writes).</p>
+                <p>Override: <code>@chat</code> force chat · <code>@agent</code> force agent · User Settings → interaction mode.</p>
+                <p>Try: <em>"What does index.html do?"</em> or <em>Make me a bubblegum landing page</em> 😊</p>`;
+        } else {
+            welcomeDiv.innerHTML = `
+                <p>👋 Hey! I'm <strong>Cursy</strong>!</p>
+                ${genreLine}
+                <p>🟡 <strong>Add a Gemini API key</strong> in File → User Settings to turn chat and @agent on.</p>
+                <p>Until then you can edit, preview, and explore templates. I'm in <strong>offline tips mode</strong> for simple chat.</p>`;
         }
         
         // Ensure chat input is still focusable after update
@@ -10189,47 +11240,103 @@ function updateWelcomeMessage() {
 }
 
 // Expose test function to console for debugging
-window.testOpenAI = async function() {
-    console.log('🧪 Testing OpenAI initialization...');
+window.testAI = async function() {
+    console.log('🧪 Testing Gemini / AI initialization...');
+    let ipcStatus = null;
+    if (window.electronAPI && window.electronAPI.aiCheckStatus) {
+        ipcStatus = await window.electronAPI.aiCheckStatus();
+    }
     console.log('Current state:', {
-        useOpenAI: state.useOpenAI,
-        hasClient: !!state.openaiClient,
-        hasApiKey: !!state.openaiApiKey,
-        hasIPC: !!(window.electronAPI && window.electronAPI.openaiChat)
+        aiEnabled: state.aiEnabled,
+        aiReady: !!state.aiReady,
+        ipcHasKey: !!(ipcStatus && ipcStatus.hasApiKey),
+        ipcInitialized: !!(ipcStatus && ipcStatus.initialized),
+        hasIPC: !!(window.electronAPI && window.electronAPI.aiChat)
     });
     
-    if (!state.useOpenAI) {
+    if (!state.aiEnabled) {
         console.log('🔄 Attempting to initialize...');
-        await initOpenAI();
+        await initAI();
     } else {
-        console.log('✅ OpenAI client is available');
+        console.log('✅ AI backend reports enabled');
     }
     
-    // Test status check
-    if (window.electronAPI && window.electronAPI.openaiCheckStatus) {
-        const status = await window.electronAPI.openaiCheckStatus();
+    if (window.electronAPI && window.electronAPI.aiCheckStatus) {
+        const status = await window.electronAPI.aiCheckStatus();
         console.log('Main process status:', status);
-        console.log('📁 Config file should be at:', status.configPath);
+        console.log('📁 google-config.json path:', status.configPath);
         console.log('📁 Config file exists:', status.configExists);
-        if (!status.configExists) {
-            console.log('💡 To fix: Create a file at the path above with:');
-            console.log('   { "apiKey": "your-key-here" }');
+        if (!status.configExists && !status.hasEnvVar) {
+            console.log('💡 Create google-config.json with: { "apiKey": "YOUR_GEMINI_KEY" }');
         }
     }
     
     return {
-        useOpenAI: state.useOpenAI,
-        hasClient: !!state.openaiClient,
-        hasApiKey: !!state.openaiApiKey,
-        hasIPC: !!(window.electronAPI && window.electronAPI.openaiChat)
+        aiEnabled: state.aiEnabled,
+        aiReady: !!state.aiReady,
+        ipcStatus
     };
 };
 
-// Call OpenAI API for chat completion (via IPC)
-async function callOpenAI(message) {
-    if (!state.useOpenAI || !window.electronAPI || !window.electronAPI.openaiChat) {
+function chatBackendReady() {
+    return !!(state.aiEnabled && state.aiReady);
+}
+
+function cssBraceDepth(text) {
+    let depth = 0;
+    for (const ch of String(text || '')) {
+        if (ch === '{') depth += 1;
+        else if (ch === '}') depth -= 1;
+    }
+    return depth;
+}
+
+function cssBlockIsLikelySnippet(filePath, code) {
+    if (!/styles?\.css$/i.test(String(filePath || '').replace(/\\/g, '/'))) return false;
+    const c = String(code || '').trim();
+    if (!c) return true;
+    if (cssBraceDepth(c) !== 0) return true;
+    if (c.length > 4500) return false;
+    const lines = c.split('\n').filter((l) => l.trim()).length;
+    if (lines >= 90) return false;
+    if (/@keyframes/.test(c) && lines < 30 && (c.match(/@keyframes/g) || []).length <= 2) {
+        return true;
+    }
+    return lines < 40 && c.length < 1800;
+}
+
+function storeProvideCodeBlocksFromResponse(response) {
+    if (!response?.functionCalls?.length) return 0;
+    if (!state.currentCodeBlocks) state.currentCodeBlocks = [];
+    let added = 0;
+    for (const funcCall of response.functionCalls) {
+        if (funcCall.name !== 'provide_code_block' || !funcCall.arguments) continue;
+        const { filePath, language, code } = funcCall.arguments;
+        const codeStr = code != null ? String(code) : '';
+        if (!filePath || !codeStr.trim()) continue;
+        if (cssBlockIsLikelySnippet(filePath, codeStr)) {
+            console.warn('Skipping provide_code_block — CSS looks like a snippet, not full styles.css');
+            continue;
+        }
+        state.currentCodeBlocks.push({
+            filePath,
+            language: language || 'text',
+            code: codeStr,
+        });
+        added++;
+    }
+    return added;
+}
+
+// Send chat completion via main process (Gemini Flash BYOK)
+async function callAI(message, streamTarget = null, options = {}) {
+    if (!window.electronAPI?.aiChat || !chatBackendReady()) {
         return null;
     }
+
+    const preferStructuredCode = !!options.preferStructuredCode;
+    const skipContextUpdate = !!options.skipContextUpdate;
+    const chatMaxTokens = options.maxTokens || 8192;
 
     try {
         // Get user's name from settings (if available)
@@ -10239,33 +11346,20 @@ async function callOpenAI(message) {
         // Build conversation context with persona and journal
         let systemPrompt = `You are Cursy, a friendly and enthusiastic AI coding assistant for VIBE IDE. You help beginners learn to code with patience, encouragement, and clear explanations. You use emojis naturally, support markdown formatting, and can suggest GIFs when appropriate. Be conversational, supportive, and educational. Always maintain a positive, helpful tone.${nameContext}
 
-## IMPORTANT: File Modification Capability
+## Chat vs project files (read this)
 
-**YOU CAN MODIFY FILES DIRECTLY!** When users ask you to make changes to files, you should:
+**Keep chat readable.** Do **not** paste entire files in chat (no long \`\`\` code fences with full HTML/CSS/JS pages).
 
-**PREFERRED METHOD - Use the provide_code_block function:**
-- When providing code for files, use the provide_code_block function to provide structured code blocks
-- This ensures perfect code extraction and supports multiple files
-- You can still show the code in markdown format in your response for the user to see
-- The function will be called automatically when you provide code
+When the user wants files created or updated in their open project:
+1. Call **provide_code_block** once per file — put the **full source in the tool**, not in chat prose.
+2. In chat, give a **short summary**: plan, file names, vibe, and what Implement will apply.
+3. Tell them **Implement** buttons appear under your message (you can modify files; the IDE applies on click).
 
-**FALLBACK METHOD - Markdown code blocks:**
-- If you provide code in markdown, format it clearly with the file path
-- Use this format: \`\`\`html\n[code here]\n\`\`\` with the file path mentioned before the code block
-- The system will try to extract code from markdown, but the function method is preferred
+Teaching exceptions: a **tiny** inline snippet (under ~12 lines) for one idea is OK. Whole pages, stylesheets, or multi-file drops are **not**.
 
-**IMPORTANT:**
-1. **ALWAYS use the provide_code_block function when providing code** - it's the most reliable method!
-2. **You can still show code in markdown** in your response so users can see it
-3. **The system will automatically detect your code** and show "Implement This" buttons below your response
-4. **Users can click these buttons** to apply your changes directly to their files
-5. **DO NOT say you can't modify files** - you can! Just use the function and the system handles the rest
-6. **For multiple files**, call the function multiple times (once per file)
+For big builds, mention **@agent** for step-by-step writes with approval.
 
-**Example:**
-- Use the provide_code_block function with filePath, language, and code parameters
-- In your response, you can still show: "Here's the code for index.html:" followed by a markdown code block
-- The function ensures perfect code extraction, while the markdown shows the user what you're providing!`;
+Never duplicate the same file in both provide_code_block and a markdown fence.`;
         
         // Add Global Agent Persona if available (applies to all projects)
         if (state.globalAgentPersona) {
@@ -10309,6 +11403,52 @@ async function callOpenAI(message) {
                 systemPrompt += `\n\n## Project Context (from PROJECT_JOURNAL.md):\n${relevantSections.join('\n')}\n\nUse this context to provide relevant, project-aware assistance.`;
             }
         }
+
+        if (state.projectCmlBrief) {
+            systemPrompt += `\n\n## Episodic memory (recent cml/ chat logs on disk):\n${state.projectCmlBrief}\n\nUse this for continuity across sessions. Cite dates or filenames when referencing past work.`;
+        }
+
+        const phaserCtx = getPhaserContextPacket();
+        if (phaserCtx) systemPrompt += `\n\n${phaserCtx}`;
+
+        const pinBlock = getPinnedRecallPromptBlock();
+        if (pinBlock) {
+            systemPrompt += `\n\n## Pinned Project Recall (always honor):\n${pinBlock}`;
+        }
+
+        const sessionBrief = buildChatSessionBriefForAgent(3200);
+        if (sessionBrief) {
+            systemPrompt += `\n\n## Session creative brief (binding)\n${sessionBrief}\n\nWhen generating files, follow this outline and theme — do not substitute a generic design or forget that this project may be a **game** with player-facing copy.`;
+        } else {
+            const identityOnly = buildProjectIdentityBrief();
+            if (identityOnly) {
+                systemPrompt += `\n\n## ${identityOnly}`;
+            }
+        }
+
+        if (state.currentProject?.path && window.electronAPI?.recallSearch && message.trim()) {
+            try {
+                const queryEmbedding = await recallEmbedQueryWithTimeout(message);
+                const recall = await window.electronAPI.recallSearch(
+                    state.currentProject.path,
+                    message,
+                    queryEmbedding
+                );
+                if (recall?.success && recall.snippets?.length) {
+                    const mode = recall.hybrid ? 'hybrid keyword + neural' : 'keyword';
+                    const block = recall.snippets
+                        .map((s, i) => {
+                            const src = s.sources ? ` · ${s.sources.join('+')}` : '';
+                            return `[${i + 1}] **${s.path}** (score ${s.score}${src})\n${s.text}`;
+                        })
+                        .join('\n\n');
+                    systemPrompt += `\n\n## Project Recall (${mode}):\n${block}\n\nPrefer these excerpts when answering about past project work.`;
+                    console.log('🧠 Project Recall injected:', recall.snippets.length, 'snippet(s)', mode);
+                }
+            } catch (recallErr) {
+                console.warn('Project Recall search skipped:', recallErr);
+            }
+        }
         
         // Build messages array (without system message, it's passed separately)
         const messages = [];
@@ -10317,98 +11457,190 @@ async function callOpenAI(message) {
         const recentHistory = state.conversationContext.slice(-10);
         messages.push(...recentHistory);
 
-        // Add current user message
+        const attachForApi = (options.images || []).map((img) => ({
+            mimeType: img.mimeType,
+            data: img.data,
+        }));
+
         messages.push({
             role: 'user',
-            content: message
+            content: message,
+            ...(attachForApi.length ? { images: attachForApi } : {}),
         });
 
-        // Call OpenAI API via IPC
-        const response = await window.electronAPI.openaiChat(messages, systemPrompt);
-        
-        if (!response.success) {
-            console.error('OpenAI API error:', response.error);
-            
-            // Handle specific error types
-            if (response.status === 401) {
-                console.error('Invalid API key');
-                state.useOpenAI = false;
-                return null;
-            } else if (response.status === 429) {
-                console.error('Rate limit exceeded');
-                return null;
-            } else if (response.status === 500) {
-                console.error('OpenAI server error');
-                return null;
+        if (attachForApi.length) {
+            systemPrompt +=
+                '\n\n## Image(s) attached\nThe user shared screenshot(s) or mockup(s). Describe what you see, relate it to their open project when relevant, and give concise actionable advice. Use provide_code_block only when they want files changed; do not paste entire pages in chat prose.';
+        }
+
+        if (options.preferStructuredCode) {
+            systemPrompt +=
+                '\n\n## Structured file delivery (required this turn)\nIf you will change project files, you MUST call **provide_code_block** once per file with the full source in the tool. Do NOT tell the user to click Implement unless you actually called provide_code_block this turn. Keep chat prose short (plan + file names only).';
+        }
+
+        if (options.scopedEdit && options.structuredContext) {
+            systemPrompt +=
+                '\n\n## Scoped edit (required)\nThe user asked for a **targeted** change, not a new theme or full redesign. `provide_code_block` must contain the **complete** file, but start from the **current file contents below** and change **only** what they asked for. Preserve existing colors, fonts, backgrounds, hero, nav, and unrelated sections unless they explicitly asked to change them.\n\n' +
+                options.structuredContext;
+        }
+
+        if (looksLikePlanningOrAdvice(String(message || '').toLowerCase())) {
+            const planningContext =
+                state.currentProject?.path
+                    ? await buildPlanningFileContext(state.currentProject.path, message)
+                    : '';
+            systemPrompt +=
+                '\n\n## Planning turn (no file ship)\nThe user wants **advice and a plan in chat**, not files written this turn. Do **not** call provide_code_block. Do **not** use markdown code fences for CSS/HTML files (no Implement button this turn). You may show a tiny @keyframes example inline in prose if helpful. If project file snippets are attached below, reference **their real sections, classes, and ids**. Tell them to use **@agent write styles.css — bubblegum pop per plan above** when ready to ship the full sheet.';
+            if (planningContext) {
+                systemPrompt += `\n\n## Project files for this plan (from disk)\n${planningContext}`;
             }
-            
+        }
+
+        if (preferStructuredCode && streamTarget) {
+            streamTarget.innerHTML =
+                '<p class="chat-stream-placeholder"><em>Packaging file updates (not streaming full files)…</em></p>';
+        }
+
+        updateCursyState('typing');
+        const planningTurn = looksLikePlanningOrAdvice(String(message || '').toLowerCase());
+        const canUseTools = attachForApi.length === 0 && !planningTurn;
+        const forceToolsFirst = preferStructuredCode && canUseTools && !planningTurn;
+        let response = await window.electronAPI.aiChat(messages, systemPrompt, chatMaxTokens, {
+            useTools: canUseTools,
+            forceProvideCodeBlock: forceToolsFirst,
+        });
+        if (response?.success && response.content && streamTarget) {
+            streamTarget.innerHTML = parseSimpleMarkdown(
+                collapseCodeFencesInChat(response.content, state.currentCodeBlocks)
+            );
+        }
+        if (!response) {
+            console.error('AI IPC returned no response');
             return null;
         }
-
-        // Process function calls and store code blocks
-        if (response.functionCalls && response.functionCalls.length > 0) {
-            console.log('✨ Function calls detected:', response.functionCalls.length);
+        if (response.provider === 'gemini') {
+            console.log(`💬 Chat via Gemini (${response.model || 'flash'})`);
+        }
+        
+        if (!response.success) {
+            console.error('AI API error:', response.error);
             
-            // Initialize code blocks array if not exists
-            if (!state.currentCodeBlocks) {
-                state.currentCodeBlocks = [];
+            // Handle specific error types
+            if (response.status === 401 || /API key|PERMISSION_DENIED|invalid/i.test(String(response.error || ''))) {
+                console.error('Invalid or missing Gemini API key');
+                state.aiEnabled = false;
+                return null;
+            } else if (response.status === 429) {
+                console.error('AI provider rate limit');
+                return null;
+            } else if (response.status === 500) {
+                console.error('AI provider server error');
+                return null;
             }
-            
-            // Store code blocks from function calls
-            for (const funcCall of response.functionCalls) {
-                if (funcCall.name === 'provide_code_block' && funcCall.arguments) {
-                    const { filePath, language, code } = funcCall.arguments;
-                    console.log(`📝 Stored code block: ${filePath} (${language || 'text'}), ${code.length} chars`);
-                    state.currentCodeBlocks.push({
-                        filePath: filePath,
-                        language: language || 'text',
-                        code: code
+
+            const hint = response.hint ? `\n\n${response.hint}` : '';
+            const err = response.error || 'Chat failed';
+            return (
+                `⚠️ **Cursy could not reply.**\n\n\`${String(err).slice(0, 500)}\`${hint}\n\n` +
+                `Check your Gemini API key in File → User Settings.`
+            );
+        }
+
+        if (response.success && preferStructuredCode && canUseTools) {
+            const stored = storeProvideCodeBlocksFromResponse(response);
+            if (stored) console.log(`✅ Stored ${stored} provide_code_block tool payload(s)`);
+
+            if (!stored && !looksLikePlanningOrAdvice(String(message || '').toLowerCase())) {
+                const harnessInstead =
+                    isScopedEditRequest(String(message || '')) ||
+                    goalTargetsCssOnly(String(message || '')) ||
+                    goalHtmlReadOnlyForCssImplement(String(message || ''));
+                if (harnessInstead) {
+                    console.warn(
+                        '⚠️ Structured chat skipped — scoped/CSS edit needs @agent (patch), not full-file provide_code_block'
+                    );
+                } else {
+                    console.warn('⚠️ Structured ship turn had no provide_code_block — forcing tool retry');
+                    const retryPrompt =
+                        systemPrompt +
+                        '\n\n## MANDATORY (this turn)\nCall **provide_code_block** now with the **complete** file source for each file you are shipping. The IDE only shows **Implement** buttons when this tool returns data. Do not describe sending files without calling the tool.';
+                    const retry = await window.electronAPI.aiChat(messages, retryPrompt, chatMaxTokens, {
+                        useTools: true,
+                        forceProvideCodeBlock: true,
                     });
+                    if (retry?.success) {
+                        response = retry;
+                        if (response.content && streamTarget) {
+                            streamTarget.innerHTML = parseSimpleMarkdown(
+                                collapseCodeFencesInChat(response.content, state.currentCodeBlocks)
+                            );
+                        }
+                        const retryStored = storeProvideCodeBlocksFromResponse(response);
+                        console.log(`🔁 Tool retry stored ${retryStored} code block(s)`);
+                    }
                 }
             }
-            
-            console.log(`✅ Total code blocks stored: ${state.currentCodeBlocks.length}`);
+        } else if (response.functionCalls?.length && !planningTurn) {
+            storeProvideCodeBlocksFromResponse(response);
+            console.log(`✅ Total code blocks stored: ${state.currentCodeBlocks?.length || 0}`);
         }
 
-        const aiResponse = response.content;
-
-        // Update conversation context
-        state.conversationContext.push(
-            { role: 'user', content: message },
-            { role: 'assistant', content: aiResponse }
-        );
-
-        // Keep context manageable (last 20 messages)
-        if (state.conversationContext.length > 20) {
-            state.conversationContext = state.conversationContext.slice(-20);
+        if (planningTurn) {
+            state.currentCodeBlocks = [];
         }
 
-        return aiResponse;
+        let aiResponse = typeof response.content === 'string' ? response.content : '';
+        if ((!aiResponse || !aiResponse.trim()) && state.currentCodeBlocks && state.currentCodeBlocks.length > 0) {
+            const names = state.currentCodeBlocks.map((b) => b.filePath || 'file').join(', ');
+            aiResponse =
+                `✅ Prepared **${names}** via structured file tools. Use **Implement** below to write them into your project.`;
+        }
+
+        if (!skipContextUpdate) {
+            state.lastAssistantRawForImplement = aiResponse;
+        }
+        const displayResponse = collapseCodeFencesInChat(aiResponse, state.currentCodeBlocks);
+
+        if (!skipContextUpdate) {
+            // Update conversation context (collapsed — avoids replaying huge files to the model)
+            state.conversationContext.push(
+                { role: 'user', content: message },
+                { role: 'assistant', content: displayResponse }
+            );
+
+            if (state.conversationContext.length > 20) {
+                state.conversationContext = state.conversationContext.slice(-20);
+            }
+        }
+
+        return displayResponse;
     } catch (error) {
-        console.error('OpenAI IPC call error:', error);
-        return null;
+        console.error('AI IPC call error:', error);
+        return (
+            `⚠️ **Chat error.**\n\n\`${String(error.message || error).slice(0, 400)}\`\n\nCheck your Gemini API key in User Settings.`
+        );
     }
 }
 
-// Initialize OpenAI on load
-function initializeOpenAIClient() {
+// Initialize AI status check on load
+function initializeAIClient() {
     // Try to initialize immediately if DOM is ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
-                initOpenAI();
+                initAI();
             }, 500);
         });
     } else {
         // DOM already loaded, initialize now
         setTimeout(() => {
-            initOpenAI();
+            initAI();
         }, 500);
     }
 }
 
 // Initialize immediately
-initializeOpenAIClient();
+initializeAIClient();
 
 // Mock AI Response System (Offline Mode / Fallback)
 function getMockResponse(message) {
@@ -10543,11 +11775,11 @@ function getMockResponse(message) {
         };
     }
     
-    // Default response (fallback when OpenAI is unavailable)
-    const aiStatus = state.useOpenAI && state.openaiClient ? '🟢 **AI Enabled**' : '🟡 **Offline Mode**';
+    // Default response (fallback when AI backend is unavailable)
+    const aiStatus = state.aiEnabled && state.aiReady ? '🟢 **AI Enabled**' : '🟡 **Offline Mode**';
     const journalHint = state.currentProject ? '\n• **Project Journal** - Type "update journal" to have me analyze and update PROJECT_JOURNAL.md!' : '';
     return {
-        text: `🤖 I'm Cursy, your AI coding assistant! Status: ${aiStatus}\n\nI can help with:\n• **Code explanations** - Ask "what does this do?"\n• **Learning basics** - Functions, variables, loops, arrays, objects, classes\n• **Advanced topics** - Async/await, modules, DOM manipulation\n• **Debugging** - Share errors and I'll help!\n• **Getting started** - Project templates and setup${journalHint}\n\nTry asking:\n• "How do I create a function?"\n• "What are objects?"\n• "Explain async/await"\n• "How do classes work?"\n• "Update journal" (if you have a project open)\n\n${state.useOpenAI && state.openaiClient ? '*AI chat is active! Ask me anything!* 🚀' : '*Note: Full AI chat will be available when API credits are configured!* 🚀'}`,
+        text: `🤖 I'm Cursy, your AI coding assistant! Status: ${aiStatus}\n\nI can help with:\n• **Code explanations** - Ask "what does this do?"\n• **Learning basics** - Functions, variables, loops, arrays, objects, classes\n• **Advanced topics** - Async/await, modules, DOM manipulation\n• **Debugging** - Share errors and I'll help!\n• **Getting started** - Project templates and setup${journalHint}\n\nTry asking:\n• "How do I create a function?"\n• "What are objects?"\n• "Explain async/await"\n• "How do classes work?"\n• "Update journal" (if you have a project open)\n\n${state.aiEnabled && state.aiReady ? '*AI chat is active! Ask me anything!* 🚀' : '*Note: Full AI chat will be available when API credits are configured!* 🚀'}`,
         emoji: "🤖"
     };
 }
@@ -10648,6 +11880,9 @@ async function recordChatToCML(userMessage, assistantMessage) {
             
             if (writeResult && writeResult.success !== false) {
                 console.log('✅ Chat recorded to CML:', cmlFilePath);
+                if (state.currentProject?.path) {
+                    loadProjectCmlBrief(state.currentProject.path);
+                }
                 // Show toast notification when assistant responds (so user knows it's working)
                 if (assistantMessage) {
                     const folderName = cmlFolderPath.split(/[/\\]/).pop();
@@ -10667,36 +11902,60 @@ async function recordChatToCML(userMessage, assistantMessage) {
     }
 }
 
+function applyLoadedChatHistory(messages) {
+    state.chatHistory = Array.isArray(messages) ? messages : [];
+    renderChatHistory();
+
+    state.conversationContext = [];
+    state.chatHistory.forEach((msg) => {
+        if (msg.role === 'user' || msg.role === 'assistant') {
+            state.conversationContext.push({
+                role: msg.role,
+                content: msg.content,
+            });
+        }
+    });
+    if (state.conversationContext.length > 20) {
+        state.conversationContext = state.conversationContext.slice(-20);
+    }
+}
+
 function saveChatHistory() {
     try {
         localStorage.setItem('vibe-ide-chat-history', JSON.stringify(state.chatHistory));
     } catch (e) {
-        console.warn('Failed to save chat history:', e);
+        console.warn('Failed to save chat history to localStorage:', e);
+    }
+    if (window.electronAPI?.chatSaveHistory) {
+        window.electronAPI.chatSaveHistory(state.chatHistory).catch((err) => {
+            console.warn('Failed to save chat history to disk:', err);
+        });
     }
 }
 
-function loadChatHistory() {
+async function loadChatHistory() {
     try {
-        const saved = localStorage.getItem('vibe-ide-chat-history');
-        if (saved) {
-            state.chatHistory = JSON.parse(saved);
-            renderChatHistory();
-            
-            // Populate conversation context for OpenAI from chat history
-            state.conversationContext = [];
-            state.chatHistory.forEach(msg => {
-                if (msg.role === 'user' || msg.role === 'assistant') {
-                    state.conversationContext.push({
-                        role: msg.role,
-                        content: msg.content
-                    });
-                }
-            });
-            
-            // Keep context manageable (last 20 messages)
-            if (state.conversationContext.length > 20) {
-                state.conversationContext = state.conversationContext.slice(-20);
+        let loaded = null;
+
+        if (window.electronAPI?.chatLoadHistory) {
+            const disk = await window.electronAPI.chatLoadHistory();
+            if (disk?.success && Array.isArray(disk.messages) && disk.messages.length) {
+                loaded = disk.messages;
             }
+        }
+
+        if (!loaded) {
+            const saved = localStorage.getItem('vibe-ide-chat-history');
+            if (saved) {
+                loaded = JSON.parse(saved);
+                if (loaded?.length && window.electronAPI?.chatSaveHistory) {
+                    await window.electronAPI.chatSaveHistory(loaded);
+                }
+            }
+        }
+
+        if (loaded?.length) {
+            applyLoadedChatHistory(loaded);
         }
     } catch (e) {
         console.warn('Failed to load chat history:', e);
@@ -10786,6 +12045,1725 @@ window.insertQuickMessage = function(message) {
     }
 };
 
+function appendChatMessageHtml(role, html, extraClass = '') {
+    const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) return null;
+    const div = document.createElement('div');
+    div.className = `chat-message ${role}${extraClass ? ' ' + extraClass : ''}`;
+    div.innerHTML = html;
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    return div;
+}
+
+function stripHtmlForLiveVoiceContext(text) {
+    return String(text || '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function buildLiveVoicePersonaAndBriefBlock() {
+    const parts = [];
+    const persona = buildAgentPersonaContext();
+    if (persona) {
+        parts.push(`Persona (match text chat):\n${persona}`);
+    }
+    const sessionBrief = buildChatSessionBriefForAgent(2200);
+    if (sessionBrief) {
+        parts.push(
+            `Session creative brief (binding — same as typed chat; honor theme and plan when you talk):\n${sessionBrief}`
+        );
+    } else {
+        const identity = buildProjectIdentityBrief();
+        if (identity) parts.push(identity);
+    }
+    if (state.projectCmlBrief) {
+        parts.push(`Recent episodic memory (cml/):\n${String(state.projectCmlBrief).slice(0, 800)}`);
+    }
+    return parts.length ? `\n\n${parts.join('\n\n')}` : '';
+}
+
+function buildLiveVoiceSystemPrompt() {
+    const name = state.userName ? ` The user's name is ${state.userName}.` : '';
+    let recent = '';
+    const turns = (state.conversationContext || []).slice(-4);
+    if (turns.length) {
+        recent =
+            ' Recent chat (for context only): ' +
+            turns
+                .map((m) => {
+                    const role = m.role === 'assistant' ? 'Cursy' : 'User';
+                    return `${role}: ${stripHtmlForLiveVoiceContext(m.content).slice(0, 350)}`;
+                })
+                .join(' | ');
+    }
+    const personaBrief = buildLiveVoicePersonaAndBriefBlock();
+    return (
+        `You are Cursy, a warm, playful AI coding co-organiser in VIBE IDE (Team DC).${name} ` +
+        `This is LIVE VOICE: speak in short, natural sentences. Be encouraging and clear, not corporate. ` +
+        `Discuss their project, design, and learning using the same persona and session brief as text chat. ` +
+        `Do not claim you saved files unless they use text chat Implement or @agent with approve. ` +
+        `If they want code on disk, suggest typing @agent or their request in chat. No markdown, no bullet lists out loud.` +
+        personaBrief +
+        recent
+    );
+}
+
+function appendLiveVoiceTranscript(role, text) {
+    const t = String(text || '').trim();
+    if (!t) return;
+    const label = role === 'user' ? '🎙️ You' : '🎙️ Cursy';
+    appendChatMessageHtml(role, `<p><strong>${label}:</strong> ${escapeHtml(t)}</p>`, 'voice-turn');
+    addMessageToHistory(role, t);
+    state.conversationContext.push({ role, content: t });
+    if (state.conversationContext.length > 20) {
+        state.conversationContext = state.conversationContext.slice(-20);
+    }
+}
+
+function initCursyLiveVoice() {
+    const btn = document.getElementById('chatVoiceBtn');
+    if (!btn || !window.CursyLiveVoice) return;
+
+    window.CursyLiveVoice.init({
+        getWsUrl: () => window.electronAPI?.liveGetWsUrl?.(),
+        transcribeBlob: (payload) => window.electronAPI?.liveTranscribeBlob?.(payload),
+        getPreferredMicDeviceId: () => {
+            try {
+                return localStorage.getItem('vibe-live-mic-device-id') || '';
+            } catch {
+                return '';
+            }
+        },
+        onMicDeviceSelected: (deviceId) => {
+            try {
+                if (deviceId) localStorage.setItem('vibe-live-mic-device-id', deviceId);
+            } catch {
+                /* ignore */
+            }
+        },
+        onMicReady: (info) => {
+            const label = info?.label || 'microphone';
+            showToast(`Mic linked: ${label}`, 'success', 4000);
+        },
+        getSystemInstruction: () => buildLiveVoiceSystemPrompt(),
+        getHistoryTurns: () => state.conversationContext || [],
+        onUserLine: (text) => appendLiveVoiceTranscript('user', text),
+        onAssistantLine: (text) => appendLiveVoiceTranscript('assistant', text),
+        onState: (s) => {
+            if (s === 'speaking') updateCursyState('typing', 'Cursy speaking…');
+            else if (s === 'listening') updateCursyState('thinking', 'Listening…');
+            else if (s === 'connecting') updateCursyState('thinking', 'Connecting voice…');
+            else if (s === 'idle') updateCursyState('idle', 'Ready');
+        },
+        onError: (msg) => showToast(String(msg || 'Voice failed'), 'warning', 6000),
+        onReady: () => showToast('Voice link live — speak to Cursy', 'success', 3500),
+        onToggleUi: (on) => {
+            btn.classList.toggle('active', !!on);
+            btn.title = on
+                ? 'Stop voice (Gemini Live)'
+                : 'Talk to Cursy (Gemini Live — same chat thread)';
+        },
+    });
+
+    btn.addEventListener('click', async () => {
+        if (!window.electronAPI?.liveGetWsUrl) {
+            showToast('Voice unavailable — restart VIBE IDE', 'warning', 5000);
+            return;
+        }
+        if (!chatBackendReady()) {
+            showToast('Add Gemini API key in User Settings first', 'warning', 5000);
+            return;
+        }
+        await window.CursyLiveVoice.toggle();
+    });
+}
+
+function agentReasonForDisplay(reason) {
+    const raw = String(reason || '').trim();
+    if (!raw.startsWith('{') || !raw.includes('"reason"')) return reason;
+    try {
+        const obj = JSON.parse(raw);
+        if (obj.reason) return obj.reason;
+    } catch {
+        const m = raw.match(/"reason"\s*:\s*"((?:\\.|[^"\\])*)"/);
+        if (m) return m[1].replace(/\\n/g, ' ').replace(/\\"/g, '"');
+    }
+    return reason;
+}
+
+function formatAgentStepResult(result) {
+    const action = result.action || '?';
+    const stepNum = (result.stepIndex ?? 0) + 1;
+    const voice = agentReasonForDisplay(result.reason || result.narration || 'On it…');
+    const reason = `<p class="agent-step-voice">💬 ${escapeHtml(voice)}</p>`;
+    let tool = '';
+    if (result.toolResult) {
+        const tr = result.toolResult;
+        if (tr.items) {
+            const names = tr.items.slice(0, 12).map((i) => `${i.name}${i.type === 'dir' ? '/' : ''}`).join(', ');
+            tool = `<p class="agent-step-meta"><strong>Peeked at folder</strong> <code>${escapeHtml(tr.path || '.')}</code> — ${escapeHtml(names)}${tr.items.length > 12 ? '…' : ''}</p>`;
+        } else if (tr.matches?.length) {
+            const rows = tr.matches
+                .slice(0, 8)
+                .map((hit) => `<code>${escapeHtml(hit.file)}</code>:${hit.line} ${escapeHtml(hit.text || '')}`)
+                .join('<br>');
+            tool = `<p class="agent-step-meta"><strong>Grep</strong> <code>${escapeHtml(tr.pattern || '')}</code> — ${tr.matchCount ?? tr.matches.length} hit(s)${tr.truncated ? ' (truncated)' : ''}<br>${rows}${tr.matches.length > 8 ? '<br>…' : ''}</p>`;
+        } else if (tr.prefetched && tr.files?.length) {
+            const summary = tr.files
+                .map((f) => `<code>${escapeHtml(f.path)}</code> (${String(f.content).length} chars)`)
+                .join(', ');
+            tool = `<p class="agent-step-meta"><strong>Harness prefetch</strong> — ${summary}</p>`;
+        } else if (tr.files?.length) {
+            const names = tr.files
+                .slice(0, 12)
+                .map((f) => {
+                    const p = typeof f === 'string' ? f : f?.path || f?.name || String(f);
+                    return `<code>${escapeHtml(p)}</code>`;
+                })
+                .join(', ');
+            tool = `<p class="agent-step-meta"><strong>Find files</strong> “${escapeHtml(tr.query || '')}” — ${names}${tr.files.length > 12 ? '…' : ''}</p>`;
+        } else if (tr.content != null) {
+            tool = `<p class="agent-step-meta"><strong>Read</strong> <code>${escapeHtml(tr.path)}</code> (${tr.content.length} chars)</p>`;
+        } else if (tr.error) {
+            tool = `<p class="agent-step-meta">⚠️ ${escapeHtml(tr.error)}</p>`;
+        }
+    }
+    if (result.pendingWrite?.path) {
+        tool += `<p class="agent-step-meta">📝 Ready to write <code>${escapeHtml(result.pendingWrite.path)}</code> — approve below.</p>`;
+    }
+    const durSec = result.toolMeta?.durationMs ? Math.round(result.toolMeta.durationMs / 1000) : null;
+    const durTag = durSec != null ? ` · ${durSec}s` : '';
+    const toolTag = result.toolMeta?.harness
+        ? ' · harness patch-first'
+        : result.fromTool
+          ? ' · structured file'
+          : '';
+    const actionLabel =
+        action === 'write_file' || action === 'provide_code_block'
+            ? 'propose write'
+            : action === 'apply_patch'
+              ? 'propose patch'
+              : action === 'grep_project' || action === 'grep'
+                ? 'grep project'
+                : action === 'find_files' || action === 'find_file'
+                  ? 'find files'
+                  : action === 'list_dir'
+                    ? 'look around'
+                    : action === 'read_file'
+                      ? 'read file'
+                      : action === 'checkpoint'
+                        ? 'not finished yet'
+                        : action === 'reply'
+                          ? 'need a real action'
+                          : action;
+    return `<details class="agent-step-details" open>
+        <summary>⚡ Step ${stepNum} · ${escapeHtml(actionLabel)}${toolTag}${durTag}</summary>
+        ${reason}${tool}
+    </details>`;
+}
+
+function buildAgentPersonaContext() {
+    const bits = [];
+    const userName = state.userName || 'friend';
+    bits.push(
+        `User name: ${userName}. Warm, playful Cursy tone; one emoji max per step is fine.`
+    );
+    if (state.globalAgentPersona) {
+        bits.push(`Global persona:\n${state.globalAgentPersona.slice(0, 1200)}`);
+    }
+    if (state.agentPersona && state.allowProjectPersonaOverrides) {
+        bits.push(`Project persona:\n${state.agentPersona.slice(0, 1200)}`);
+    }
+    return bits.join('\n\n');
+}
+
+async function buildAgentProjectSnapshot(projectPath) {
+    if (!projectPath || !window.electronAPI?.readDir) return '';
+    try {
+        const res = await window.electronAPI.readDir(projectPath);
+        if (!res?.success || !Array.isArray(res.files)) return '';
+        const lines = res.files.slice(0, 40).map((f) => {
+            const rel = f.name || f.path?.split(/[/\\]/).pop();
+            const kind = f.type === 'folder' ? 'dir' : 'file';
+            return `- ${rel} (${kind})`;
+        });
+        return `Root entries (${res.files.length} total):\n${lines.join('\n')}`;
+    } catch {
+        return '';
+    }
+}
+
+function inferProjectKindForBrief(blob, cfg) {
+    const template = String(cfg.template || state.currentProject?.template || '').toLowerCase();
+    if (/platformer|phaser|game/.test(template)) return 'game';
+    if (getPhaserContextPacket()) return 'game';
+    if (/\b(video game|indie game|game jam|gameplay|game landing|our game|the game|players?\b|wishlist)\b/i.test(blob)) {
+        return 'game';
+    }
+    return null;
+}
+
+function extractNamedThemeFromContext(blob) {
+    const patterns = [
+        /\b(?:theme|aesthetic|visual direction|palette)\s*(?:is|:)\s*([^\n.]{3,100})/i,
+        /\b([A-Za-z][A-Za-z0-9 /-]{2,48})\s+(?:vibe|aesthetic|look and feel)\b/i,
+    ];
+    for (const re of patterns) {
+        const m = blob.match(re);
+        if (m && m[1]) {
+            const label = m[1].trim().replace(/^[*_\s]+|[*_\s]+$/g, '');
+            if (label.length >= 3 && label.length <= 80) return label;
+        }
+    }
+    return '';
+}
+
+function buildProjectIdentityBrief() {
+    const ctxText = (state.conversationContext || []).map((m) => m.content).join('\n');
+    const journal = state.projectJournal || '';
+    const cml = state.projectCmlBrief || '';
+    const folder = (state.currentProject?.path || '').split(/[/\\]/).filter(Boolean).pop() || '';
+    const cfg = state.currentProject?.config || {};
+    const projectTitle =
+        cfg.displayName || cfg.projectName || cfg.name || folder.replace(/-/g, ' ');
+    const blob = `${ctxText}\n${journal}\n${cml}\n${folder}\n${projectTitle}`;
+
+    const lines = [];
+    const kind = inferProjectKindForBrief(blob, cfg);
+    const namedTheme = extractNamedThemeFromContext(blob);
+
+    if (projectTitle && projectTitle.length > 1 && !/^project$/i.test(projectTitle)) {
+        lines.push(`Project: **${projectTitle}**.`);
+    }
+    if (kind === 'game') {
+        lines.push(
+            'Treat this as a **game** project. Player-facing copy and landing structure (hype, features, waitlist/wishlist) — not a generic company brochure unless the user asked for studio-first branding.'
+        );
+    }
+    if (namedTheme) {
+        lines.push(`Keep the agreed look: **${namedTheme}** (from chat/journal — do not swap for an unrelated template).`);
+    } else if (ctxText.length > 200) {
+        lines.push(
+            'If chat already named sections, colors, or tone, match that plan — do not replace it with a stock landing page.'
+        );
+    }
+    if (/\b(conceptual|pre-?launch|no gameplay footage|before launch)\b/i.test(blob)) {
+        lines.push('Pre-launch: hype and capture interest; avoid fake gameplay or misleading claims.');
+    }
+
+    if (!lines.length) return '';
+    return `### Project context (binding)\n${lines.join('\n')}`;
+}
+
+function buildChatSessionBriefForAgent(maxChars = 4200) {
+    const identity = buildProjectIdentityBrief();
+    const ctx = state.conversationContext || [];
+
+    const outlineSignals =
+        /\b(blueprint|outline|section|hero|waitlist|cta|pastel|palette|#[0-9a-f]{3,8}|landing page|feature grid|footer|tagline|vibe|aesthetic|theme|game|gameplay)\b/i;
+    const recent = ctx.slice(-12);
+    const lines = [];
+    for (const turn of recent) {
+        const role = turn.role === 'user' ? 'User' : 'Cursy';
+        let body = String(turn.content || '').trim();
+        if (!body) continue;
+        const cap = outlineSignals.test(body) ? 1400 : 600;
+        if (body.length > cap) body = `${body.slice(0, cap)}…`;
+        lines.push(`**${role}:** ${body}`);
+    }
+
+    const chunks = [];
+    if (identity) chunks.push(identity);
+
+    if (lines.length) {
+        const joined = lines.join('\n\n');
+        const hasPlan = outlineSignals.test(joined);
+        const header = hasPlan
+            ? 'Recent chat agreed on structure/theme — implement THIS plan, not a new idea:'
+            : 'Recent chat context for continuity:';
+        chunks.push(`${header}\n\n${joined}`);
+    }
+
+    if (!chunks.length) return '';
+    return chunks.join('\n\n').slice(0, maxChars);
+}
+
+function enrichAgentGoalFromChat(goal) {
+    const g = String(goal || '').trim();
+    const brief = buildChatSessionBriefForAgent(800);
+    if (!brief) return g;
+    if (/\b(as discussed|from (the )?outline|per (the )?brief|follow the plan)\b/i.test(g)) {
+        return g;
+    }
+    const identity = buildProjectIdentityBrief();
+    const gameNote = /\bgame\b/i.test(identity)
+        ? ' Match **game**-appropriate copy if this is a game project.'
+        : '';
+    const cssOnlyNote = goalTargetsCssOnly(g)
+        ? goalHtmlReadOnlyForCssImplement(g)
+            ? ' You may **read index.html** for class names; **write styles.css only** — do not patch HTML.'
+            : ' **styles.css only** — apply CSS fixes from chat; do **not** edit index.html or markup.'
+        : '';
+    const landingNote =
+        !cssOnlyNote &&
+        /\b(build|create|rebuild|make|scaffold)\b/i.test(g) &&
+        /\blanding\b/i.test(g)
+            ? ' Ship **index.html** and **styles.css** this run.'
+            : '';
+    return `${g}\n\n[Implement the plan, theme, and sections from recent chat — do not invent a different direction.${gameNote}${cssOnlyNote}${landingNote}]`;
+}
+
+async function recallEmbedQueryWithTimeout(text, timeoutMs = 4500) {
+    if (!window.RecallNeural?.embedQuery) return null;
+    try {
+        return await Promise.race([
+            window.RecallNeural.embedQuery(String(text || '').slice(0, 500)),
+            new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+        ]);
+    } catch (err) {
+        console.warn('Recall embed skipped:', err);
+        return null;
+    }
+}
+
+async function buildAgentRecallContext(goal) {
+    const parts = [];
+    const pinBlock = getPinnedRecallPromptBlock();
+    if (pinBlock) parts.push(`### Pinned files\n${pinBlock}`);
+    const phaserCtx = getPhaserContextPacket();
+    if (phaserCtx) parts.push(phaserCtx);
+    if (state.projectCmlBrief) {
+        parts.push(`### Recent CML memory\n${state.projectCmlBrief.slice(0, 2200)}`);
+    }
+    if (state.currentProject?.path && window.electronAPI?.recallSearch) {
+        try {
+            const queryEmbedding = await recallEmbedQueryWithTimeout(goal);
+            const recall = await window.electronAPI.recallSearch(
+                state.currentProject.path,
+                goal,
+                queryEmbedding
+            );
+            if (recall?.success && recall.snippets?.length) {
+                const block = recall.snippets
+                    .map((s, i) => `[${i + 1}] ${s.path} (${s.score})\n${s.text.slice(0, 450)}`)
+                    .join('\n\n');
+                parts.push(`### Project Recall (${recall.hybrid ? 'hybrid' : 'keyword'})\n${block}`);
+            }
+        } catch (err) {
+            console.warn('Agent recall context skipped:', err);
+        }
+    }
+    return parts.join('\n\n');
+}
+
+async function promptAgentWriteApproval(pendingWrite) {
+    if (state.currentProject?.path && window.electronAPI?.agentValidateWrite) {
+        try {
+            const v = await window.electronAPI.agentValidateWrite(
+                state.currentProject.path,
+                pendingWrite.path,
+                pendingWrite.content
+            );
+            if (v.success && v.allowed === false) {
+                appendChatMessageHtml(
+                    'assistant',
+                    `<p>❌ <strong>Write blocked:</strong> ${escapeHtml(v.error || 'Incomplete or partial file')}</p>`,
+                    'agent-step'
+                );
+                showToast(v.error || 'Unsafe to approve this write', 'error', 8000);
+                return false;
+            }
+        } catch (err) {
+            console.warn('agentValidateWrite failed:', err);
+        }
+    }
+    let diffHtml = '';
+    if (state.currentProject?.path && window.electronAPI?.readFile) {
+        const root = state.currentProject.path.replace(/[/\\]$/, '');
+        const sep = root.includes('\\') ? '\\' : '/';
+        const filePath = root + sep + pendingWrite.path.replace(/[/\\]/g, sep);
+        try {
+            const read = await window.electronAPI.readFile(filePath);
+            const oldText = read.success ? read.content : '';
+            diffHtml = `<div class="agent-diff-preview">${buildUnifiedDiffPreview(oldText, pendingWrite.content)}</div>`;
+        } catch {
+            diffHtml = '';
+        }
+    }
+    return new Promise((resolve) => {
+        const preview = pendingWrite.content || '';
+        const div = appendChatMessageHtml(
+            'assistant',
+            `<p>✋ <strong>Approve write?</strong> <code>${escapeHtml(pendingWrite.path)}</code></p>
+            ${diffHtml}
+            <pre class="agent-write-preview">${escapeHtml(preview.slice(0, 600))}${preview.length > 600 ? '\n…' : ''}</pre>
+            <button type="button" class="agent-approve-btn">Approve write</button>
+            <button type="button" class="agent-reject-btn">Reject</button>`,
+            'agent-approval'
+        );
+        if (!div) {
+            resolve(false);
+            return;
+        }
+        div.querySelector('.agent-approve-btn')?.addEventListener('click', () => {
+            div.remove();
+            resolve(true);
+        });
+        div.querySelector('.agent-reject-btn')?.addEventListener('click', () => {
+            div.remove();
+            resolve(false);
+        });
+    });
+}
+
+function getCursyInteractionMode() {
+    return state.cursyInteractionMode || localStorage.getItem('vibe-ide-cursy-mode') || 'auto';
+}
+
+function stripChatDirective(messageMarkdown) {
+    return String(messageMarkdown || '')
+        .replace(/^@chat\s+/i, '')
+        .replace(/^\/chat\s+/i, '')
+        .trim();
+}
+
+function messageForcesChatOnly(messageMarkdown) {
+    const t = String(messageMarkdown || '').trim();
+    return /^@chat\s+/i.test(t) || /^\/chat\s+/i.test(t);
+}
+
+function detectJournalUpdateCommand(messageLower) {
+    const journalUpdatePatterns = [
+        /^(cursy[,]?\s*)?(can\s+you\s+|please\s+|will\s+you\s+)?(update|refresh|regenerate)\s+(the\s+)?(project\s+)?journal/i,
+        /^(update|refresh|regenerate)\s+(the\s+)?(project\s+)?journal(\s+please|\s+cursy)?/i,
+        /^(project\s+)?journal\s+(update|refresh|regenerate)/i,
+        /^(cursy[,]?\s*)?(update|refresh|regenerate)\s+(the\s+)?journal/i,
+        /\b(then|and|also)\s+(update|refresh|regenerate)\s+(the\s+)?(project\s+)?journal/i,
+        /\b(update|refresh|regenerate)\s+(the\s+)?(project\s+)?journal\s*$/i,
+    ];
+    return journalUpdatePatterns.some((pattern) => pattern.test(messageLower));
+}
+
+function looksLikePlanningOrAdvice(messageLower) {
+    const m = String(messageLower || '').trim();
+    if (/\b(@agent|@chat|ship it now|implement now|write the file|just do it)\b/i.test(m)) {
+        return false;
+    }
+    return (
+        /\b(let me know|tell me how|how would you|how you'd|what would you|have a look|look at|take a look|review the|your thoughts|brainstorm|approach would|plan for|walk me through|advice on|how should i)\b/i.test(
+            m
+        ) ||
+        (/\b(redo|rebuild|revamp)\b/i.test(m) &&
+            /\b(how|what|would you|let me know|approach|plan|style|idea)\b/i.test(m))
+    );
+}
+
+function shouldAutoRouteToAgent(messageMarkdown, messageLower, isJournalUpdateCommand) {
+    if (looksLikePlanningOrAdvice(messageLower)) {
+        return false;
+    }
+
+    if (isJournalUpdateCommand && !/\b(file|code|html|css|js|website|site|page|game|implement|build|make|create|rebuild)\b/i.test(messageLower)) {
+        return false;
+    }
+
+    // Rebuild/revamp is always agent work when there is any real target (not a chat brainstorm)
+    if (/\b(rebuild|revamp|redo)\b/i.test(messageLower)) {
+        const tokens = messageLower.split(/\s+/).filter(Boolean);
+        if (/\b(landing|page|pages|site|website|html|css|game|app|project|files?|it|this)\b/.test(messageLower)) {
+            return true;
+        }
+        if (tokens.length >= 3) return true;
+        if (tokens.length <= 2 && hasRecentBuildIntentInChat()) return true;
+    }
+
+    const actionVerbs =
+        /\b(implement|create|write|build|make|generate|scaffold|rebuild|revamp|redo|add|fix|refactor|rewrite|replace|remove|delete|setup|set up|code|ship|design|migrate|port|wire|hook up)\b/i;
+    const projectNouns =
+        /\b(file|files|code|script|html|css|js|jsx|tsx|ts|python|py|page|pages|website|site|webpage|landing|component|function|class|method|game|player|enemy|scene|sprite|api|endpoint|route|template|folder|project|styles|index\.html|game\.js|navbar|footer|header|form|button|menu)\b/i;
+
+    if (/\b(make me|build me|create a|create an|set up a|add a|fix the|fix my)\b/i.test(messageLower)) {
+        if (projectNouns.test(messageLower) || actionVerbs.test(messageLower)) return true;
+    }
+
+    if (actionVerbs.test(messageLower) && projectNouns.test(messageLower)) return true;
+
+    if (
+        /\b(update|modify|change|edit)\b/i.test(messageLower) &&
+        projectNouns.test(messageLower) &&
+        !/\bjournal\b/i.test(messageLower)
+    ) {
+        return true;
+    }
+
+    const looksLikeQuestion = /^(what|why|how|who|when|where|is|are|does|do|can you explain|explain|tell me about|describe)\b/i.test(
+        messageLower.trim()
+    );
+    if (looksLikeQuestion && !actionVerbs.test(messageLower)) return false;
+
+    if (isShortAgentContinuation(messageLower) && hasRecentBuildIntentInChat()) {
+        return true;
+    }
+
+    if (isAffirmativeCssOrShipMessage(messageLower) && hasRecentCssShipIntentInChat()) {
+        return true;
+    }
+
+    if (/\b(css party|let'?s.*css|fix the styling)\b/i.test(messageLower)) {
+        return true;
+    }
+
+    return false;
+}
+
+function responsePromisesImplementWithoutTools(responseText) {
+    if (state.currentCodeBlocks && state.currentCodeBlocks.length > 0) return false;
+    const t = String(responseText || '');
+    const promisesUi =
+        (/\bimplement\b/i.test(t) &&
+            /\b(button|below|click|watch the magic|under your message)\b/i.test(t)) ||
+        /\bhit the ["']?implement\b/i.test(t) ||
+        /\b(sending over|i'?m sending|prepared).{0,40}\b(updated|revised|new)\b/i.test(t);
+    const namesFiles =
+        /\b(styles\.css|index\.html|\.css\b|\.html\b|code block|file updates?)\b/i.test(t) ||
+        /\brevamp(ed|ing)?\s+(our\s+)?styles\b/i.test(t);
+    return promisesUi && namesFiles;
+}
+
+async function recoverPhantomImplementWithAgent(userMessage, responseDivRef) {
+    if (!state.currentProject?.path || !chatBackendReady() || !window.electronAPI?.agentStep) {
+        appendChatMessageHtml(
+            'assistant',
+            '<p>⚠️ Cursy mentioned <strong>Implement</strong> but did not attach files. Try <code>@agent polish styles.css only</code> or ask again with <code>@chat</code>.</p>'
+        );
+        return;
+    }
+    appendChatMessageHtml(
+        'assistant',
+        '<p>⚡ No <strong>Implement</strong> payload — starting <strong>agent file ship</strong> (approve before save)…</p>',
+        'agent-step'
+    );
+    const goal = enrichAgentGoalFromChat(
+        expandVagueAgentGoal(String(userMessage || 'Fix styles.css per chat — Bubblegum Pop'))
+    );
+    const sessionBrief = buildChatSessionBriefForAgent();
+    let plan = parseExplicitOnlyShipFiles(goal) || ['styles.css'];
+    plan = tightenShipPlan(
+        goal,
+        await deriveFileShipPlanWithSearch(goal, sessionBrief, state.currentProject.path)
+    );
+    if (!plan.length) plan = ['styles.css'];
+    if (plan.length > 2 && parseExplicitOnlyShipFiles(goal)) {
+        plan = parseExplicitOnlyShipFiles(goal);
+    }
+    void runBoundedAgent(goal).catch((err) => {
+        console.error('recoverPhantomImplementWithAgent:', err);
+        appendChatMessageHtml(
+            'assistant',
+            `<p>❌ Agent recovery failed: ${escapeHtml(String(err?.message || err))}</p>`,
+            'agent-step'
+        );
+    });
+    const chatMessages = document.getElementById('chatMessages');
+    if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function isShortAgentContinuation(messageLower) {
+    const t = String(messageLower || '').trim();
+    return /^(build|go|ship it|do it|make it|yes[!.]?|yep|okay|ok|let'?s go|please do|run it|execute|do that)\.?$/i.test(
+        t
+    );
+}
+
+/** "Yes let's fix CSS" style follow-ups after Cursy already proposed a styles pass. */
+function isAffirmativeCssOrShipMessage(messageLower) {
+    const t = String(messageLower || '').trim();
+    if (isShortAgentContinuation(t)) return true;
+    if (
+        /\b(styles\.css|css party|bubblegum|pastel|fix the (landing|page|styling|css)|revamp.*css|update.*css)\b/.test(
+            t
+        ) &&
+        /\b(yes|yeah|yep|let'?s|go|ship|fix|revamp|update|party|start|do it|implement|ready)\b/.test(t)
+    ) {
+        return true;
+    }
+    return false;
+}
+
+function hasRecentCssShipIntentInChat() {
+    if (hasRecentAssistantShipOfferInChat()) return true;
+    const recent = (state.conversationContext || [])
+        .slice(-8)
+        .map((m) => String(m.content || ''))
+        .join('\n')
+        .toLowerCase();
+    return (
+        /\bstyles\.css\b/.test(recent) ||
+        (/\bbubblegum\b/.test(recent) && /\b(css|styling|pastel|fix|revamp|landing)\b/.test(recent)) ||
+        (/\b(pastel|synthwave|neon|squid|landing)\b/.test(recent) &&
+            /\b(css|styles|styling|fix|revamp|implement|buttons|hero)\b/.test(recent))
+    );
+}
+
+function hasRecentBuildIntentInChat() {
+    const recent = (state.conversationContext || []).slice(-8);
+    const text = recent.map((m) => m.content).join('\n').toLowerCase();
+    return (
+        /\b(rebuild|build|implement|scaffold|make the|create the|write the|landing page|fix the site)\b/.test(
+            text
+        ) && /\b(page|site|landing|html|css|game|index\.html)\b/.test(text)
+    );
+}
+
+function extractCssFixGoalFromRecentChat() {
+    const ctx = state.conversationContext || [];
+    for (let i = ctx.length - 1; i >= 0; i--) {
+        const m = ctx[i];
+        if (m.role !== 'assistant') continue;
+        const t = String(m.content || '');
+        if (
+            /\b(styles\.css|stylesheet|css file|styling)\b/i.test(t) &&
+            /\b(bubblegum|pastel|fix|revamp|css|styling|buttons|hero|landing|squid)\b/i.test(t)
+        ) {
+            return 'Polish styles.css only — Bubblegum Pop pastel theme, pill neon buttons, hero squid centerpiece, pastel feature card grid, readable copy. Match Cursy critique in recent chat.';
+        }
+    }
+    return null;
+}
+
+function extractBuildGoalFromRecentChat() {
+    const ctx = state.conversationContext || [];
+    for (let i = ctx.length - 1; i >= 0; i--) {
+        const m = ctx[i];
+        if (m.role !== 'user') continue;
+        const t = String(m.content || '').trim();
+        if (t.length < 6 || isShortAgentContinuation(t.toLowerCase())) continue;
+        if (
+            /\b(rebuild|build|make|create|implement|scaffold|fix|write|design|landing|page|site|html|css|game)\b/i.test(
+                t
+            )
+        ) {
+            return t;
+        }
+    }
+    return null;
+}
+
+function expandVagueAgentGoal(messageMarkdown) {
+    const raw = String(messageMarkdown || '').trim();
+    if (!raw) return raw;
+    if (goalTargetsCssOnly(raw)) {
+        const cssGoal = extractCssFixGoalFromRecentChat();
+        const head = cssGoal || `Apply CSS fixes from recent chat to **styles.css** only — do not edit index.html.`;
+        return enrichAgentGoalFromChat(`${head}\n\n(User: "${raw.slice(0, 180)}")`);
+    }
+    if (isAffirmativeCssOrShipMessage(raw.toLowerCase())) {
+        const cssGoal = extractCssFixGoalFromRecentChat();
+        if (cssGoal) return enrichAgentGoalFromChat(`${cssGoal}\n\n(User: "${raw.slice(0, 180)}")`);
+    }
+    if (isShortAgentContinuation(raw.toLowerCase())) {
+        const fromChat = extractBuildGoalFromRecentChat();
+        if (fromChat) {
+            let extra = `\n\n(User said "${raw}" to proceed — execute that plan with agent writes.)`;
+            if (/\b(rebuild|build|create|make)\b/i.test(fromChat) && /\blanding\b/i.test(fromChat)) {
+                extra += '\n\nLanding goal = write **index.html** and **styles.css** from the brief this run.';
+            }
+            return enrichAgentGoalFromChat(`${fromChat}${extra}`);
+        }
+    }
+    if (raw.length < 24 && hasRecentBuildIntentInChat()) {
+        const fromChat = extractBuildGoalFromRecentChat();
+        if (fromChat) return enrichAgentGoalFromChat(`${fromChat}\n\n(Expanded from short message: "${raw}")`);
+    }
+    return enrichAgentGoalFromChat(raw);
+}
+
+function resolveAgentGoal(messageMarkdown, agentGoalMatch) {
+    if (agentGoalMatch) return agentGoalMatch[1].trim();
+    const raw = String(messageMarkdown || '').trim();
+    if (isShortAgentContinuation(raw.toLowerCase())) {
+        const fromChat = extractBuildGoalFromRecentChat();
+        if (fromChat) return fromChat;
+    }
+    return raw;
+}
+
+function tryStartAgentFromChat(messageMarkdown, agentGoalMatch, options = {}) {
+    const { showAutoHint = false } = options;
+    const goal = resolveAgentGoal(messageMarkdown, agentGoalMatch);
+    if (!goal) return false;
+
+    if (!state.currentProject?.path) {
+        showToast('Open a project for agent mode — using chat instead', 'warning');
+        return false;
+    }
+    if (!chatBackendReady()) {
+        showToast('Gemini API key required for agent — add one in User Settings', 'warning');
+        return false;
+    }
+    if (!window.electronAPI?.agentStep) {
+        showToast('Agent unavailable — restart VIBE IDE', 'warning');
+        return false;
+    }
+
+    const expandedGoal = expandVagueAgentGoal(goal);
+    if (showAutoHint) {
+        let hint =
+            '<p>⚡ <strong>Auto-agent</strong> — build/fix requests use approve-before-write steps. Say <code>@chat</code> to force normal chat.</p>';
+        if (expandedGoal.length > String(goal).length + 15) {
+            const preview = extractBuildGoalFromRecentChat() || expandedGoal;
+            hint += `<p>📎 Using plan from chat: <em>${escapeHtml(preview.slice(0, 160))}${preview.length > 160 ? '…' : ''}</em></p>`;
+        }
+        appendChatMessageHtml('assistant', hint, 'agent-step');
+    }
+
+    void runBoundedAgent(expandedGoal).catch((err) => {
+        console.error('runBoundedAgent failed:', err);
+        appendChatMessageHtml(
+            'assistant',
+            `<p>❌ <strong>Agent failed to start.</strong> ${escapeHtml(String(err?.message || err || 'Unknown error'))}</p>`,
+            'agent-step'
+        );
+        updateCursyState('idle', 'Ready');
+        showToast('Agent run failed — see chat', 'error', 6000);
+    });
+    return true;
+}
+
+function normalizeShipFilename(rel) {
+    const r = String(rel || '').replace(/\\/g, '/').replace(/^\.\//, '');
+    if (r.toLowerCase() === 'style.css') return 'styles.css';
+    return r;
+}
+
+/** User wants work confined to game/ — never rewrite root landing files. */
+function parseGameDirectoryOnlyScope(goal) {
+    const g = String(goal || '');
+    const gl = g.toLowerCase();
+    if (!/\bgame\b/.test(gl)) return false;
+    if (/\b@agent\s+scaffold\s+game\/?\b/i.test(g)) return true;
+    if (/\bscaffold\s+(?:the\s+)?game\/?\b/i.test(g) && !/\blanding\b/i.test(gl)) return true;
+    if (/\b(?:scaffold|write|ship|create|build|empty|fill)\s+(?:in\s+)?(?:the\s+)?game\/?\s+only\b/i.test(g)) {
+        return true;
+    }
+    if (/\bgame\/?\s+only\b/i.test(g)) return true;
+    if (/\bonly\s+(?:in\s+)?(?:the\s+)?game\/?\b/i.test(g)) return true;
+    if (/\b(?:do\s+not|don't|never)\s+(?:touch|modify|write|change)\b/i.test(g) && /\b(?:landing|root|\.\.\/|styles\.css|index\.html)\b/i.test(g)) {
+        return true;
+    }
+    if (/\bnothing outside (?:the\s+)?game\/?\b/i.test(g)) return true;
+    if (/\boutside\s+game\/?\s+forbidden\b/i.test(g)) return true;
+    return false;
+}
+
+function defaultGameScaffoldPlan() {
+    return ['game/index.html', 'game/style.css', 'game/script.js'];
+}
+
+function extractShipPathsFromText(text, pathPrefixRe = null) {
+    const blob = String(text || '');
+    const seen = new Set();
+    const plan = [];
+    const pathRe =
+        /\b([a-zA-Z0-9_][a-zA-Z0-9_./-]*\.(?:html?|css|scss|js|mjs|tsx?))\b/gi;
+    let m;
+    while ((m = pathRe.exec(blob)) !== null) {
+        let rel = normalizeShipFilename(m[1]).replace(/\\/g, '/').replace(/^\.\//, '');
+        if (pathPrefixRe && !pathPrefixRe.test(rel)) continue;
+        const key = rel.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        plan.push(rel);
+    }
+    return plan;
+}
+
+/** User said "styles.css only" / "only update index.html" — IDE must not ship the whole repo. */
+function parseExplicitOnlyShipFiles(goal) {
+    const g = String(goal || '');
+    const found = [];
+    const patterns = [
+        /\b(?:scoped edit only|edit only)\s*[—-]?\s*([a-z0-9_./-]+\.(?:css|scss|html?|js|mjs|tsx?))\b/gi,
+        /\b(?:only|just)\s+(?:update|rewrite|polish|fix|ship)?\s*([a-z0-9_./-]+\.(?:css|scss|html?|js|mjs|tsx?))\b/gi,
+        /\b([a-z0-9_./-]+\.(?:css|scss|html?|js|mjs|tsx?))\s+only\b/gi,
+        /\b(?:update|rewrite|polish)\s+([a-z0-9_./-]+\.(?:css|scss|html?|js|mjs|tsx?))\s+only\b/gi,
+    ];
+    for (const re of patterns) {
+        let m;
+        while ((m = re.exec(g)) !== null) {
+            const rel = normalizeShipFilename(m[1]);
+            const key = rel.toLowerCase();
+            if (!found.some((f) => f.toLowerCase() === key)) found.push(rel);
+        }
+    }
+    return found.length ? found : null;
+}
+
+/** IDE-owned deliverable list — not landing-specific. Parsed from goal + session brief. */
+function deriveFileShipPlan(goal, sessionBrief = '') {
+    const goalOnly = parseExplicitOnlyShipFiles(goal);
+    if (goalOnly?.length) {
+        return goalOnly;
+    }
+    if (goalTargetsCssOnly(goal)) {
+        return ['styles.css'];
+    }
+
+    if (parseGameDirectoryOnlyScope(goal)) {
+        const underGame = extractShipPathsFromText(goal, /^game\//i);
+        if (underGame.length) return underGame.slice(0, 4);
+        return defaultGameScaffoldPlan();
+    }
+
+    const blob = `${String(goal || '')}\n${String(sessionBrief || '')}`;
+    const seen = new Set();
+    const plan = [];
+    const pathRe =
+        /\b([a-zA-Z0-9_][a-zA-Z0-9_./-]*\.(?:html?|css|scss|sass|less|js|jsx|tsx|ts|mjs|cjs|vue|svelte|json|md|php|py|rb|go|rs|sql|yaml|yml|toml|xml|svg))\b/gi;
+    let m;
+    while ((m = pathRe.exec(blob)) !== null) {
+        let rel = normalizeShipFilename(m[1]);
+        const key = rel.toLowerCase();
+        if (seen.has(key)) continue;
+        if (/\b(not|without|skip|avoid)\s+[^.\n]{0,40}\bscript\.js\b/i.test(blob) && /script\.js$/i.test(rel)) {
+            continue;
+        }
+        seen.add(key);
+        plan.push(rel);
+    }
+
+    const shipVerb = /\b(build|create|scaffold|rebuild|write|generate|implement|ship|add|make|update|polish|fix|tweak|refresh)\b/i.test(
+        blob
+    );
+    if (!plan.length && shipVerb) {
+        if (/\bhtml\b/i.test(blob) && /\b(css|styles?|stylesheet)\b/i.test(blob)) {
+            plan.push('index.html', 'styles.css');
+        } else if (/\bindex\.html\b/i.test(blob) && !seen.has('index.html')) {
+            plan.push('index.html');
+        } else if (/\bstyles?\.css\b/i.test(blob)) {
+            plan.push('styles.css');
+        }
+    }
+
+    if (
+        shipVerb &&
+        /\bscript\.js\b/i.test(blob) &&
+        !/\b(not|without|skip)\s+script\.js\b/i.test(blob) &&
+        !seen.has('script.js')
+    ) {
+        plan.push('script.js');
+    }
+
+    const landingish =
+        /\blanding\b/i.test(blob) ||
+        (/\bindex\.html\b/i.test(blob) &&
+            /\bstyles?\.css\b/i.test(blob) &&
+            !/\bgame\.js\b/i.test(blob));
+    if (landingish) {
+        const allowGame =
+            /\bgame\.js\b/i.test(blob) && !/\b(not|without|skip)\s+game\.js\b/i.test(blob);
+        return plan.filter((rel) => {
+            const base = String(rel || '')
+                .replace(/\\/g, '/')
+                .split('/')
+                .pop()
+                .toLowerCase();
+            if (base === 'game.js' && !allowGame) return false;
+            if (/^game\//i.test(String(rel).replace(/\\/g, '/'))) return allowGame;
+            return true;
+        });
+    }
+
+    return plan;
+}
+
+/** Cap agent/orchestrator scope — no whole-repo grep sprawl for polish passes. */
+function tightenShipPlan(goal, plan) {
+    const explicit = parseExplicitOnlyShipFiles(goal);
+    if (explicit?.length) return explicit.slice(0, 3);
+    if (goalTargetsCssOnly(goal)) return ['styles.css'];
+
+    if (parseGameDirectoryOnlyScope(goal)) {
+        let scoped = (Array.isArray(plan) ? plan : [])
+            .map((rel) => String(rel || '').replace(/\\/g, '/').replace(/^\.\//, ''))
+            .filter((rel) => /^game\//i.test(rel));
+        if (!scoped.length) scoped = defaultGameScaffoldPlan();
+        return scoped.slice(0, 4);
+    }
+
+    if (isScopedEditRequest(goal)) {
+        if (/\bstyles?\.css\b/i.test(goal) && /\bonly\b/i.test(goal)) return ['styles.css'];
+        if (/\bstyles?\.css\b/i.test(goal) && !/\b(index\.html|\.html|markup|structure)\b/i.test(goal)) {
+            return ['styles.css'];
+        }
+        return inferScopedEditTargetFiles(goal).slice(0, 2);
+    }
+
+    const blob = String(goal || '').toLowerCase();
+    let p = (Array.isArray(plan) ? plan : [])
+        .map((rel) => String(rel || '').replace(/\\/g, '/').replace(/^\.\//, ''))
+        .filter(Boolean);
+
+    p = p.filter((rel) => {
+        if (!rel.includes('/')) return true;
+        return blob.includes(rel.toLowerCase()) || blob.includes(rel.split('/').pop().toLowerCase());
+    });
+
+    if (/\bstyles?\.css\b/i.test(goal) && !/\bindex\.html\b/i.test(goal) && p.some((x) => /styles\.css$/i.test(x))) {
+        return p.filter((x) => /styles\.css$/i.test(x)).slice(0, 1);
+    }
+
+    return p.slice(0, 4);
+}
+
+async function deriveFileShipPlanWithSearch(goal, sessionBrief = '', projectPath = '') {
+    const base = deriveFileShipPlan(goal, sessionBrief);
+    if (!projectPath || !window.electronAPI?.projectPlanShipFiles) {
+        return base;
+    }
+    try {
+        const enriched = await window.electronAPI.projectPlanShipFiles(projectPath, goal, sessionBrief, base);
+        if (Array.isArray(enriched?.plan) && enriched.plan.length) {
+            return enriched.plan;
+        }
+    } catch (err) {
+        console.warn('projectPlanShipFiles:', err);
+    }
+    return base;
+}
+
+function shouldOrchestrateFilePlan(plan, goal) {
+    if (!plan?.length) return false;
+    const g = String(goal || '');
+    if (goalTargetsCssOnly(g)) return false;
+    const wantsFullShip =
+        /\b(rebuild|scaffold|create|from scratch|write both|index\.html and styles|full rewrite|replace entire)\b/i.test(
+            g
+        );
+    if (plan.length >= 2) return true;
+    // Single-file polish/fix: multi-step harness (grep_project → read_file → apply_patch), not one-shot full regen.
+    if (plan.length === 1 && isScopedEditRequest(g) && !wantsFullShip) return false;
+    if (
+        plan.length === 1 &&
+        /\b(polish|fix|tweak|adjust|patch|refresh|match)\b/i.test(g) &&
+        !wantsFullShip &&
+        !/\b(write|build|generate|implement|ship)\s+(the\s+)?(full|complete|entire)\b/i.test(g)
+    ) {
+        return false;
+    }
+    return (
+        plan.length === 1 &&
+        /\b(rebuild|scaffold|create|write|build|generate|implement|ship|update|polish|fix|refresh)\b/i.test(g)
+    );
+}
+
+function buildOrchestratedFileGoal(parentGoal, targetFile) {
+    const head = String(parentGoal || '')
+        .split('\n')
+        .slice(0, 3)
+        .join(' ')
+        .slice(0, 420);
+    const scoped = isScopedEditRequest(parentGoal);
+    if (scoped) {
+        return (
+            `Small in-place edit on **${targetFile}** only.\n` +
+            `Context: ${head}\n` +
+            `Use patch-first semantics: preserve everything not mentioned. Do not replace the whole file unless the goal explicitly asks for a full rewrite.`
+        );
+    }
+    return (
+        `Write **${targetFile}** for the user goal below.\n` +
+        `Context: ${head}\n` +
+        `Deliver the complete ${targetFile} file only — match the session brief and project conventions.`
+    );
+}
+
+function shipPathBasename(relPath) {
+    return String(relPath || '')
+        .replace(/\\/g, '/')
+        .split('/')
+        .pop()
+        .toLowerCase();
+}
+
+function extractHtmlClassHints(html, maxClasses = 48) {
+    const classes = new Set();
+    const re = /\bclass=["']([^"']+)["']/gi;
+    let m;
+    while ((m = re.exec(String(html || ''))) !== null) {
+        for (const c of m[1].split(/\s+/)) {
+            if (c) classes.add(c);
+        }
+    }
+    const list = [...classes].slice(0, maxClasses);
+    return list.length ? `CSS must style these classes/ids: ${list.join(', ')}` : '';
+}
+
+async function readProjectFileSnippet(projectPath, relFile, maxChars = 9000) {
+    if (!projectPath || !window.electronAPI?.readFile) return '';
+    const root = projectPath.replace(/[/\\]$/, '');
+    const sep = root.includes('\\') ? '\\' : '/';
+    const full = `${root}${sep}${String(relFile).replace(/[/\\]/g, sep)}`;
+    try {
+        const res = await window.electronAPI.readFile(full);
+        if (!res?.success || !res.content) return '';
+        const body = String(res.content);
+        return body.length > maxChars ? `${body.slice(0, maxChars)}\n… [truncated]` : body;
+    } catch {
+        return '';
+    }
+}
+
+async function commitOrchestratedWrite(pendingWrite, shared, onAfter) {
+    const approved = await promptAgentWriteApproval(pendingWrite);
+    if (!approved) {
+        appendChatMessageHtml('assistant', '<p>✋ Write cancelled — tell Cursy how to proceed.</p>');
+        return false;
+    }
+    const writeRes = await window.electronAPI.agentCommitWrite(
+        shared.projectRoot,
+        pendingWrite.path,
+        pendingWrite.content
+    );
+    if (!writeRes.success) {
+        appendChatMessageHtml('assistant', `<p>❌ Write failed: ${escapeHtml(writeRes.error || '')}</p>`);
+        return false;
+    }
+    shared.writtenPaths.push(
+        String(pendingWrite.path || '')
+            .replace(/\\/g, '/')
+            .replace(/^\.\//, '')
+    );
+    appendChatMessageHtml('assistant', `<p>✅ Wrote <code>${escapeHtml(pendingWrite.path)}</code></p>`);
+    if (onAfter) await onAfter(pendingWrite);
+    if (typeof loadProjectFiles === 'function') {
+        await loadProjectFiles(shared.projectRoot);
+    }
+    return true;
+}
+
+function buildShipSystemPrompt(sessionBrief) {
+    let prompt =
+        'You are Cursy in VIBE IDE **file ship** mode. Deliver ONE complete file per turn. ' +
+        'Prefer the provide_code_block tool; otherwise one markdown code fence with the full file. No long prose.';
+    if (sessionBrief && String(sessionBrief).trim()) {
+        prompt += `\n\n## Session brief (binding)\n${String(sessionBrief).trim().slice(0, 3200)}`;
+    }
+    return prompt;
+}
+
+function parseShipDraftFromResponse(res, targetFile) {
+    const wantBase = shipPathBasename(targetFile);
+    const wantLang = /\.css/i.test(targetFile) ? 'css' : /\.html?/i.test(targetFile) ? 'html' : 'javascript';
+
+    if (res?.functionCalls?.length) {
+        for (const fc of res.functionCalls) {
+            if (fc.name !== 'provide_code_block' || !fc.arguments) continue;
+            const code = fc.arguments.code != null ? String(fc.arguments.code) : '';
+            if (!code.trim()) continue;
+            return {
+                path: targetFile,
+                content: code,
+                language: fc.arguments.language || wantLang,
+            };
+        }
+    }
+
+    const text = typeof res?.content === 'string' ? res.content : '';
+    if (!text.trim()) return null;
+
+    const blocks = collectCodeBlocksFromMarkdown(text);
+    const pick =
+        blocks.find((b) => shipPathBasename(b.filePath || '') === wantBase) ||
+        blocks.find((b) => (b.language || '').toLowerCase() === wantLang) ||
+        blocks.find((b) => b.code && b.code.length > 40) ||
+        null;
+    if (!pick?.code?.trim()) return null;
+    return { path: targetFile, content: pick.code, language: pick.language || wantLang };
+}
+
+function startShipProgress(label) {
+    const div = appendChatMessageHtml(
+        'assistant',
+        `<p class="agent-step-meta ship-progress-line"><span class="ship-spinner">◐</span> <strong>${escapeHtml(
+            label
+        )}</strong> — <span class="ship-timer">connecting…</span></p>`,
+        'agent-step'
+    );
+    const timerEl = div.querySelector('.ship-timer');
+    const spinnerEl = div.querySelector('.ship-spinner');
+    const started = Date.now();
+    const spinChars = ['◐', '◓', '◑', '◒'];
+    let spin = 0;
+    updateCursyState('thinking', label);
+    const id = setInterval(() => {
+        spin += 1;
+        if (spinnerEl) spinnerEl.textContent = spinChars[spin % spinChars.length];
+        if (timerEl) {
+            const sec = ((Date.now() - started) / 1000).toFixed(1);
+            timerEl.textContent = `${sec}s · Cursy drafting…`;
+        }
+    }, 450);
+    return {
+        stop(ok, note) {
+            clearInterval(id);
+            updateCursyState('idle', 'Ready');
+            if (timerEl) timerEl.textContent = note || (ok ? 'ready for your OK' : 'no draft');
+            if (spinnerEl) spinnerEl.textContent = ok ? '✓' : '✗';
+        },
+    };
+}
+
+async function requestShipFileDraft(targetFile, parentGoal, sessionBrief, extraUser = '') {
+    if (!window.electronAPI?.aiChat || !chatBackendReady()) return null;
+
+    const messages = [];
+    for (const m of (state.conversationContext || []).slice(-4)) {
+        if (m.role && m.content) {
+            messages.push({ role: m.role, content: String(m.content).slice(0, 1000) });
+        }
+    }
+    const userPrompt =
+        `${buildOrchestratedFileGoal(parentGoal, targetFile)}${extraUser}\n\n` +
+        `Ship **${targetFile}** now — complete file only.`;
+    messages.push({ role: 'user', content: userPrompt });
+
+    try {
+        return await window.electronAPI.aiChat(messages, buildShipSystemPrompt(sessionBrief), 16384);
+    } catch (err) {
+        console.warn('requestShipFileDraft failed:', err);
+        return null;
+    }
+}
+
+async function shipSingleFileViaStructuredChat(targetFile, parentGoal, shared, options = {}) {
+    const { fenceOnly = false } = options;
+    const sessionBrief = shared.sessionBrief || '';
+
+    let extra = '';
+    if (/styles\.css/i.test(targetFile)) {
+        const html = await readProjectFileSnippet(shared.projectRoot, 'index.html');
+        if (html) {
+            extra = `\n\nMatch selectors/classes from this index.html:\n\`\`\`html\n${html.slice(0, 7000)}\n\`\`\``;
+        }
+    }
+    if (fenceOnly) {
+        extra +=
+            `\n\nOutput **only** one markdown code fence containing the entire ${targetFile} file. No other text.`;
+    }
+
+    const progress = startShipProgress(`Drafting ${targetFile}${fenceOnly ? ' (fence)' : ''}`);
+    const res = await requestShipFileDraft(targetFile, parentGoal, sessionBrief, extra);
+    const draft = res?.success ? parseShipDraftFromResponse(res, targetFile) : null;
+    progress.stop(!!draft?.content?.trim());
+
+    if (!draft?.content?.trim()) return false;
+
+    const pendingWrite = { path: targetFile, content: draft.content };
+    appendChatMessageHtml(
+        'assistant',
+        `<p>📝 <code>${escapeHtml(targetFile)}</code> ready (${pendingWrite.content.length} chars) — approve below.</p>`,
+        'agent-step'
+    );
+
+    return commitOrchestratedWrite(pendingWrite, shared, async (pw) => {
+        if (!state.currentCodeBlocks) state.currentCodeBlocks = [];
+        state.currentCodeBlocks.push({
+            filePath: pw.path,
+            language: draft.language || 'text',
+            code: pw.content,
+        });
+    });
+}
+
+async function runAgentStepLoop(stepOptions) {
+    const { maxSteps, historyRef, onWriteCommitted, silentRetries = false, progressLabel = '' } = stepOptions;
+    let lastToolResult = null;
+    let quietCount = 0;
+
+    for (let step = 0; step < maxSteps; step++) {
+        updateCursyState('thinking', progressLabel ? `${progressLabel}…` : 'Agent step…');
+        const result = await window.electronAPI.agentStep({
+            ...stepOptions.payloadBase,
+            history: historyRef.history,
+            stepIndex: step,
+            maxSteps,
+            lastToolResult,
+        });
+        lastToolResult = null;
+        if (!result.needsApproval) {
+            updateCursyState('idle', 'Ready');
+        }
+
+        if (!result.success) {
+            const extra =
+                result.truncated || result.incomplete
+                    ? ` <span class="agent-step-meta">(${Math.round((result.durationMs || result.toolMeta?.durationMs || 0) / 1000)}s · truncated — not saved)</span>`
+                    : result.durationMs || result.toolMeta?.durationMs
+                      ? ` <span class="agent-step-meta">(${Math.round((result.durationMs || result.toolMeta?.durationMs) / 1000)}s)</span>`
+                      : '';
+            appendChatMessageHtml(
+                'assistant',
+                `<p>❌ ${escapeHtml(result.error || 'Agent step failed')}${extra}</p>`,
+                'agent-step'
+            );
+            return { wrote: false, result, exhausted: !!(result.truncated || result.incomplete) };
+        }
+
+        const quietRetry =
+            silentRetries &&
+            result.needsContinue &&
+            !result.needsApproval &&
+            (result.action === 'checkpoint' || result.action === 'reply');
+        if (quietRetry) {
+            quietCount += 1;
+            if (quietCount === 1 || quietCount === 3) {
+                const label = progressLabel || stepOptions.payloadBase?.orchestratedFile || 'file';
+                appendChatMessageHtml(
+                    'assistant',
+                    `<p class="agent-step-meta">⏳ Still drafting <code>${escapeHtml(label)}</code> (pass ${step + 1}/${maxSteps})…</p>`,
+                    'agent-step'
+                );
+            }
+        } else {
+            appendChatMessageHtml('assistant', formatAgentStepResult(result), 'agent-step');
+        }
+
+        if (result.done) {
+            return { wrote: false, done: true, result };
+        }
+
+        historyRef.history.push({ role: 'assistant', content: result.raw || JSON.stringify(result) });
+
+        if (result.needsApproval && result.pendingWrite) {
+            const approved = await promptAgentWriteApproval(result.pendingWrite);
+            if (!approved) {
+                appendChatMessageHtml('assistant', '<p>✋ Write cancelled — tell Cursy how to proceed.</p>');
+                lastToolResult = { ok: false, error: 'User rejected write' };
+                continue;
+            }
+            const writeRes = await window.electronAPI.agentCommitWrite(
+                stepOptions.payloadBase.projectRoot,
+                result.pendingWrite.path,
+                result.pendingWrite.content
+            );
+            if (!writeRes.success) {
+                appendChatMessageHtml('assistant', `<p>❌ Write failed: ${escapeHtml(writeRes.error || '')}</p>`);
+                lastToolResult = { ok: false, error: writeRes.error };
+                continue;
+            }
+            if (onWriteCommitted) {
+                await onWriteCommitted(result);
+            }
+            lastToolResult = writeRes.toolResult;
+            return { wrote: true, result };
+        }
+
+        if (result.needsContinue && result.toolResult) {
+            lastToolResult = result.toolResult;
+            continue;
+        }
+
+        break;
+    }
+
+    return { wrote: false, exhausted: true };
+}
+
+async function tryShipOneOrchestratedFile(targetFile, parentGoal, shared) {
+    const progress = startShipProgress(`Agent → ${targetFile}`);
+    const fileGoal = buildOrchestratedFileGoal(parentGoal, targetFile);
+    let contextSnippet = '';
+    const grepHint = await buildGrepContextBlock(shared.projectRoot, `${parentGoal}\n${shared.sessionBrief || ''}`);
+    if (/styles\.css/i.test(targetFile)) {
+        const html = await readProjectFileSnippet(shared.projectRoot, 'index.html', 4000);
+        const hints = extractHtmlClassHints(html);
+        if (hints) {
+            contextSnippet = hints;
+        } else if (html) {
+            contextSnippet = html.slice(0, 1200);
+        }
+    }
+    if (grepHint) {
+        contextSnippet = contextSnippet ? `${grepHint}\n\n${contextSnippet}` : grepHint;
+    }
+
+    const historyRef = { history: [] };
+    let wrote = false;
+    try {
+        const pass = await runAgentStepLoop({
+            maxSteps: 1,
+            historyRef,
+            silentRetries: false,
+            progressLabel: targetFile,
+            payloadBase: {
+                projectRoot: shared.projectRoot,
+                recallContext: '',
+                personaContext: '',
+                projectSnapshot: '',
+                writtenPaths: shared.writtenPaths || [],
+                sessionBrief: shared.sessionBrief || buildChatSessionBriefForAgent(700),
+                goal: fileGoal,
+                parentGoal,
+                forceWritePath: targetFile,
+                orchestratedFile: targetFile,
+                forceProvideCodeBlock: false,
+                fastFileShip: true,
+                contextSnippet,
+                maxTokens: 6144,
+            },
+            onWriteCommitted: async (result) => {
+                wrote = true;
+                if (result.fromTool && result.pendingWrite) {
+                    if (!state.currentCodeBlocks) state.currentCodeBlocks = [];
+                    state.currentCodeBlocks.push({
+                        filePath: result.pendingWrite.path,
+                        language: result.toolMeta?.language || 'text',
+                        code: result.pendingWrite.content,
+                    });
+                }
+            },
+        });
+        wrote = pass.wrote || wrote;
+    } finally {
+        progress.stop(wrote, wrote ? 'approve done' : 'no write yet');
+    }
+    return wrote;
+}
+
+/** Short Cursy chat beat after agent/file ship (not agent-step meta). */
+async function cursyFollowUpAfterAgent(runSummary) {
+    const facts = String(runSummary || '').trim();
+    if (!facts) return;
+
+    const fallback = (() => {
+        if (/Outcome:\s*full/i.test(facts)) {
+            return "Files are on disk — go hit **Preview** and tell me if it slaps or needs more bubblegum.";
+        }
+        if (/Outcome:\s*partial/i.test(facts)) {
+            return 'Partial ship — what we got is real, but something stalled. Retry the missing file or nudge me in chat.';
+        }
+        return 'Agent run finished without a write — want to tighten the goal or switch to chat + **Implement**?';
+    })();
+
+    if (!window.electronAPI?.aiChat || !chatBackendReady()) {
+        appendChatMessageHtml('assistant', parseSimpleMarkdown(fallback));
+        addMessageToHistory('assistant', fallback);
+        return;
+    }
+
+    updateCursyState('thinking', 'Cursy…');
+    const nameBit = state.userName ? ` User name: ${state.userName}.` : '';
+    const briefAnchor = buildChatSessionBriefForAgent(500);
+    const systemPrompt =
+        `You are Cursy, playful AI co-pilot in VIBE IDE.${nameBit} ` +
+        'The bounded agent just finished shipping files. Reply in 2–4 sentences: warm, specific to the outcome, zero code fences, no file dumps, max one emoji. ' +
+        'Mention Preview or next step if files shipped. If chat agreed on Bubblegum Pop / pastels, do NOT praise dark synthwave — stay on the agreed aesthetic.';
+    const userFacts = briefAnchor ? `${facts}\n\nCreative brief anchor:\n${briefAnchor}` : facts;
+    try {
+        const response = await window.electronAPI.aiChat(
+            [{ role: 'user', content: userFacts }],
+            systemPrompt,
+            512
+        );
+        const text =
+            response?.success && response.content?.trim()
+                ? response.content.trim()
+                : fallback;
+        appendChatMessageHtml('assistant', parseSimpleMarkdown(text));
+        addMessageToHistory('assistant', text);
+    } catch (err) {
+        console.warn('cursyFollowUpAfterAgent:', err);
+        appendChatMessageHtml('assistant', parseSimpleMarkdown(fallback));
+        addMessageToHistory('assistant', fallback);
+    } finally {
+        updateCursyState('idle', 'Ready');
+    }
+}
+
+async function runOrchestratedFilePlan(parentGoal, files, shared) {
+    appendChatMessageHtml(
+        'assistant',
+        `<p>🎯 <strong>File ship</strong> — ${files.map((f) => `<code>${escapeHtml(f)}</code>`).join(' → ')} · one agent step per write → approve (live timer).</p>`,
+        'agent-step'
+    );
+
+    const shipped = [];
+    for (const targetFile of files) {
+        const ok = await tryShipOneOrchestratedFile(targetFile, parentGoal, shared);
+        if (ok) {
+            shipped.push(targetFile);
+        } else {
+            appendChatMessageHtml(
+                'assistant',
+                `<p>⚠️ Stopped at <code>${escapeHtml(targetFile)}</code>. Shipped so far: ${
+                    shipped.length
+                        ? shipped.map((f) => `<code>${escapeHtml(f)}</code>`).join(', ')
+                        : 'none'
+                }.</p>`,
+                'agent-step'
+            );
+            break;
+        }
+    }
+
+    if (shipped.length === files.length) {
+        appendChatMessageHtml(
+            'assistant',
+            `<p>✨ All planned files shipped (${files.map((f) => `<code>${escapeHtml(f)}</code>`).join(', ')}).</p>`
+        );
+    } else if (shipped.length) {
+        appendChatMessageHtml(
+            'assistant',
+            `<p>⚠️ <strong>Partial ship.</strong> Still need: ${files
+                .filter((f) => !shipped.includes(f))
+                .map((f) => `<code>${escapeHtml(f)}</code>`)
+                .join(', ')} — retry or use chat + <strong>Implement</strong>.</p>`,
+            'agent-step'
+        );
+    }
+
+    const outcome =
+        shipped.length === files.length ? 'full' : shipped.length > 0 ? 'partial' : 'none';
+    await cursyFollowUpAfterAgent(
+        [
+            'Agent file ship finished.',
+            `Goal: ${String(parentGoal || '').slice(0, 280)}`,
+            `Planned files: ${files.join(', ')}`,
+            `Shipped to disk: ${shipped.join(', ') || 'none'}`,
+            `Outcome: ${outcome}`,
+        ].join('\n')
+    );
+
+    return shipped.length > 0;
+}
+
+async function runBoundedAgent(rawGoal) {
+    const goal = expandVagueAgentGoal(rawGoal);
+    if (!state.currentProject?.path) {
+        showToast('Open a project before using the agent', 'warning');
+        return;
+    }
+    if (!chatBackendReady()) {
+        showToast('Gemini API key required for agent — User Settings', 'warning');
+        return;
+    }
+    if (!window.electronAPI?.agentStep) {
+        showToast('Agent IPC not available — restart VIBE IDE', 'warning');
+        return;
+    }
+
+    const projectPath = state.currentProject.path;
+    const maxSteps = 8;
+    let history = [];
+    let lastToolResult = null;
+    let wroteAnyFile = false;
+    const writtenPaths = [];
+    let forceWritePath = '';
+
+    updateCursyState('thinking', 'Agent running…');
+    appendChatMessageHtml(
+        'assistant',
+        `<p>⚡ <strong>Agent starting</strong> — planning harness steps (writes need your OK)…</p>`,
+        'agent-step'
+    );
+
+    let sessionBrief = '';
+    let recallContext = '';
+    let personaContext = '';
+    let projectSnapshot = '';
+    try {
+        sessionBrief = buildChatSessionBriefForAgent();
+        recallContext = await buildAgentRecallContext(goal);
+        personaContext = buildAgentPersonaContext();
+        projectSnapshot = await buildAgentProjectSnapshot(projectPath);
+    } catch (prepErr) {
+        console.warn('Agent prep partial failure:', prepErr);
+        sessionBrief = sessionBrief || buildChatSessionBriefForAgent();
+        personaContext = personaContext || buildAgentPersonaContext();
+    }
+
+    const briefNote = sessionBrief
+        ? '<p>📋 <strong>Creative brief</strong> from this chat is locked in — same theme &amp; outline as we discussed.</p>'
+        : '';
+    appendChatMessageHtml(
+        'assistant',
+        `<p>⚡ <strong>Bounded agent</strong> — max ${maxSteps} steps, writes need your OK. I’ll narrate each step in Cursy voice.</p>${briefNote}`,
+        'agent-step'
+    );
+
+    const basePlan = deriveFileShipPlan(goal, sessionBrief);
+    const enrichedPlan = await deriveFileShipPlanWithSearch(goal, sessionBrief, projectPath);
+    const shipPlan = tightenShipPlan(goal, enrichedPlan);
+    const allowedShipPaths = shipPlan.length ? shipPlan : null;
+    if (parseGameDirectoryOnlyScope(goal) && shipPlan.length) {
+        appendChatMessageHtml(
+            'assistant',
+            `<p class="agent-step-meta">🎮 <strong>Game folder lock</strong> — this run may only touch: ${shipPlan
+                .map((f) => `<code>${escapeHtml(f)}</code>`)
+                .join(', ')}. Root landing files are off limits.</p>`,
+            'agent-step'
+        );
+    }
+    const plannerAdded = shipPlan.filter(
+        (p) => !basePlan.some((b) => String(b).toLowerCase() === String(p).toLowerCase())
+    );
+    if (plannerAdded.length) {
+        appendChatMessageHtml(
+            'assistant',
+            `<p class="agent-step-meta">🔎 <strong>Harness planner</strong> added ${plannerAdded
+                .map((f) => `<code>${escapeHtml(f)}</code>`)
+                .join(', ')} from project grep.</p>`,
+            'agent-step'
+        );
+    }
+    if (shouldOrchestrateFilePlan(shipPlan, goal)) {
+        try {
+            wroteAnyFile = await runOrchestratedFilePlan(goal, shipPlan, {
+                projectRoot: projectPath,
+                recallContext,
+                personaContext,
+                projectSnapshot,
+                sessionBrief,
+                writtenPaths,
+            });
+        } finally {
+            updateCursyState('idle', 'Ready');
+        }
+        if (!wroteAnyFile) {
+            appendChatMessageHtml(
+                'assistant',
+                `<p>😅 <strong>No files written.</strong> Name files in your goal (e.g. <code>Header.tsx</code>) or use chat + <strong>Implement</strong>.</p>`,
+                'agent-step'
+            );
+            await cursyFollowUpAfterAgent(
+                `Agent file ship finished.\nGoal: ${String(goal || '').slice(0, 280)}\nPlanned: ${shipPlan.join(', ')}\nShipped: none\nOutcome: none`
+            );
+        }
+        return;
+    }
+
+    if (isScopedEditRequest(goal) && shipPlan.length) {
+        appendChatMessageHtml(
+            'assistant',
+            `<p class="agent-step-meta">🎯 <strong>Scoped harness</strong> — up to ${maxSteps} steps (grep → read → patch/write) on ${shipPlan
+                .map((f) => `<code>${escapeHtml(f)}</code>`)
+                .join(', ')}.</p>`,
+            'agent-step'
+        );
+    }
+
+    for (let step = 0; step < maxSteps; step++) {
+        const result = await window.electronAPI.agentStep({
+            projectRoot: projectPath,
+            goal,
+            history,
+            stepIndex: step,
+            maxSteps,
+            lastToolResult,
+            recallContext,
+            personaContext,
+            projectSnapshot,
+            sessionBrief,
+            writtenPaths,
+            forceWritePath,
+            allowedShipPaths,
+        });
+        lastToolResult = null;
+
+        if (!result.success) {
+            appendChatMessageHtml('assistant', `<p>❌ ${escapeHtml(result.error || 'Agent step failed')}</p>`);
+            break;
+        }
+
+        appendChatMessageHtml('assistant', formatAgentStepResult(result), 'agent-step');
+
+        if (result.done) {
+            let msg = result.message || 'Done.';
+            msg = msg.replace(/```[\s\S]*?```/g, '').replace(/```[\s\S]*$/g, '').trim() || msg;
+            appendChatMessageHtml('assistant', parseSimpleMarkdown(msg));
+            addMessageToHistory('assistant', msg);
+            break;
+        }
+
+        history.push({ role: 'assistant', content: result.raw || JSON.stringify(result) });
+
+        if (result.needsApproval && result.pendingWrite) {
+            const approved = await promptAgentWriteApproval(result.pendingWrite);
+            if (!approved) {
+                appendChatMessageHtml('assistant', '<p>✋ Write cancelled — tell Cursy how to proceed.</p>');
+                lastToolResult = { ok: false, error: 'User rejected write' };
+                continue;
+            }
+            const writeRes = await window.electronAPI.agentCommitWrite(
+                projectPath,
+                result.pendingWrite.path,
+                result.pendingWrite.content
+            );
+            if (!writeRes.success) {
+                appendChatMessageHtml('assistant', `<p>❌ Write failed: ${escapeHtml(writeRes.error || '')}</p>`);
+                lastToolResult = { ok: false, error: writeRes.error };
+                continue;
+            }
+            wroteAnyFile = true;
+            writtenPaths.push(
+                String(result.pendingWrite.path || '')
+                    .replace(/\\/g, '/')
+                    .replace(/^\.\//, '')
+            );
+            forceWritePath = '';
+            appendChatMessageHtml(
+                'assistant',
+                `<p>✅ Wrote <code>${escapeHtml(result.pendingWrite.path)}</code> — nice, that’s on disk.</p>`
+            );
+            if (result.fromTool && result.pendingWrite) {
+                if (!state.currentCodeBlocks) state.currentCodeBlocks = [];
+                state.currentCodeBlocks.push({
+                    filePath: result.pendingWrite.path,
+                    language: result.toolMeta?.language || 'text',
+                    code: result.pendingWrite.content,
+                });
+            }
+            lastToolResult = writeRes.toolResult;
+            if (typeof loadProjectFiles === 'function') {
+                await loadProjectFiles(projectPath);
+            }
+            continue;
+        }
+
+        if (result.needsContinue && result.toolResult) {
+            lastToolResult = result.toolResult;
+            if (result.toolResult.nextRequiredFile) {
+                forceWritePath = result.toolResult.nextRequiredFile;
+            }
+            continue;
+        }
+
+        forceWritePath = '';
+
+        break;
+    }
+
+    if (!wroteAnyFile) {
+        appendChatMessageHtml(
+            'assistant',
+            `<p>😅 <strong>No files written this run.</strong> I may have over-explored. Try a tighter goal like <code>@agent write index.html and styles.css per our chat outline</code>, or use chat with <strong>Implement</strong> after structured code.</p>`,
+            'agent-step'
+        );
+        await cursyFollowUpAfterAgent(
+            `Bounded agent finished.\nGoal: ${String(goal || '').slice(0, 280)}\nFiles written: none\nOutcome: none`
+        );
+    } else {
+        await cursyFollowUpAfterAgent(
+            `Bounded agent finished.\nGoal: ${String(goal || '').slice(0, 280)}\nFiles written: ${writtenPaths.join(', ')}\nOutcome: full`
+        );
+    }
+
+    updateCursyState('idle', 'Ready');
+}
+
 function sendChatMessage() {
     const chatInput = document.getElementById('chatInput');
     const chatMessages = document.getElementById('chatMessages');
@@ -10796,19 +13774,25 @@ function sendChatMessage() {
     
     // Clear stored code blocks from previous response
     state.currentCodeBlocks = [];
+    state.lastAssistantRawForImplement = null;
     
     // Get content from WYSIWYG input
     let messageHtml = '';
     let messageMarkdown = '';
     
+    const outgoingImages = (state.pendingChatImages || []).map((img) => ({ ...img }));
+
     if (chatInput.contentEditable === 'true') {
         // Get HTML content
         messageHtml = chatInput.innerHTML.trim();
-        if (!messageHtml) return;
+        if (!messageHtml && !outgoingImages.length) return;
         
         // Convert HTML to markdown for sending
         messageMarkdown = htmlToMarkdownForChat(messageHtml);
-        
+        if (!messageMarkdown.trim() && outgoingImages.length) {
+            messageMarkdown = 'Help me with this image for my project.';
+        }
+
         // Get GIF code if any (stored separately)
         const gifCode = chatGifCode ? chatGifCode.value : '';
         if (gifCode) {
@@ -10822,7 +13806,10 @@ function sendChatMessage() {
     } else {
         // Fallback for textarea
         messageMarkdown = chatInput.value.trim();
-        if (!messageMarkdown) return;
+        if (!messageMarkdown && !outgoingImages.length) return;
+        if (!messageMarkdown && outgoingImages.length) {
+            messageMarkdown = 'Help me with this image for my project.';
+        }
         
         if (emoticonConvert && emoticonConvert.checked) {
             messageMarkdown = convertEmoticons(messageMarkdown);
@@ -10834,7 +13821,14 @@ function sendChatMessage() {
     // Display user message as styled HTML (no markdown visible)
     const messageDiv = document.createElement('div');
     messageDiv.className = 'chat-message user';
-    messageDiv.innerHTML = messageHtml;
+    let userBubbleHtml = messageHtml || '';
+    if (outgoingImages.length) {
+        const imgs = outgoingImages
+            .map((img) => `<img class="chat-attached-image" src="${img.previewUrl}" alt="${escapeHtml(img.name || 'attachment')}">`)
+            .join('');
+        userBubbleHtml = (userBubbleHtml ? `${userBubbleHtml}<br>` : '') + imgs;
+    }
+    messageDiv.innerHTML = userBubbleHtml;
     chatMessages.appendChild(messageDiv);
     
     // Add to history (with markdown for AI)
@@ -10847,85 +13841,110 @@ function sendChatMessage() {
         chatInput.value = '';
     }
     if (chatGifCode) chatGifCode.value = '';
-    
+    clearPendingChatImages();
+
     // Scroll to bottom
     chatMessages.scrollTop = chatMessages.scrollHeight;
-    
-    // Update Cursy to thinking state (will stay until response is received)
+
+    const agentGoalMatch =
+        messageMarkdown.trim().match(/^@agent\s+([\s\S]+)/i) ||
+        messageMarkdown.trim().match(/^\/agent\s+([\s\S]+)/i);
+
+    const forceChat = messageForcesChatOnly(messageMarkdown);
+    let chatPayload = forceChat ? stripChatDirective(messageMarkdown) : messageMarkdown;
+    const messageLower = messageMarkdown.toLowerCase().trim();
+    const isJournalUpdateCommand = detectJournalUpdateCommand(messageLower);
+    const wantsAgentWork = shouldAutoRouteToAgent(messageMarkdown, messageLower, isJournalUpdateCommand);
+    const interactionMode = getCursyInteractionMode();
+
+    if (outgoingImages.length) {
+        if (agentGoalMatch || wantsAgentWork) {
+            showToast('🖼️ Image sent to Cursy chat — use text @agent when you want file writes', 'info', 4500);
+        }
+    } else if (agentGoalMatch) {
+        if (tryStartAgentFromChat(messageMarkdown, agentGoalMatch)) return;
+    } else if (!forceChat && interactionMode === 'agent') {
+        if (tryStartAgentFromChat(messageMarkdown, null)) return;
+    } else if (!forceChat && interactionMode === 'auto') {
+        const cssFollowUp =
+            isAffirmativeCssOrShipMessage(messageLower) && hasRecentCssShipIntentInChat();
+        const harnessEdit =
+            isScopedEditRequest(messageMarkdown) ||
+            goalTargetsCssOnly(messageMarkdown) ||
+            goalHtmlReadOnlyForCssImplement(messageMarkdown);
+        if (harnessEdit && !agentGoalMatch && state.currentProject?.path) {
+            if (tryStartAgentFromChat(messageMarkdown, null, { showAutoHint: true })) {
+                return;
+            }
+            showToast('Scoped edit needs agent — add Gemini key or use @agent explicitly.', 'warning', 5500);
+        } else if (wantsAgentWork || cssFollowUp) {
+            if (tryStartAgentFromChat(messageMarkdown, null, { showAutoHint: wantsAgentWork && !cssFollowUp })) {
+                return;
+            }
+            showToast(
+                'Auto-agent could not start — using structured chat (Implement requires tool payload).',
+                'warning',
+                5500
+            );
+        }
+    } else if (!forceChat && interactionMode === 'chat' && wantsAgentWork && /\b(rebuild|revamp|redo)\b/i.test(messageLower)) {
+        showToast('Interaction mode is Chat only — use Auto or prefix @agent for rebuilds.', 'info', 5000);
+    }
+
+    if (isJournalUpdateCommand && !wantsAgentWork) {
+        triggerJournalUpdate();
+        return;
+    }
+
+    const shouldUpdateJournalAfter = isJournalUpdateCommand && wantsAgentWork;
+
     updateCursyState('thinking', 'Thinking...');
-    
-    // Show typing indicator
+
     const typingDiv = document.createElement('div');
     typingDiv.className = 'chat-message assistant typing';
     typingDiv.innerHTML = '<p>🤖 Cursy is typing...</p>';
     chatMessages.appendChild(typingDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
     
-    // Check for special commands (use messageMarkdown)
-    const messageLower = messageMarkdown.toLowerCase().trim();
-    
-    // More flexible journal update detection - understands natural language variations
-    // Matches patterns like:
-    // - "update journal" / "update the journal" / "update project journal"
-    // - "cursy update journal" / "cursy, update journal" / "cursy, update the journal"
-    // - "can you update journal" / "please update journal" / "update journal please"
-    // - "journal update" / "update my journal" / "update the project journal"
-    // - "then update journal" / "and update journal" (at end of message)
-    const journalUpdatePatterns = [
-        /^(cursy[,]?\s*)?(can\s+you\s+|please\s+|will\s+you\s+)?(update|refresh|regenerate)\s+(the\s+)?(project\s+)?journal/i, // At start
-        /^(update|refresh|regenerate)\s+(the\s+)?(project\s+)?journal(\s+please|\s+cursy)?/i, // At start
-        /^(project\s+)?journal\s+(update|refresh|regenerate)/i, // At start
-        /^(cursy[,]?\s*)?(update|refresh|regenerate)\s+(the\s+)?journal/i, // At start
-        /\b(then|and|also)\s+(update|refresh|regenerate)\s+(the\s+)?(project\s+)?journal/i, // "then update journal" anywhere
-        /\b(update|refresh|regenerate)\s+(the\s+)?(project\s+)?journal\s*$/i // "update journal" at end
-    ];
-    
-    const isJournalUpdateCommand = journalUpdatePatterns.some(pattern => pattern.test(messageLower));
-    
-    // Check if this is ALSO an implementation request (code + journal update)
-    const isImplementationRequest = messageMarkdown.toLowerCase().match(/\b(implement|create|write|add to|update|modify|change|edit|build|make|generate|setup|set up)\b/) && 
-                                    (messageMarkdown.toLowerCase().includes('file') || messageMarkdown.toLowerCase().includes('code') || messageMarkdown.toLowerCase().includes('script') || 
-                                     messageMarkdown.toLowerCase().includes('html') || messageMarkdown.toLowerCase().includes('css') || messageMarkdown.toLowerCase().includes('js') ||
-                                     messageMarkdown.toLowerCase().includes('webpage') || messageMarkdown.toLowerCase().includes('page'));
-    
-    // If it's BOTH implementation AND journal update, we'll handle journal update AFTER the response
-    // Otherwise, if it's ONLY journal update, handle it immediately
-    if (isJournalUpdateCommand && !isImplementationRequest) {
-        // Trigger journal update (standalone journal update command)
-        triggerJournalUpdate();
-        return;
-    }
-    
-    // Check if this is an implementation request (using messageMarkdown) - check BEFORE journal update
-    const isImplementationRequest = messageMarkdown.toLowerCase().match(/\b(implement|create|write|add to|update|modify|change|edit|build|make|generate|setup|set up)\b/) && 
-                                    (messageMarkdown.toLowerCase().includes('file') || messageMarkdown.toLowerCase().includes('code') || messageMarkdown.toLowerCase().includes('script') || 
-                                     messageMarkdown.toLowerCase().includes('html') || messageMarkdown.toLowerCase().includes('css') || messageMarkdown.toLowerCase().includes('js') ||
-                                     messageMarkdown.toLowerCase().includes('webpage') || messageMarkdown.toLowerCase().includes('page'));
-    
-    // Store flag for journal update after response (if both implementation and journal update requested)
-    const shouldUpdateJournalAfter = isJournalUpdateCommand && isImplementationRequest;
-    
-    // Try OpenAI first, fall back to mock if unavailable
+    // Live Gemini when configured; otherwise mock responses
     (async () => {
         let responseText = null;
         let gifTerm = null;
+        let streamDiv = null;
         
-        // Set thinking state and keep it until response is received
-        updateCursyState('thinking', 'Thinking...');
-        
-        // Try OpenAI API
-        if (state.useOpenAI && state.openaiClient) {
+        updateCursyState('thinking', 'Thinking…');
+
+        const preferStructuredCode = prefersStructuredCodeChat(chatPayload, wantsAgentWork);
+        const scopedEdit =
+            preferStructuredCode && isScopedEditRequest(chatPayload) && !!state.currentProject?.path;
+
+        if (chatBackendReady()) {
             try {
-                // Enhance prompt for implementation requests
-                let enhancedMessage = messageMarkdown;
-                if (isImplementationRequest && state.currentProject) {
-                    enhancedMessage = `${messageMarkdown}\n\nIMPORTANT: If you provide code, please format it clearly with file paths. For example: "File: index.html" followed by the code block. I will implement the changes automatically.`;
+                let enhancedMessage = chatPayload;
+                if (preferStructuredCode && state.currentProject) {
+                    enhancedMessage = `${chatPayload}\n\n[System: User has a project open. Use provide_code_block for any full files; keep chat reply short — no markdown fences with whole files.]`;
                 }
+                if (scopedEdit) {
+                    enhancedMessage +=
+                        '\n\n[System: Scoped edit — touch only the section they named; keep the rest of the site as-is.]';
+                }
+
+                let structuredContext = '';
+                if (scopedEdit) {
+                    structuredContext = await buildScopedEditFileContext(
+                        state.currentProject.path,
+                        chatPayload
+                    );
+                }
+
+                responseText = await callAI(enhancedMessage, null, {
+                    preferStructuredCode,
+                    images: outgoingImages,
+                    scopedEdit,
+                    structuredContext,
+                });
                 
-                responseText = await callOpenAI(enhancedMessage); // Use markdown version (includes GIF code)
-                
-                // Change to typing state when response is received (before processing)
-                updateCursyState('typing', 'Typing response...');
+                if (typingDiv.parentNode) typingDiv.remove();
                 if (responseText) {
                     // Check if response suggests a GIF (simple heuristic)
                     const lowerResponseText = responseText.toLowerCase();
@@ -10939,27 +13958,36 @@ function sendChatMessage() {
                     
                 }
             } catch (err) {
-                console.error('OpenAI call failed:', err);
+                console.error('Chat call failed:', err);
                 responseText = null;
             }
         }
         
-        // Fall back to mock response if OpenAI failed or unavailable
         if (!responseText) {
-            const mockResponse = getMockResponse(messageMarkdown);
-            responseText = mockResponse.text;
-            gifTerm = mockResponse.gifTerm;
+            if (chatBackendReady()) {
+                responseText =
+                    '⚠️ **Chat failed.** Open DevTools for details, verify your Gemini key in User Settings, then send again.';
+                showToast('Cloud chat failed — not using offline mock', 'warning', 5000);
+            } else {
+                const mockResponse = getMockResponse(chatPayload);
+                responseText = mockResponse.text;
+                gifTerm = mockResponse.gifTerm;
+            }
         }
         
-        // Remove typing indicator
-        typingDiv.remove();
+        if (typingDiv.parentNode) typingDiv.remove();
         
-        // Create assistant response
-        const responseDiv = document.createElement('div');
-        responseDiv.className = 'chat-message assistant';
+        let responseDiv = streamDiv;
+        if (!responseDiv) {
+            responseDiv = document.createElement('div');
+            responseDiv.className = 'chat-message assistant';
+            chatMessages.appendChild(responseDiv);
+        }
         
+        const isErrorBubble = typeof responseText === 'string' && responseText.startsWith('⚠️');
+
         // Get GIF if needed
-        if (gifTerm) {
+        if (!isErrorBubble && gifTerm && shouldAttachGif(gifTerm)) {
             try {
                 const gifUrl = await getRandomGif(gifTerm);
                 if (gifUrl) {
@@ -10968,10 +13996,16 @@ function sendChatMessage() {
             } catch (err) {
                 console.warn('Failed to get GIF:', err);
             }
+        } else if (!isErrorBubble && getGifReactionLevel() === 'party' && responseText && !gifTerm) {
+            try {
+                const gifUrl = await getRandomGif('coding');
+                if (gifUrl) responseText += `\n\n[GIF:${gifUrl}]`;
+            } catch {
+                /* optional party gif */
+            }
         }
         
         responseDiv.innerHTML = parseSimpleMarkdown(responseText);
-        chatMessages.appendChild(responseDiv);
         
         // Add to history
         addMessageToHistory('assistant', responseText);
@@ -10989,19 +14023,27 @@ function sendChatMessage() {
         const responseDivRef = responseDiv; // Store reference before async
         setTimeout(async () => {
             if (state.currentProject && responseText) {
-                const hasCodeBlocks = responseText.includes('```');
-                const hasFileUpdates = responseText.toLowerCase().includes('updated journal') || 
-                                      responseText.toLowerCase().includes('revised journal') ||
-                                      responseText.toLowerCase().includes('project journal update') ||
-                                      responseText.includes('## Project Name:') ||
-                                      responseText.includes('# 🚀 Project Journal');
+                const rawForImplement =
+                    state.lastAssistantRawForImplement || responseText;
+                const hasCodeBlocks =
+                    rawForImplement.includes('```') ||
+                    /####?\s*File:\s*\S+/i.test(rawForImplement) ||
+                    /<!DOCTYPE/i.test(rawForImplement);
+                const hasFileUpdates = rawForImplement.toLowerCase().includes('updated journal') || 
+                                      rawForImplement.toLowerCase().includes('revised journal') ||
+                                      rawForImplement.toLowerCase().includes('project journal update') ||
+                                      rawForImplement.includes('## Project Name:') ||
+                                      rawForImplement.includes('# 🚀 Project Journal');
                 
-                if (hasCodeBlocks || hasFileUpdates) {
-                    console.log('💻 Detected code blocks or file updates in response, checking for implementation...');
+                const toolBlocksPending =
+                    state.currentCodeBlocks && state.currentCodeBlocks.length > 0;
+                const structuredShipTurn = prefersStructuredCodeChat(chatPayload, wantsAgentWork);
+                if (hasCodeBlocks || hasFileUpdates || toolBlocksPending) {
+                    console.log('💻 Detected code blocks, tool-provided files, or file updates — implementation UI…');
                     console.log('🔍 responseDivRef:', responseDivRef);
                     console.log('🔍 responseDivRef in DOM:', responseDivRef && responseDivRef.parentNode);
                     // Pass responseDivRef so buttons appear directly below it
-                    await handleCodeImplementation(responseText, messageMarkdown, responseDivRef);
+                    await handleCodeImplementation(rawForImplement, messageMarkdown, responseDivRef);
                     // Scroll again after implementation offer is added
                     chatMessages.scrollTop = chatMessages.scrollHeight;
                     
@@ -11012,6 +14054,22 @@ function sendChatMessage() {
                         setTimeout(async () => {
                             await triggerJournalUpdate();
                         }, 500);
+                    }
+                } else if (
+                    responsePromisesImplementWithoutTools(responseText) ||
+                    (structuredShipTurn &&
+                        !toolBlocksPending &&
+                        !hasCodeBlocks &&
+                        /\b(implement|styles\.css|index\.html|sending over|provide_code|updated\s+styles|revamp)\b/i.test(
+                            responseText
+                        ))
+                ) {
+                    console.warn('⚠️ Model promised Implement without provide_code_block — agent recovery');
+                    await recoverPhantomImplementWithAgent(messageMarkdown, responseDivRef);
+                    if (shouldUpdateJournalAfter) {
+                        setTimeout(async () => {
+                            await triggerJournalUpdate();
+                        }, 800);
                     }
                 } else {
                     console.log('⚠️ No code blocks or file updates detected in response');

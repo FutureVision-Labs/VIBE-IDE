@@ -267,8 +267,8 @@ function renderCMLToStory(cmlData) {
         
         if (recipe.variations && Array.isArray(recipe.variations)) {
             story += `### Variations\n\n`;
-            recipe.variations.forEach(var => {
-                story += `- ${var}\n`;
+            recipe.variations.forEach(variation => {
+                story += `- ${variation}\n`;
             });
             story += `\n`;
         }

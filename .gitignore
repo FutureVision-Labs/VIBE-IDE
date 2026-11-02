@@ -17,6 +17,7 @@ desktop.ini
 
 # IDE files
 .vscode/
+.cursor/
 .idea/
 *.swp
 *.swo
@@ -38,6 +39,9 @@ window-state.json
 
 # API Keys and secrets
 openai-config.json
+google-config.json
+local-llm-config.json
+ollama-config.json
 pixabay-config.json
 *.key
 *.secret
@@ -47,6 +51,10 @@ config.local.json
 *.tmp
 *.temp
 .cache/
+
+# Large website bundles (keep HTML/source; avoid duplicate zips in repo)
+website/index.zip
+website/website.zip
 
 # Package manager locks (optional - some teams prefer to commit these)
 # package-lock.json

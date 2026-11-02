@@ -1,0 +1,27 @@
+{
+  "genre": "node-cli",
+  "version": "1.0.0",
+  "frameworkVersion": "Node.js (ES modules)",
+  "description": "CLI tools and small Node servers: args, scripts, and npm workflows",
+  "author": "VIBE IDE Team",
+  "isBundled": true,
+  "commonPatterns": {
+    "argv": {
+      "pattern": "process.argv for CLI arguments",
+      "codeSnippet": "const args = process.argv.slice(2);\nconst command = args[0];\n"
+    },
+    "scripts": {
+      "pattern": "package.json scripts for start/dev",
+      "codeSnippet": "{\n  \"scripts\": {\n    \"start\": \"node cli.js\",\n    \"dev\": \"node --watch server.js\"\n  }\n}"
+    },
+    "express": {
+      "pattern": "Minimal JSON REST routes",
+      "codeSnippet": "app.get('/api/health', (_req, res) => res.json({ ok: true }));"
+    }
+  },
+  "aiGuidance": {
+    "tone": "Clear terminal-first explanations",
+    "avoid": "Huge frameworks for tiny scripts",
+    "prefer": "README-run.md style steps, small files, npm start"
+  }
+}

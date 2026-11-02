@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, protocol, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Menu, protocol, dialog, ipcMain, shell, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -7,70 +7,53 @@ console.log('══════════════════════�
 console.log('🚀 MAIN PROCESS STARTING - LOGGING TEST');
 console.log('═══════════════════════════════════════════════════════');
 
-// Initialize OpenAI client in main process
-let openaiClient = null;
-let openaiApiKey = null;
+const {
+  searchProjectRecall,
+  listRecentCmlFiles,
+  rebuildChatHistoryFromCml,
+  collectRecallChunks,
+  buildRecallFingerprint,
+  loadRecallIndex,
+  saveRecallIndex,
+  RECALL_INDEX_VERSION,
+} = require('./project-recall');
+const {
+  runAgentStep,
+  proposeSingleFileWrite,
+  commitAgentWrite,
+  evaluateWriteForApproval,
+  DEFAULT_MAX_STEPS,
+} = require('./local-agent');
+const { enrichShipPlanFromSearch, grepProject, findFiles } = require('./project-search');
+const { getGeminiLiveWsUrl } = require('./gemini-live');
+const { transcribeLiveAudioBlob } = require('./gemini-live-transcribe');
+const { startRendererStaticServer } = require('./renderer-static-server');
+const projectCatalog = require('./project-catalog');
+const {
+  openPreviewPopout,
+  sendPreviewPopoutMessage,
+  isPreviewPopoutOpen,
+  closePreviewPopout,
+} = require('./preview-popout');
+const { startTestBridge } = require('./test-bridge');
 
-function loadOpenAIKey() {
-  try {
-    // Try to load from config file first
-    const userDataPath = app.getPath('userData');
-    const configPath = path.join(userDataPath, 'openai-config.json');
-    console.log('🔍 Looking for OpenAI config at:', configPath);
-    
-    if (fs.existsSync(configPath)) {
-      console.log('✅ Found config file');
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-      if (config.apiKey) {
-        openaiApiKey = config.apiKey;
-        console.log('✅ OpenAI API key loaded from config file');
-        return true;
-      } else {
-        console.warn('⚠️ Config file exists but no apiKey found');
-      }
-    } else {
-      console.warn('⚠️ Config file not found at:', configPath);
-    }
-    
-    // Fall back to environment variable
-    if (process.env.OPENAI_API_KEY) {
-      openaiApiKey = process.env.OPENAI_API_KEY;
-      console.log('✅ OpenAI API key loaded from environment variable');
-      return true;
-    }
-    
-    console.warn('⚠️ OpenAI API key not found. Create openai-config.json in:', userDataPath);
-    console.warn('   Or set OPENAI_API_KEY environment variable');
-    return false;
-  } catch (error) {
-    console.error('❌ Error loading OpenAI key:', error);
-    console.error('   Error details:', error.message);
-    return false;
-  }
+const testBridgeEnabled =
+  process.argv.includes('--test-bridge') || process.env.VIBE_TEST_BRIDGE === '1';
+let testBridgeServer = null;
+
+// Optional: VIBE_DISABLE_GPU=1 or --disable-gpu when Monaco scroll/repaint glitches on Windows
+if (process.argv.includes('--disable-gpu') || process.env.VIBE_DISABLE_GPU === '1') {
+  app.disableHardwareAcceleration();
+  console.log('[VIBE IDE] Hardware acceleration disabled (Monaco repaint test mode)');
 }
 
-function initOpenAIClient() {
-  try {
-    if (!openaiApiKey) {
-      if (!loadOpenAIKey()) {
-        return false;
-      }
-    }
-    
-    const { OpenAI } = require('openai');
-    openaiClient = new OpenAI({
-      apiKey: openaiApiKey
-    });
-    console.log('✅ OpenAI client initialized in main process');
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to initialize OpenAI in main process:', error);
-    return false;
-  }
-}
-
-// Don't initialize here - wait for app to be ready
-// initOpenAIClient() will be called in app.whenReady()
+const {
+  GEMINI_MODEL,
+  chatGemini,
+  ensureGeminiClient,
+  getGeminiStatus,
+  saveGeminiApiKey,
+} = require('./cloud-llm-client');
 
 // Pixabay API (for images/videos)
 let pixabayApiKey = null;
@@ -153,7 +136,9 @@ function loadPixabayKey() {
     for (const configPath of possiblePaths) {
       if (fs.existsSync(configPath)) {
         console.log('✅ Found config file at:', configPath);
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        let raw = fs.readFileSync(configPath, 'utf-8');
+        if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1);
+        const config = JSON.parse(raw);
         if (config.apiKey) {
           pixabayApiKey = config.apiKey.trim();
           console.log('✅ Pixabay API key loaded from config file (length:', pixabayApiKey.length, ')');
@@ -426,7 +411,46 @@ async function searchFreesoundAudio(query, options = {}) {
 
 let mainWindow;
 let splashWindow;
+/** Main UI: file:// (Monaco). Mic bridge: http://127.0.0.1 (voice-mic-bridge.html). */
+let rendererStaticServer = null;
+/** Full shell on localhost — debug only (--renderer-http). */
+let rendererIndexUrl = null;
+/** Always-on when server starts — mic bridge path. */
+let rendererHttpBase = null;
+
+function preferHttpRenderer() {
+  return process.env.VIBE_RENDERER_HTTP === '1' || process.argv.includes('--renderer-http');
+}
 const windowStateFile = path.join(app.getPath('userData'), 'window-state.json');
+
+function cursyChatHistoryPath() {
+  return path.join(app.getPath('userData'), 'cursy-chat-history.json');
+}
+
+function loadCursyChatHistoryFromDisk() {
+  try {
+    const file = cursyChatHistoryPath();
+    if (!fs.existsSync(file)) return [];
+    const raw = fs.readFileSync(file, 'utf-8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.warn('Failed to load cursy chat history from disk:', err.message);
+    return [];
+  }
+}
+
+function saveCursyChatHistoryToDisk(messages) {
+  try {
+    const file = cursyChatHistoryPath();
+    const list = Array.isArray(messages) ? messages : [];
+    fs.writeFileSync(file, JSON.stringify(list), 'utf-8');
+    return true;
+  } catch (err) {
+    console.warn('Failed to save cursy chat history:', err.message);
+    return false;
+  }
+}
 
 // Load window state
 function loadWindowState() {
@@ -540,6 +564,8 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: true, // Needed for Monaco Editor's AMD loader
       contextIsolation: false, // Temporarily disabled for Monaco compatibility
+      nodeIntegrationInSubFrames: true, // editor/monaco-frame.html loads Monaco via require
+      backgroundThrottling: false,
       preload: path.join(__dirname, 'preload.js')
     },
     backgroundColor: '#1e1e1e'
@@ -556,12 +582,31 @@ function createWindow() {
   mainWindow.on('maximize', saveWindowState);
   mainWindow.on('unmaximize', saveWindowState);
 
-  // Load the index.html file
-  mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+  if (preferHttpRenderer() && rendererIndexUrl) {
+    mainWindow.loadURL(rendererIndexUrl);
+    console.log('[VIBE IDE] Main window origin (legacy HTTP shell):', rendererIndexUrl);
+  } else {
+    const indexPath = path.join(__dirname, '../renderer/index.html');
+    mainWindow.loadFile(indexPath);
+    console.log('[VIBE IDE] Main window: file:// (Monaco) + voice bridge:', rendererHttpBase || '(none)');
+  }
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow.webContents.setZoomFactor(1);
+  });
 
   // Show main window when ready (but splash will still be on top)
   mainWindow.once('ready-to-show', () => {
     // Main window is ready, but we'll show it after splash closes
+  });
+
+  mainWindow.webContents.once('did-finish-load', () => {
+    mainWindow.webContents.setAudioMuted(false);
+    if (testBridgeEnabled && !testBridgeServer) {
+      const cdpArg = process.argv.find((a) => a.startsWith('--remote-debugging-port='));
+      const cdpPort = cdpArg ? parseInt(cdpArg.split('=')[1], 10) : 9223;
+      testBridgeServer = startTestBridge(() => mainWindow, { cdpPort });
+    }
   });
 
   // Open DevTools by default for debugging
@@ -712,15 +757,19 @@ function showAboutDialog() {
     type: 'info',
     title: 'About VIBE IDE',
     message: 'VIBE IDE',
-    detail: `Version ${packageJson.version}\n\n` +
+    detail:
+            `Version ${packageJson.version}\n\n` +
             `${packageJson.description}\n\n` +
-            `Built with ❤️ by FutureVision Labs\n\n` +
+            `Team DC · My First Agentic IDE\n` +
+            `Ship receipt (alpha):\n` +
+            `• Gemini Flash chat + agent (BYOK)\n` +
+            `• Project Recall v1 (keyword + MiniLM)\n` +
+            `• @agent bounded steps + diff approve\n` +
+            `• CML episodic memory · provide_code_block tools\n\n` +
+            `Built with ❤️ by FutureVision Labs\n` +
             `Part of the Forge Family\n\n` +
-            `Visit us:\n` +
-            `• itch.io: futurevisionlabs.itch.io/vibe-ide\n` +
-            `• GitHub: github.com/FutureVision-Labs/VIBE-IDE\n` +
-            `• Medium: medium.com/@caynesd\n\n` +
-            `© 2025 FutureVision Labs`,
+            `itch.io · GitHub · vibeide.net\n\n` +
+            `© 2025–2026 FutureVision Labs`,
     buttons: ['OK'],
     defaultId: 0
   });
@@ -1052,303 +1101,22 @@ ipcMain.handle('fs:downloadFile', async (event, url, filePath) => {
   }
 });
 
+ipcMain.handle('project:listTemplates', async () => {
+  try {
+    return {
+      success: true,
+      templates: projectCatalog.listTemplateMeta(),
+      categoryLabels: projectCatalog.CATEGORY_LABELS,
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('project:create', async (event, template, projectPath, genre = null) => {
   try {
-    // Template to genre mapping (infer genre from template if not specified)
-    const templateToGenre = {
-      blank: null,
-      'web-app': null,
-      'python-beginner': null,
-      'data-analysis': null,
-      platformer: 'platformer',
-      shooter: 'shooter',
-      puzzle: 'puzzle',
-      runner: 'runner'
-    };
-    
-    // Use provided genre or infer from template
-    const selectedGenre = genre || templateToGenre[template] || null;
-    
-    // Create project structure based on template
-    const templates = {
-      blank: {
-        name: 'Blank Project',
-        description: 'Start from scratch with a clean slate',
-        icon: '📄',
-        files: {
-          'index.html': `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Project</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: #1e1e1e;
-            color: #fff;
-        }
-    </style>
-</head>
-<body>
-    <h1>Hello, World!</h1>
-    <p>Start coding here!</p>
-    <script>
-        console.log('Welcome to VIBE IDE!');
-    </script>
-</body>
-</html>`
-        }
-      },
-      'web-app': {
-        name: 'Web App',
-        description: 'HTML, CSS, and JavaScript web application',
-        icon: '🌐',
-        files: {
-          'index.html': `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Web App</title>
-    <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-    <div class="container">
-        <h1>Welcome to My Web App!</h1>
-        <button id="myButton">Click Me!</button>
-        <p id="output"></p>
-    </div>
-    <script src="script.js"></script>
-</body>
-</html>`,
-          'styles.css': `* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.container {
-    background: white;
-    padding: 40px;
-    border-radius: 10px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-    text-align: center;
-}
-
-h1 {
-    color: #333;
-    margin-bottom: 20px;
-}
-
-button {
-    background: #667eea;
-    color: white;
-    border: none;
-    padding: 12px 24px;
-    font-size: 16px;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background 0.3s;
-}
-
-button:hover {
-    background: #5568d3;
-}
-
-#output {
-    margin-top: 20px;
-    color: #666;
-}`,
-          'script.js': `// Your JavaScript code here
-document.getElementById('myButton').addEventListener('click', function() {
-    const output = document.getElementById('output');
-    output.textContent = 'Button clicked! 🎉';
-    output.style.color = '#667eea';
-});`
-        }
-      },
-      'python-beginner': {
-        name: 'Python Beginner',
-        description: 'Simple Python script to learn the basics',
-        icon: '🐍',
-        files: {
-          'main.py': `# Welcome to Python!
-# This is a comment - Python ignores these lines
-
-# Variables store information
-name = "World"
-age = 10
-
-# Print to the console
-print(f"Hello, {name}!")
-print(f"You are {age} years old!")
-
-# Functions are reusable blocks of code
-def greet(name):
-    return f"Hello, {name}! Welcome to Python!"
-
-# Call the function
-message = greet("Cursy")
-print(message)
-
-# Lists store multiple items
-fruits = ["apple", "banana", "orange"]
-print("My favorite fruits:", fruits)
-
-# Loops repeat code
-print("\\nCounting to 5:")
-for i in range(1, 6):
-    print(i)
-
-# Conditionals make decisions
-number = 7
-if number > 5:
-    print(f"{number} is greater than 5!")
-else:
-    print(f"{number} is not greater than 5!")`
-        }
-      },
-      platformer: {
-        name: 'Platformer Game',
-        description: '2D platformer game with Phaser.js',
-        icon: '🎮',
-        files: {
-          'index.html': `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Platformer Game</title>
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
-</head>
-<body>
-    <script src="game.js"></script>
-</body>
-</html>`,
-          'game.js': `// Platformer Template
-const config = {
-    type: Phaser.AUTO,
-    width: 800,
-    height: 600,
-    physics: {
-        default: 'arcade',
-        arcade: {
-            gravity: { y: 800 },
-            debug: false
-        }
-    },
-    scene: {
-        preload: preload,
-        create: create,
-        update: update
-    }
-};
-
-const game = new Phaser.Game(config);
-
-function preload() {
-    // Create a simple colored rectangle as player sprite
-    this.add.graphics()
-        .fillStyle(0x00ff00)
-        .fillRect(0, 0, 64, 64)
-        .generateTexture('player', 64, 64);
-    
-    // Create platform sprite
-    this.add.graphics()
-        .fillStyle(0x8b4513)
-        .fillRect(0, 0, 200, 32)
-        .generateTexture('platform', 200, 32);
-}
-
-function create() {
-    // Add player
-    this.player = this.physics.add.sprite(100, 100, 'player');
-    this.player.setCollideWorldBounds(true);
-    
-    // Add platforms
-    this.platforms = this.physics.add.staticGroup();
-    this.platforms.create(400, 500, 'platform');
-    this.platforms.create(200, 400, 'platform');
-    this.platforms.create(600, 300, 'platform');
-    
-    // Collision between player and platforms
-    this.physics.add.collider(this.player, this.platforms);
-    
-    // Keyboard controls
-    this.cursors = this.input.keyboard.createCursorKeys();
-}
-
-function update() {
-    // Left/Right movement
-    if (this.cursors.left.isDown) {
-        this.player.setVelocityX(-200);
-    } else if (this.cursors.right.isDown) {
-        this.player.setVelocityX(200);
-    } else {
-        this.player.setVelocityX(0);
-    }
-    
-    // Jump (only when touching ground)
-    if (this.cursors.up.isDown && this.player.body.touching.down) {
-        this.player.setVelocityY(-600);
-    }
-}`
-        }
-      },
-      'data-analysis': {
-        name: 'Data Analysis',
-        description: 'Python project for analyzing data',
-        icon: '📊',
-        files: {
-          'main.py': `# Data Analysis Project
-import json
-
-# Sample data
-data = [
-    {"name": "Alice", "age": 25, "score": 85},
-    {"name": "Bob", "age": 30, "score": 92},
-    {"name": "Charlie", "age": 28, "score": 78},
-    {"name": "Diana", "age": 35, "score": 95}
-]
-
-# Calculate average score
-total_score = sum(person["score"] for person in data)
-average_score = total_score / len(data)
-
-print(f"Average Score: {average_score:.2f}")
-
-# Find highest scorer
-highest = max(data, key=lambda x: x["score"])
-print(f"\\nHighest Scorer: {highest['name']} with {highest['score']} points")
-
-# Group by age ranges
-age_groups = {"20-29": [], "30-39": []}
-for person in data:
-    if 20 <= person["age"] < 30:
-        age_groups["20-29"].append(person)
-    elif 30 <= person["age"] < 40:
-        age_groups["30-39"].append(person)
-
-print("\\nAge Groups:")
-for group, people in age_groups.items():
-    print(f"{group}: {len(people)} people")`
-        }
-      }
-    };
-
-    const selectedTemplate = templates[template] || templates.blank;
+    const selectedGenre = genre || projectCatalog.inferGenre(template) || null;
+    const selectedTemplate = projectCatalog.getTemplate(template);
 
     // Create project directory
     if (!fs.existsSync(projectPath)) {
@@ -1391,26 +1159,7 @@ for group, people in age_groups.items():
       fs.writeFileSync(filePath, content, 'utf-8');
     }
 
-    // Create package.json (only for web-based projects)
-    let packageJson = null;
-    if (template === 'platformer' || template === 'web-app' || template === 'blank') {
-      packageJson = {
-        name: path.basename(projectPath),
-        version: '1.0.0',
-        description: 'Project created with VIBE IDE',
-        main: template === 'platformer' ? 'game.js' : 'index.html',
-        scripts: {
-          start: 'npx http-server -p 8080'
-        }
-      };
-      
-      // Only add Phaser for game templates
-      if (template === 'platformer') {
-        packageJson.dependencies = {
-          phaser: '^3.90.0'
-        };
-      }
-    }
+    const packageJson = projectCatalog.getPackageJson(template, path.basename(projectPath));
 
     // Only create package.json for web-based projects
     if (packageJson) {
@@ -1706,6 +1455,27 @@ ipcMain.handle('bundle:esbuild', async (event, { entryPath, projectRoot }) => {
   }
 });
 
+ipcMain.handle('preview:openPopout', async () => {
+  try {
+    return openPreviewPopout(mainWindow, app);
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('preview:popoutMessage', async (event, payload) => {
+  return sendPreviewPopoutMessage(payload);
+});
+
+ipcMain.handle('preview:isPopoutOpen', async () => ({
+  open: isPreviewPopoutOpen(),
+}));
+
+ipcMain.handle('preview:closePopout', async () => {
+  closePreviewPopout();
+  return { success: true };
+});
+
 ipcMain.handle('preview:openExternal', async (event, { htmlContent }) => {
   try {
     const tempDir = app.getPath('temp');
@@ -1878,102 +1648,62 @@ ipcMain.handle('genre:saveRule', async (event, genreName, ruleData) => {
   }
 });
 
-// OpenAI IPC Handler (Phase 2)
-ipcMain.handle('openai:chat', async (event, { messages, systemPrompt, maxTokens }) => {
+// AI chat IPC — Gemini Flash (BYOK) + provide_code_block tool
+ipcMain.handle('live:getWsUrl', async () => {
   try {
-    if (!openaiClient) {
-      // Try to initialize if not already done
-      if (!initOpenAIClient()) {
-        return { success: false, error: 'OpenAI client not initialized' };
-      }
-    }
-
-    // Build messages array with system prompt
-    const chatMessages = [
-      {
-        role: 'system',
-        content: systemPrompt || 'You are Cursy, a friendly and enthusiastic AI coding assistant for VIBE IDE.'
-      },
-      ...messages
-    ];
-
-    // Define function for structured code blocks
-    const functions = [
-      {
-        name: 'provide_code_block',
-        description: 'Provide code blocks for file implementation. Use this function when you want to provide code that can be automatically implemented into files.',
-        parameters: {
-          type: 'object',
-          properties: {
-            filePath: {
-              type: 'string',
-              description: 'The path to the file (e.g., "index.html", "src/app.js", "styles.css")'
-            },
-            language: {
-              type: 'string',
-              description: 'The programming language (e.g., "html", "javascript", "css", "python")'
-            },
-            code: {
-              type: 'string',
-              description: 'The complete code content for the file'
-            }
-          },
-          required: ['filePath', 'code']
-        }
-      }
-    ];
-
-    const response = await openaiClient.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: chatMessages,
-      functions: functions,
-      function_call: 'auto', // Let the model decide when to call the function
-      temperature: 0.7,
-      max_tokens: maxTokens || 1000
-    });
-
-    const message = response.choices[0].message;
-    const aiResponse = message.content || '';
-    const functionCalls = [];
-
-    // Check for function calls
-    if (message.function_call) {
-      // Single function call
-      try {
-        const functionArgs = JSON.parse(message.function_call.arguments);
-        functionCalls.push({
-          name: message.function_call.name,
-          arguments: functionArgs
-        });
-      } catch (err) {
-        console.error('Error parsing function call arguments:', err);
-      }
-    } else if (message.tool_calls) {
-      // Multiple function calls (tool_calls format)
-      for (const toolCall of message.tool_calls) {
-        try {
-          const functionArgs = JSON.parse(toolCall.function.arguments);
-          functionCalls.push({
-            name: toolCall.function.name,
-            arguments: functionArgs
-          });
-        } catch (err) {
-          console.error('Error parsing tool call arguments:', err);
-        }
-      }
-    }
-
-    return { 
-      success: true, 
-      content: aiResponse,
-      functionCalls: functionCalls.length > 0 ? functionCalls : undefined
-    };
+    const userDataPath = app.getPath('userData');
+    return getGeminiLiveWsUrl(userDataPath, fs);
   } catch (error) {
-    console.error('OpenAI API error:', error);
-    return { 
-      success: false, 
-      error: error.message,
-      status: error.status || 500
+    return { success: false, error: error.message || String(error) };
+  }
+});
+
+ipcMain.handle('vibe:getVoiceBridgeUrl', async () => {
+  if (!rendererHttpBase) {
+    return { success: false, error: 'Local HTTP server not running (live mic unavailable)' };
+  }
+  return { success: true, url: `${rendererHttpBase}/voice-mic-bridge.html` };
+});
+
+ipcMain.handle('live:transcribeBlob', async (_event, { base64, mimeType }) => {
+  try {
+    const userDataPath = app.getPath('userData');
+    return await transcribeLiveAudioBlob(userDataPath, fs, { base64, mimeType });
+  } catch (error) {
+    return { success: false, error: error.message || String(error) };
+  }
+});
+
+ipcMain.handle('ai:chat', async (event, { messages, systemPrompt, maxTokens, useTools, forceProvideCodeBlock }) => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const last = Array.isArray(messages) ? messages[messages.length - 1] : null;
+    const hasImages = !!(last?.images && last.images.length);
+    const toolsOn = useTools !== false && !hasImages;
+    const forceTools = !!(forceProvideCodeBlock && toolsOn);
+    let result = await chatGemini(userDataPath, fs, {
+      messages,
+      systemPrompt,
+      maxTokens,
+      useTools: toolsOn,
+      forceProvideCodeBlock: forceTools,
+    });
+    if (!result.success && toolsOn && !forceTools) {
+      result = await chatGemini(userDataPath, fs, {
+        messages,
+        systemPrompt,
+        maxTokens,
+        useTools: false,
+      });
+    }
+    return result;
+  } catch (error) {
+    console.error('Gemini API error:', error);
+    const status = error.status || error.statusCode || error.code || 500;
+    return {
+      success: false,
+      error: error.message || String(error),
+      status,
     };
   }
 });
@@ -2040,19 +1770,235 @@ ipcMain.handle('freesound:checkStatus', async () => {
   };
 });
 
-ipcMain.handle('openai:checkStatus', async () => {
+ipcMain.handle('ai:checkStatus', async () => {
   const userDataPath = app.getPath('userData');
-  const configPath = path.join(userDataPath, 'openai-config.json');
-  const configExists = fs.existsSync(configPath);
-  
+  let initialized = false;
+  try {
+    initialized = !!ensureGeminiClient(userDataPath, fs);
+  } catch {
+    initialized = false;
+  }
+  const status = getGeminiStatus(userDataPath, fs);
   return {
-    initialized: !!openaiClient,
-    hasApiKey: !!openaiApiKey,
-    userDataPath: userDataPath,
-    configPath: configPath,
-    configExists: configExists,
-    hasEnvVar: !!process.env.OPENAI_API_KEY
+    ...status,
+    initialized,
+    userDataPath,
   };
+});
+
+ipcMain.handle('google:saveConfig', async (event, { apiKey }) => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const saved = saveGeminiApiKey(userDataPath, fs, apiKey);
+    if (!saved.success) return saved;
+    ensureGeminiClient(userDataPath, fs);
+    return { success: true, configPath: saved.configPath, model: GEMINI_MODEL };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('agent:step', async (event, payload) => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const result = await runAgentStep(userDataPath, fs, payload || {});
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('agent:proposeWrite', async (event, payload) => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const result = await proposeSingleFileWrite(userDataPath, fs, payload || {});
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('agent:commitWrite', async (event, { projectPath, path: relPath, content }) => {
+  try {
+    if (!projectPath || !relPath) {
+      return { success: false, error: 'Missing projectPath or path' };
+    }
+    const toolResult = commitAgentWrite(projectPath, relPath, content ?? '', fs);
+    if (!toolResult.ok) {
+      return {
+        success: false,
+        error: toolResult.error,
+        incomplete: toolResult.incomplete,
+        truncated: toolResult.truncated,
+      };
+    }
+    return { success: true, toolResult };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('agent:validateWrite', async (event, { projectPath, path: relPath, content }) => {
+  try {
+    if (!projectPath || !relPath) {
+      return { success: false, error: 'Missing projectPath or path' };
+    }
+    const ev = evaluateWriteForApproval(projectPath, relPath, content ?? '', fs, {});
+    return { success: true, ...ev };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('agent:maxSteps', async () => ({ maxSteps: DEFAULT_MAX_STEPS }));
+
+ipcMain.handle('project:planShipFiles', async (event, { projectPath, goal, sessionBrief, plan }) => {
+  try {
+    if (!projectPath) return { success: false, error: 'No project path', plan: plan || [] };
+    const enriched = enrichShipPlanFromSearch(projectPath, goal || '', sessionBrief || '', plan || [], fs);
+    return { success: true, plan: enriched };
+  } catch (error) {
+    return { success: false, error: error.message, plan: plan || [] };
+  }
+});
+
+ipcMain.handle('project:grep', async (event, { projectPath, pattern }) => {
+  try {
+    if (!projectPath) return { success: false, error: 'No project path' };
+    return { success: true, ...grepProject(projectPath, pattern || '', fs) };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('project:findFiles', async (event, { projectPath, query }) => {
+  try {
+    if (!projectPath) return { success: false, error: 'No project path' };
+    return { success: true, ...findFiles(projectPath, query || '', fs) };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('chat:loadHistory', async () => {
+  try {
+    const messages = loadCursyChatHistoryFromDisk();
+    return { success: true, messages };
+  } catch (error) {
+    return { success: false, error: error.message, messages: [] };
+  }
+});
+
+ipcMain.handle('chat:saveHistory', async (event, { messages }) => {
+  try {
+    const ok = saveCursyChatHistoryToDisk(messages);
+    return ok ? { success: true } : { success: false, error: 'Write failed' };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('chat:importFromCml', async (event, { projectPath, limit }) => {
+  try {
+    if (!projectPath) return { success: false, error: 'No project path', messages: [] };
+    return rebuildChatHistoryFromCml(projectPath, fs, limit || 120);
+  } catch (error) {
+    return { success: false, error: error.message, messages: [] };
+  }
+});
+
+ipcMain.handle('ai:chatStream', async () => {
+  return {
+    success: false,
+    error: 'Streaming chat disabled — use standard chat (Gemini Flash BYOK).',
+  };
+});
+
+ipcMain.handle('recall:stats', async (event, { projectPath }) => {
+  try {
+    if (!projectPath) return { success: false, count: 0 };
+    const idx = loadRecallIndex(projectPath, fs);
+    return {
+      success: true,
+      count: idx?.entries?.length || 0,
+      builtAt: idx?.builtAt || null,
+      fingerprint: idx?.fingerprint || null,
+    };
+  } catch (error) {
+    return { success: false, count: 0, error: error.message };
+  }
+});
+
+ipcMain.handle('recall:search', async (event, { projectPath, query, queryEmbedding }) => {
+  try {
+    if (!projectPath) {
+      return { success: false, error: 'No project path', snippets: [] };
+    }
+    return searchProjectRecall(projectPath, query || '', fs, queryEmbedding || null);
+  } catch (error) {
+    return { success: false, error: error.message, snippets: [] };
+  }
+});
+
+ipcMain.handle('recall:chunks', async (event, { projectPath }) => {
+  try {
+    if (!projectPath) return { success: false, chunks: [] };
+    const { chunks, scannedFiles } = collectRecallChunks(projectPath, fs);
+    const fingerprint = buildRecallFingerprint(projectPath, fs);
+    const existing = loadRecallIndex(projectPath, fs);
+    return {
+      success: true,
+      chunks,
+      scannedFiles,
+      fingerprint,
+      needsRebuild: !existing || existing.fingerprint !== fingerprint,
+      indexPath: existing ? 'loaded' : null,
+    };
+  } catch (error) {
+    return { success: false, error: error.message, chunks: [] };
+  }
+});
+
+ipcMain.handle('recall:saveIndex', async (event, { projectPath, fingerprint, entries }) => {
+  try {
+    if (!projectPath || !Array.isArray(entries)) {
+      return { success: false, error: 'Invalid index payload' };
+    }
+    const payload = {
+      version: RECALL_INDEX_VERSION,
+      fingerprint,
+      builtAt: new Date().toISOString(),
+      entries,
+    };
+    return saveRecallIndex(projectPath, fs, payload);
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('recall:recentCml', async (event, { projectPath, limit }) => {
+  try {
+    if (!projectPath) {
+      return { success: false, files: [] };
+    }
+    const listed = listRecentCmlFiles(projectPath, fs, limit || 5);
+    const previews = [];
+    for (const f of listed.files || []) {
+      try {
+        const text = fs.readFileSync(f.path, 'utf-8');
+        previews.push({
+          name: f.name,
+          path: f.path,
+          text: text.length > 4000 ? text.slice(0, 4000) + '\n…' : text,
+        });
+      } catch {
+        /* skip */
+      }
+    }
+    return { success: true, files: previews, count: previews.length };
+  } catch (error) {
+    return { success: false, error: error.message, files: [] };
+  }
 });
 
 ipcMain.handle('genre:deleteRule', async (event, genreName) => {
@@ -2131,8 +2077,55 @@ ipcMain.handle('fs:openFolder', async (event, folderPath) => {
   }
 });
 
+function setupLiveVoiceMediaPermissions() {
+  const ses = session.defaultSession;
+  ses.setPermissionCheckHandler((_webContents, permission) => {
+    return permission === 'media' || permission === 'microphone' || permission === 'audioCapture';
+  });
+  ses.setPermissionRequestHandler((webContents, permission, callback) => {
+    if (permission !== 'media' && permission !== 'microphone' && permission !== 'audioCapture') {
+      callback(false);
+      return;
+    }
+    const win = BrowserWindow.fromWebContents(webContents) || BrowserWindow.getFocusedWindow();
+    dialog
+      .showMessageBox(win || undefined, {
+        type: 'question',
+        buttons: ['Allow microphone', 'Deny'],
+        defaultId: 0,
+        cancelId: 1,
+        title: 'Cursy Live voice',
+        message: 'Allow VIBE IDE to use your microphone?',
+        detail:
+          'Needed for Gemini Live voice with Cursy. On Windows, also check Settings → Privacy → Microphone for desktop apps.',
+      })
+      .then(({ response }) => callback(response === 0))
+      .catch(() => callback(false));
+  });
+}
+
 // Register protocol to serve static files from node_modules
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  setupLiveVoiceMediaPermissions();
+
+  try {
+    const rendererDir = path.join(__dirname, '../renderer');
+    const started = await startRendererStaticServer(rendererDir);
+    rendererStaticServer = started.server;
+    rendererHttpBase = started.indexUrl.replace(/\/index\.html$/i, '');
+    rendererIndexUrl = preferHttpRenderer() ? started.indexUrl : null;
+    console.log('✅ Voice bridge HTTP origin:', rendererHttpBase);
+    if (preferHttpRenderer()) {
+      console.log('✅ Full UI on HTTP (debug):', started.indexUrl);
+    } else {
+      console.log('✅ Main UI on file:// — Monaco scroll + localhost mic bridge');
+    }
+  } catch (err) {
+    console.warn('⚠️ Renderer HTTP server failed — live mic bridge unavailable', err.message);
+    rendererIndexUrl = null;
+    rendererHttpBase = null;
+  }
+
   // Register protocol handler for node_modules
   protocol.registerFileProtocol('node', (request, callback) => {
     const url = request.url.substr(7); // Remove 'node://' prefix
@@ -2159,8 +2152,16 @@ app.whenReady().then(() => {
     console.warn('Failed to register gf protocol:', e.message);
   }
   
-  // Initialize OpenAI client now that app is ready
-  initOpenAIClient();
+  try {
+    const userDataPath = app.getPath('userData');
+    if (ensureGeminiClient(userDataPath, fs)) {
+      console.log('✅ Gemini client ready (model:', GEMINI_MODEL + ')');
+    } else {
+      console.warn('⚠️ No Gemini API key yet — add one in User Settings for Cursy chat.');
+    }
+  } catch (e) {
+    console.warn('⚠️ Gemini init skipped:', e.message);
+  }
   
   // Load API keys now that app is ready
   loadPixabayKey();

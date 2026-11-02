@@ -40,9 +40,13 @@ Built on the **GameForge IDE Alpha** codebase, which provides:
 - **Electron** - Desktop app framework
 - **Monaco Editor** - Code editing
 - **Node.js** - File system operations
-- **AI Integration** - Proactive AI assistant
+- **AI Integration** - Google **Gemini** (via BYO API key) for Cursy
 
 ## 🏃 Running the App
+
+**Local brain (LM Studio):** install [LM Studio](https://lmstudio.ai), download **Gemma 4 E4B** (Team DC default for VIBE IDE: fits 8 GB VRAM, not the old Gemma 3 27B RAM crawl), load it, then **Local Server → Start Server** (default `http://127.0.0.1:1234/v1`). Copy `local-llm-config.example.json` to Electron **userData** as `local-llm-config.json` so the chip expects `gemma-4-e4b` (partial match). The menu bar **Local brain** chip shows status. Ollama: `"provider": "ollama"` or legacy `ollama-config.json`.
+
+**Chat:** with LM Studio running and Gemma loaded, Cursy chat uses your **local model first** (no key). **Project Recall v1** hybrid search: keyword + **MiniLM** embeddings (cached in `.vibe/recall-index.json`); recent `cml/` logs load on project open. Local chat supports **OpenAI-style `provide_code_block` tools** when LM Studio exposes tool calling. **Bounded agent:** in chat, type `@agent your goal here` (max 8 steps; **approve** before writes). **Gemini API key (optional fallback):** copy `google-config.example.json` to userData as `google-config.json`, or set `GEMINI_API_KEY` / `GOOGLE_API_KEY`.
 
 ```bash
 # Development mode (with DevTools)

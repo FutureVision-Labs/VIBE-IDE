@@ -1,4 +1,4 @@
 {
-  "apiKey": "your-openai-api-key-here"
+  "_deprecated": "VIBE IDE now uses Gemini only. Rename/copy this file to google-config.json with the same { \"apiKey\": \"...\" } shape, using a key from Google AI Studio.",
+  "apiKey": "migrate-to-google-config-json"
 }
-

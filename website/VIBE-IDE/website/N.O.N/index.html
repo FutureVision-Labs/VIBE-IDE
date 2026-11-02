@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>N.O.N. — NEXT Object Notation</title>
+  <link rel="stylesheet" href="../CURSY-Framework/cursy.css">
+  <link rel="stylesheet" href="../CURSY-Framework/cursy-utilities.css">
+  <link rel="stylesheet" href="../CURSY-Framework/cursy-components.css">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body class="bg-dark text-light">
+  <header class="hero">
+    <div class="container">
+      <div class="columns is-vcentered">
+        <div class="column">
+          <div class="badge is-gradient">N.O.N. · NEXT Object Notation</div>
+          <h1 class="title is-2 glow">Token-Efficient, Component-Aware, Human-Readable</h1>
+          <p class="subtitle is-5 text-muted">Built for LLMs and humans. Compact like TONL, expressive like typed configs, frictionless like JSON.</p>
+          <div class="actions">
+            <a class="btn is-primary" href="./non.js" download>Download non.js</a>
+            <a class="btn is-ghost" href="#spec">View Spec</a>
+            <a class="btn is-accent" href="#compare">Compare vs TONL</a>
+          </div>
+        </div>
+        <div class="column is-narrow">
+          <div class="card glass code">
+            <div class="card-body">
+<pre><code># N.O.N. Example
+video:
+  id: dQw4w9WgXcQ
+  title: "Example Video"
+  channel:
+    name: "Channel Name"
+    subscribers: 125000
+  metadata:
+    duration: "3:45"
+    views: 1000000
+    tags: [tutorial, coding, webdev]
+</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="spec" class="section">
+      <div class="section-head">
+        <h2 class="title is-3">Why N.O.N.</h2>
+        <p class="text-muted">Compact, typed, deterministic. Zero deps. Browser/Node ready.</p>
+      </div>
+      <div class="grid-3">
+        <div class="card glass">
+          <div class="card-body">
+            <div class="pill is-primary is-light">Compact</div>
+            <p class="mt-2">Fewer quotes/braces; arrays by dashes; optional inline arrays. Typical 25–45% token savings vs JSON.</p>
+          </div>
+        </div>
+        <div class="card glass">
+          <div class="card-body">
+            <div class="pill is-accent is-light">Component-Aware</div>
+            <p class="mt-2">Inline components: <code>Type(a:1)</code> → <code>{__type:"Type", a:1}</code>. Perfect for schema hints and codegen.</p>
+          </div>
+        </div>
+        <div class="card glass">
+          <div class="card-body">
+            <div class="pill is-success is-light">LLM-Friendly</div>
+            <p class="mt-2">Readable, minimal, and deterministic. Great for prompts, embeddings, and memory stores.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="section">
+      <div class="section-head">
+        <h2 class="title is-3">Feature Snapshot</h2>
+      </div>
+      <div class="grid-2">
+        <div class="card glass">
+          <div class="card-body">
+            <h3 class="title is-5">Core</h3>
+            <ul class="list">
+              <li>Objects/arrays via indent + dashes</li>
+              <li>Components with <code>__type</code> mapping</li>
+              <li>Token-light strings (quote only when needed)</li>
+              <li>Comments with <code>#</code></li>
+              <li>Browser/Node module (`non.js`)</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card glass">
+          <div class="card-body">
+            <h3 class="title is-5">Bridges</h3>
+            <ul class="list">
+              <li>JSON ↔ N.O.N. round-trip</li>
+              <li>CML envelope bridge (Imaginatorium)</li>
+              <li>Component hinting for codegen/types</li>
+              <li>Drop-in for RAG/prompt payloads</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="compare" class="section">
+      <div class="section-head">
+        <h2 class="title is-3">N.O.N. vs JSON vs TONL</h2>
+        <p class="text-muted">Positioned against TONL’s token-optimized pitch (<a href="https://tonl.dev/" target="_blank" rel="noreferrer">tonl.dev</a>): N.O.N. stays human-first, type-friendly, zero-deps, and easy to embed.</p>
+      </div>
+      <div class="table-wrap card glass">
+        <div class="card-body">
+          <table class="table is-striped is-fullwidth">
+            <thead>
+              <tr>
+                <th>Format</th>
+                <th>Token Savings</th>
+                <th>Types/Components</th>
+                <th>Streaming</th>
+                <th>LLM Prompt Friendly</th>
+                <th>Deps</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>N.O.N.</td>
+                <td>25–45% vs JSON (typical configs)</td>
+                <td>Inline components → <code>__type</code></td>
+                <td>Line/indent friendly; can stream by line</td>
+                <td>Yes (minimal syntax, human-readable)</td>
+                <td>0 (single JS file)</td>
+              </tr>
+              <tr>
+                <td>JSON</td>
+                <td>Baseline</td>
+                <td>No</td>
+                <td>Yes</td>
+                <td>Verbose; high token overhead</td>
+                <td>0</td>
+              </tr>
+              <tr>
+                <td>TONL</td>
+                <td>32–50% vs JSON; claims up to 60% with optimizations <a href="https://tonl.dev/" target="_blank" rel="noreferrer">[tonl.dev]</a></td>
+                <td>Type hints; table-like headers</td>
+                <td>Yes (streaming, indexes)</td>
+                <td>LLM-optimized; custom prompt needed</td>
+                <td>TS package/CLI</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="text-muted mt-3">N.O.N. aims for simplicity and embeddability over maximum compression. If you need heavy optimization/queries, see TONL; if you need human-first, typed, zero-dep payloads, use N.O.N.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="cta" class="section">
+      <div class="card glass">
+        <div class="card-body columns is-vcentered">
+          <div class="column">
+            <h3 class="title is-4">Grab N.O.N. and start shipping</h3>
+            <p class="text-muted">Drop `non.js` in browser or Node. Use it for configs, docs payloads, CML bridges, and prompt-friendly data.</p>
+          </div>
+          <div class="column is-narrow actions">
+            <a class="btn is-primary" href="./non.js" download>Download</a>
+            <a class="btn is-ghost" href="./README.md" target="_blank">Readme</a>
+            <a class="btn is-accent" href="./examples/cml-bridge.md" target="_blank">CML Bridge</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
+

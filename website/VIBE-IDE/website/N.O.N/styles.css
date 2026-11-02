@@ -1,0 +1,87 @@
+body {
+  background: radial-gradient(circle at 20% 20%, rgba(255, 0, 180, 0.06), transparent 35%),
+              radial-gradient(circle at 80% 0%, rgba(0, 200, 255, 0.06), transparent 30%),
+              #0b0c14;
+}
+
+.hero {
+  padding: 3rem 0;
+}
+
+.badge {
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.glow {
+  text-shadow: 0 0 10px rgba(255, 0, 180, 0.35), 0 0 18px rgba(0, 200, 255, 0.35);
+}
+
+.card.glass {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
+}
+
+.code pre {
+  background: #111624;
+  color: #cde3ff;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.9rem;
+}
+
+.section {
+  padding: 2rem 0;
+}
+
+.section-head {
+  margin-bottom: 1.5rem;
+}
+
+.grid-3 {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.grid-2 {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.list {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: #cdd6f4;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table.table th,
+table.table td {
+  color: #e8ecf5;
+}
+
+table.table td code {
+  color: #a4ffec;
+}
+
+.text-muted {
+  color: #9ea7ba;
+}
+
+.mt-2 { margin-top: 0.5rem; }
+.mt-3 { margin-top: 0.75rem; }
+

@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const puppeteer = require('puppeteer');
+const { marked } = require('marked');
 
 const root = path.resolve(__dirname);
 // Parse --outDir argument (EXACT same logic as mk-journal-html.js)
@@ -21,21 +22,68 @@ if (outDirIndex !== -1) {
 // Normalize quotes around paths (PowerShell can pass quoted paths)
 outRoot = outRoot.trim().replace(/^"(.+)"$/, '$1').replace(/^\'(.+)\'$/, '$1');
 
-// Find HTML file (same priority as HTML generator finds markdown)
+// Optional overrides
+const mdArgIndex = process.argv.findIndex(a => a === '--md' || a.startsWith('--md='));
+const coverArgIndex = process.argv.findIndex(a => a === '--cover' || a.startsWith('--cover='));
+const titleArgIndex = process.argv.findIndex(a => a === '--title' || a.startsWith('--title='));
+
+const getArgVal = (idx) => {
+  if (idx === -1) return null;
+  const arg = process.argv[idx];
+  if (arg.includes('=')) return arg.split('=').slice(1).join('=');
+  return process.argv[idx + 1] || null;
+};
+
+let mdInput = getArgVal(mdArgIndex);
+let coverOverride = getArgVal(coverArgIndex);
+let titleOverride = getArgVal(titleArgIndex);
+
+if (mdInput) mdInput = path.resolve(mdInput.trim().replace(/^"(.+)"$/, '$1').replace(/^\'(.+)\'$/, '$1'));
+if (coverOverride) coverOverride = coverOverride.trim().replace(/^"(.+)"$/, '$1').replace(/^\'(.+)\'$/, '$1');
+if (titleOverride) titleOverride = titleOverride.trim().replace(/^"(.+)"$/, '$1').replace(/^\'(.+)\'$/, '$1');
+
+// Find HTML file (same priority as HTML generator finds markdown) OR build from markdown if provided
 const genHtmlPath = path.join(outRoot, 'PROJECT_JOURNAL.generated.html');
 const htmlPath = path.join(outRoot, 'PROJECT_JOURNAL.html');
 const appHtmlPath = path.join(root, 'PROJECT_JOURNAL.html');
 
 let inputHtml = null;
-if (fs.existsSync(genHtmlPath)) {
-  inputHtml = genHtmlPath;
-} else if (fs.existsSync(htmlPath)) {
-  inputHtml = htmlPath;
-} else if (fs.existsSync(appHtmlPath)) {
-  inputHtml = appHtmlPath;
+let projectDir = outRoot;
+let derivedTitle = null;
+
+if (mdInput) {
+  if (!fs.existsSync(mdInput)) {
+    console.error('Markdown file not found:', mdInput);
+    process.exit(1);
+  }
+  projectDir = path.dirname(mdInput);
+  const mdRaw = fs.readFileSync(mdInput, 'utf8');
+  const firstH1 = (mdRaw.match(/^#\s+(.+)$/m) || [null, null])[1];
+  const mdTitle = titleOverride || firstH1 || path.basename(mdInput, path.extname(mdInput));
+  derivedTitle = mdTitle;
+  const bodyHtml = marked.parse(mdRaw);
+  const htmlWrapper = `<!doctype html><html><head><meta charset="utf-8"><title>${mdTitle} — Book</title><style>
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Arial,sans-serif;max-width:960px;margin:32px auto;padding:0 18px;line-height:1.6;color:#e6f7ff;background:#0b0f1a;}
+    h1,h2,h3,h4{color:#63c6ff;}
+    a{color:#8fe0ff;}
+    code{background:rgba(255,255,255,0.06);padding:2px 4px;border-radius:4px;}
+  </style></head><body><article class="container">${bodyHtml}</article></body></html>`;
+  const tempOutDir = path.join(projectDir, 'exports');
+  if (!fs.existsSync(tempOutDir)) fs.mkdirSync(tempOutDir, { recursive: true });
+  inputHtml = path.join(tempOutDir, '_md_export.html');
+  fs.writeFileSync(inputHtml, htmlWrapper, 'utf8');
 } else {
-  console.error('No HTML file found');
-  process.exit(1);
+  if (fs.existsSync(genHtmlPath)) {
+    inputHtml = genHtmlPath;
+  } else if (fs.existsSync(htmlPath)) {
+    inputHtml = htmlPath;
+  } else if (fs.existsSync(appHtmlPath)) {
+    inputHtml = appHtmlPath;
+  } else {
+    console.error('No HTML file found (and no --md specified)');
+    process.exit(1);
+  }
+  projectDir = path.dirname(inputHtml);
 }
 
 // Load config if present (same as HTML generator)
@@ -50,14 +98,17 @@ if (fs.existsSync(cfgPath)) {
   }
 }
 
-// Derive project directory from HTML file location
-const projectDir = path.dirname(inputHtml);
 const outDir = path.join(projectDir, 'exports');
 if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-const projectName = path.basename(projectDir).replace(/[^a-z0-9-_]/gi, '_');
+const projectName = (derivedTitle ? derivedTitle.replace(/[^a-z0-9-_]/gi, '_') : path.basename(projectDir).replace(/[^a-z0-9-_]/gi, '_')) || 'project';
+const displayTitle = derivedTitle || projectName;
 const outPdf = path.join(outDir, `PROJECT_JOURNAL_${projectName}-${new Date().toISOString().slice(0,10)}.pdf`);
 
 // Resolve logo path - handle both relative and absolute paths
+if (coverOverride) {
+  cfg.logoPath = coverOverride;
+}
+
 let logoSrc = cfg.logoPath || 'logo.jpg';
 let logoDataUrl = null;
 
@@ -209,13 +260,13 @@ console.log('========================');
 
     const baseRgb = hexToRgb(cfg.base||'#00a2ff');
     const baseHsl = rgbToHsl(baseRgb.r, baseRgb.g, baseRgb.b);
-    const text = luminance(baseRgb) > 0.55 ? '#0b0b12' : '#e6f7ff';
+    const text = '#e6f7ff';
     const accentH = (baseHsl.h + (50/360)) % 1; // hue rotate
     const accent = hslToCss(accentH, Math.min(1, baseHsl.s*0.9), Math.min(1, baseHsl.l+0.1));
     const bgStart = rgbToHex(mixRgb({r:0,g:0,b:0}, baseRgb, 0.12));
     const bgEnd = rgbToHex(mixRgb({r:0,g:0,b:0}, baseRgb, 0.35));
-    const primary = cfg.base;
-    const border = `rgba(${baseRgb.r},${baseRgb.g},${baseRgb.b},0.25)`;
+    const primary = '#63c6ff';
+    const border = 'rgba(99,198,255,0.25)';
 
     const container = document.querySelector('.container') || document.querySelector('.wrap') || document.body;
     const header = container.querySelector('header');
@@ -224,13 +275,10 @@ console.log('========================');
     // Cover page
     const cover = document.createElement('section');
     cover.id = 'pdf-cover';
-    cover.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;text-align:center; background:rgba(20,20,30,.9); border:1px solid rgba(0,162,255,.25); border-radius:12px; padding:32px; margin:0 0 24px;';
+    cover.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;text-align:center; background:#0b0f1a; padding:0; margin:0 0 12px;';
     const logoSrc = cfg.logoPath || 'logo.jpg';
     cover.innerHTML = `
-      <img src="${logoSrc}" alt="Project Logo" style="max-width:520px;width:100%;height:auto;box-shadow:0 0 30px ${border};border-radius:10px;margin-bottom:20px;" onerror="this.style.display='none'">
-      <h1 style="color:${primary}; margin:0 0 8px; font-size:40px;">${projectName}<br><span style="font-size:0.7em;font-weight:normal;">Project Journal</span></h1>
-      <p style="color:${accent}; margin:6px 0 14px; font-size:16px;">${cfg.coverTagline||''}</p>
-      <p style="color:${text}; opacity:.8; font-size:14px;">Generated: ${todayStr}</p>
+      <img src="${logoSrc}" alt="Cover" style="max-width:100%;width:100%;height:auto;display:block;" onerror="this.style.display='none'">
     `;
     if (header) {
       header.parentNode.insertBefore(cover, header);
@@ -241,7 +289,7 @@ console.log('========================');
     }
 
     // TOC
-    const headings = Array.from(document.querySelectorAll('h1, h2, h3'));
+    const headings = Array.from(document.querySelectorAll('h1, h2, h3')).filter(h => !h.closest('#pdf-cover'));
     headings.forEach(h => { if (!h.id) h.id = slugify(h.textContent); });
     const toc = document.createElement('section');
     toc.id = 'pdf-toc';
@@ -261,6 +309,17 @@ console.log('========================');
     });
     if (cover.nextSibling) cover.parentNode.insertBefore(toc, cover.nextSibling); else container.insertBefore(toc, container.firstChild);
 
+    // Author bios page (after TOC)
+    const bios = document.createElement('section');
+    bios.id = 'pdf-bios';
+    bios.style.cssText = 'background:#0b0f1a; border:1px solid rgba(99,198,255,.25); border-radius:12px; padding:20px; margin:20px 0 28px;';
+    bios.innerHTML = `
+      <h1 style="margin:0 0 12px; color:${primary};">Author Bios</h1>
+      <p style="margin:0 0 10px; color:${text}; opacity:0.9; line-height:1.55;"><strong style="color:${primary};">Dr. D. Charles Caynes</strong> is a builder, strategist, and hands-on engineer who treats architecture as product: deterministic cores, fast iteration loops, and real-world SLOs. He ships pragmatic systems that teams can reason about and scale.</p>
+      <p style="margin:0; color:${text}; opacity:0.9; line-height:1.55;"><strong style="color:${primary};">Skully Cursival</strong> is the sparkly code buddy who keeps the vibes high while keeping guardrails tight. She turns fuzzy ideas into governed prompts and keeps the probabilistic edges safe, observable, and fun.</p>
+    `;
+    if (toc.nextSibling) toc.parentNode.insertBefore(bios, toc.nextSibling); else container.insertBefore(bios, toc.nextSibling);
+
     // Back to TOC after H2
     headings.forEach(h => {
       if (h.tagName === 'H2') {
@@ -272,23 +331,6 @@ console.log('========================');
       }
     });
 
-    // Changelog appendix
-    const appendix = document.createElement('section');
-    appendix.id = 'pdf-changelog';
-    appendix.style.cssText = 'background:rgba(20,20,30,.9); border:1px solid rgba(138,43,226,.25); border-radius:12px; padding:16px; margin:24px 0;';
-    appendix.innerHTML = `<h1 style="color:#00a2ff;margin:0 0 8px;">Appendix — Changelog (Auto‑extracted)</h1><ul id="chg" style="margin:0 0 0 18px;"></ul>`;
-    const chg = appendix.querySelector('#chg');
-    const keep = (t) => /Recap|Sprint|Phase|Auto\-bundle|Preview|Audio|Cursy AI|Team Realtime|Vision|Roadmap|Deployment|Safety/i.test(t);
-    headings.forEach(h => {
-      const t = h.textContent.trim();
-      if (keep(t)) {
-        const li = document.createElement('li');
-        li.innerHTML = `<a href="#${h.id}" style="color:#9fe0ff;text-decoration:none;">${t}</a>`;
-        chg.appendChild(li);
-      }
-    });
-    container.appendChild(appendix);
-
     // Print CSS
     const style = document.createElement('style');
     style.textContent = `
@@ -296,13 +338,12 @@ console.log('========================');
         --c-primary:${primary};
         --c-accent:${accent};
         --c-text:${text};
-        --c-bg-start:${bgStart};
-        --c-bg-end:${bgEnd};
+        --c-bg:#0b0f1a;
         --c-border:${border};
       }
-      body{ color:var(--c-text); background: linear-gradient(135deg,var(--c-bg-start),var(--c-bg-end)); }
+      body{ color:var(--c-text); background: var(--c-bg) !important; }
       h1,h2{ color:var(--c-primary); }
-      a{ color: color-mix(in oklab, var(--c-primary) 75%, white); }
+      a{ color:${accent}; }
       @media print {
         #pdf-cover { page-break-after: always; }
         #pdf-toc { page-break-after: always; }
@@ -311,7 +352,7 @@ console.log('========================');
       }
     `;
     document.head.appendChild(style);
-  }, new Date().toLocaleDateString(), cfg, projectName);
+  }, new Date().toLocaleDateString(), cfg, displayTitle);
 
   // Check what Puppeteer sees AFTER injection
   const afterInjection = await page.evaluate(() => {

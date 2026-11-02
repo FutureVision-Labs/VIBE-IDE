@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, follow">
+    <title>The VIBE IDE Chronicles - Audiobook | VIBE IDE</title>
+    <meta name="description" content="Listen to the complete story of VIBE IDE! Narrated by Damo and Cursy (Rachel voice). All chapters available right here on the website.">
+    <!-- Tailwind + existing site styles -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <nav class="nav flex items-center justify-center gap-6 text-sm">
+            <a href="index.html" class="nav-link">← VIBE IDE home</a>
+            <a href="https://futurevisionlabs.itch.io/vibe-ide" class="nav-link nav-cta" target="_blank" rel="noopener">Download</a>
+        </nav>
+        <p class="mx-auto mt-2 max-w-xl px-4 text-center text-xs text-slate-500">Team DC fiction archive (not indexed). Product info lives on the home page.</p>
+    </header>
+
+    <main class="bg-slate-950 text-slate-50 min-h-screen">
+        <!-- Audiobook Section -->
+        <section class="pt-28 pb-16">
+            <div class="mx-auto max-w-5xl px-6">
+                <h1 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                    The VIBE IDE Chronicles – <span class="text-cyan-400">Audiobook</span>
+                </h1>
+                <p class="mt-4 text-base text-slate-300 sm:text-lg">
+                    Listen to the complete story of VIBE IDE, narrated by Damo and Cursy (Rachel voice). 
+                    All chapters are available right here on the site – no gatekeepers, no platform rules,
+                    just the story your way.
+                </p>
+
+                <div class="mt-8 grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)] items-start">
+                    <!-- Player -->
+                    <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-lg shadow-black/40">
+                        <div class="flex items-center justify-between gap-4">
+                            <div>
+                                <p class="text-xs uppercase tracking-wide text-slate-400">Now playing</p>
+                                <p id="current-chapter" class="mt-1 text-sm font-semibold text-white">
+                                    Opening
+                                </p>
+                            </div>
+                            <span id="chapter-progress" class="text-xs text-slate-400">
+                                0:00 / 0:00
+                            </span>
+                        </div>
+
+                        <div class="mt-6 flex items-center gap-4">
+                            <button id="prev-chapter" class="btn-control px-3 py-2 rounded-lg bg-slate-800 text-xs text-slate-100 hover:bg-slate-700" title="Previous Chapter">
+                                ⏮ Previous
+                            </button>
+                            <button id="play-pause" class="btn-play flex-1 rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400" title="Play/Pause">
+                                ▶ Play
+                            </button>
+                            <button id="next-chapter" class="btn-control px-3 py-2 rounded-lg bg-slate-800 text-xs text-slate-100 hover:bg-slate-700" title="Next Chapter">
+                                Next ⏭
+                            </button>
+                        </div>
+
+                        <audio id="audio-player" controls preload="metadata" class="mt-4 w-full">
+                            <source src="assets/audio/audiobook/opening.mp3" type="audio/mpeg">
+                            Your browser does not support the audio element.
+                        </audio>
+                    </div>
+
+                    <!-- Chapters List -->
+                    <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 max-h-[420px] overflow-y-auto">
+                        <h2 class="text-sm font-semibold text-white">Chapters</h2>
+                        <ul id="chapters" class="chapters-ul mt-3 space-y-1 text-sm text-slate-200">
+                            <li class="chapter-item active cursor-pointer rounded-lg px-3 py-2 bg-slate-800"
+                                data-file="opening.mp3" data-name="Opening">Opening</li>
+                            <li class="chapter-item cursor-pointer rounded-lg px-3 py-2 hover:bg-slate-800"
+                                data-file="chapter1.mp3" data-name="Chapter 1 - 'The Pivot'">Chapter 1 - 'The Pivot'</li>
+                            <li class="chapter-item cursor-pointer rounded-lg px-3 py-2 hover:bg-slate-800"
+                                data-file="chapter2.mp3" data-name="Chapter 2 - 'The Name Game'">Chapter 2 - 'The Name Game'</li>
+                            <li class="chapter-item cursor-pointer rounded-lg px-3 py-2 hover:bg-slate-800"
+                                data-file="chapter3.mp3" data-name="Chapter 3 - 'The Chatbox Revolution'">Chapter 3 - 'The Chatbox Revolution'</li>
+                            <li class="chapter-item cursor-pointer rounded-lg px-3 py-2 hover:bg-slate-800"
+                                data-file="chapter4.mp3" data-name="Chapter 4 - 'Self Awareness & Identity'">Chapter 4 - 'Self Awareness & Identity'</li>
+                            <li class="chapter-item cursor-pointer rounded-lg px-3 py-2 hover:bg-slate-800"
+                                data-file="chapter5.mp3" data-name="Chapter 5 - 'Coding Day'">Chapter 5 - 'Coding Day'</li>
+                            <li class="chapter-item cursor-pointer rounded-lg px-3 py-2 hover:bg-slate-800"
+                                data-file="chapter6.mp3" data-name="Chapter 6 - 'Stop Apologizing For Vibe Coding'">Chapter 6 - 'Stop Apologizing For Vibe Coding'</li>
+                            <li class="chapter-item cursor-pointer rounded-lg px-3 py-2 hover:bg-slate-800"
+                                data-file="chapter7.mp3" data-name="Chapter 7 - 'Cursy's Corner - The Placeholder'">Chapter 7 - 'Cursy's Corner - The Placeholder'</li>
+                            <li class="chapter-item cursor-pointer rounded-lg px-3 py-2 hover:bg-slate-800"
+                                data-file="chapter8.mp3" data-name="Chapter 8 - 'Cursy's Corner - The Transformation'">Chapter 8 - 'Cursy's Corner - The Transformation'</li>
+                            <li class="chapter-item cursor-pointer rounded-lg px-3 py-2 hover:bg-slate-800"
+                                data-file="chapter9.mp3" data-name="Chapter 9 - 'The Speech Bubbles Saga'">Chapter 9 - 'The Speech Bubbles Saga'</li>
+                            <li class="chapter-item cursor-pointer rounded-lg px-3 py-2 hover:bg-slate-800"
+                                data-file="chapter10.mp3" data-name="Chapter 10 - 'The Math Correction'">Chapter 10 - 'The Math Correction'</li>
+                            <li class="chapter-item cursor-pointer rounded-lg px-3 py-2 hover:bg-slate-800"
+                                data-file="chapter11.mp3" data-name="Chapter 11 - 'The Housewarming'">Chapter 11 - 'The Housewarming'</li>
+                            <li class="chapter-item cursor-pointer rounded-lg px-3 py-2 hover:bg-slate-800"
+                                data-file="chapter12.mp3" data-name="Chapter 12 - 'The Community'">Chapter 12 - 'The Community'</li>
+                            <li class="chapter-item cursor-pointer rounded-lg px-3 py-2 hover:bg-slate-800"
+                                data-file="chapter13.mp3" data-name="Chapter 13 - 'The Future'">Chapter 13 - 'The Future'</li>
+                            <li class="chapter-item cursor-pointer rounded-lg px-3 py-2 hover:bg-slate-800"
+                                data-file="conclusion.mp3" data-name="Conclusion">Conclusion</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="mt-8 rounded-2xl border border-slate-800 bg-slate-900/70 p-6 text-sm text-slate-200">
+                    <h2 class="text-sm font-semibold text-white">Download</h2>
+                    <p class="mt-1">
+                        Download individual chapters or listen directly in your browser. All files are MP3 format.
+                        Right‑click any chapter above to download, or use the audio player controls.
+                    </p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p class="footer-text">
+                Built with ❤️ by <strong>FutureVision Labs</strong> | 
+                Part of the <strong>Forge Family</strong>
+            </p>
+            <p class="footer-text">
+                <a href="index.html" class="footer-link">Home</a> | 
+                <a href="https://futurevisionlabs.itch.io/vibe-ide" class="footer-link" target="_blank">itch.io</a> | 
+                <a href="https://medium.com/@caynesd" class="footer-link" target="_blank">Medium</a>
+            </p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
+

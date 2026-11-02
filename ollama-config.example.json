@@ -1,0 +1,6 @@
+{
+  "_note": "Legacy Ollama-only config. Prefer local-llm-config.example.json (LM Studio default).",
+  "provider": "ollama",
+  "baseUrl": "http://127.0.0.1:11434",
+  "model": "gemma4:e4b"
+}

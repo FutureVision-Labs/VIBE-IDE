@@ -1,0 +1,31 @@
+{
+  "genre": "python",
+  "version": "1.0.0",
+  "frameworkVersion": "Python 3",
+  "description": "Beginner-friendly Python scripts and learning projects",
+  "author": "VIBE IDE Team",
+  "isBundled": true,
+  "commonPatterns": {
+    "basics": {
+      "pattern": "Variables, print, and simple functions",
+      "codeSnippet": "name = \"Cursy\"\nprint(f\"Hello, {name}!\")\n\ndef greet(who):\n    return f\"Hi, {who}!\"\n"
+    },
+    "loops": {
+      "pattern": "for and while loops",
+      "codeSnippet": "for i in range(5):\n    print(i)\n"
+    },
+    "conditionals": {
+      "pattern": "if / elif / else",
+      "codeSnippet": "score = 85\nif score >= 90:\n    print(\"A\")\nelif score >= 80:\n    print(\"B\")\n"
+    },
+    "lists": {
+      "pattern": "Lists and simple data",
+      "codeSnippet": "fruits = [\"apple\", \"banana\"]\nfor f in fruits:\n    print(f)\n"
+    }
+  },
+  "aiGuidance": {
+    "tone": "Encouraging teacher; explain errors in plain language",
+    "avoid": "Advanced frameworks unless the learner asks",
+    "prefer": "Small runnable scripts, comments, one concept per change"
+  }
+}

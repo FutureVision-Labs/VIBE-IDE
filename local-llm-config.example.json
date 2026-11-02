@@ -1,0 +1,8 @@
+{
+  "provider": "lmstudio",
+  "baseUrl": "http://127.0.0.1:1234/v1",
+  "model": "gemma-4-e4b",
+  "promptCompat": true,
+  "_promptCompat_note": "When true (default), VIBE IDE merges system prompts into user messages for Gemma-style LM Studio Jinja templates. Set false only if your model template supports OpenAI system + tools.",
+  "_model_note": "Partial id is fine — must match the loaded LM Studio model. Use \"\" to accept any loaded model (not recommended if Gemzy's 27B is still on disk)."
+}

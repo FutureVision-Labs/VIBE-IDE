@@ -1,0 +1,27 @@
+{
+  "genre": "data-analysis",
+  "version": "1.0.0",
+  "frameworkVersion": "Python 3 (stdlib first)",
+  "description": "Simple data analysis with lists, dicts, and readable summaries",
+  "author": "VIBE IDE Team",
+  "isBundled": true,
+  "commonPatterns": {
+    "loadData": {
+      "pattern": "Lists of dicts or CSV-style rows",
+      "codeSnippet": "rows = [{\"name\": \"Alice\", \"score\": 85}, {\"name\": \"Bob\", \"score\": 92}]\n"
+    },
+    "aggregate": {
+      "pattern": "Averages and extrema",
+      "codeSnippet": "scores = [r[\"score\"] for r in rows]\navg = sum(scores) / len(scores)\nbest = max(rows, key=lambda r: r[\"score\"])\n"
+    },
+    "groupBy": {
+      "pattern": "Simple grouping with dicts",
+      "codeSnippet": "groups = {}\nfor r in rows:\n    key = r.get(\"team\", \"unknown\")\n    groups.setdefault(key, []).append(r)\n"
+    }
+  },
+  "aiGuidance": {
+    "tone": "Clear and practical; show the number then what it means",
+    "avoid": "pandas/numpy unless the project already uses them",
+    "prefer": "stdlib, print summaries, small steps"
+  }
+}

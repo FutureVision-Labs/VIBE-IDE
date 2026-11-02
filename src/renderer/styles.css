@@ -8,10 +8,18 @@
 }
 /* VIBE IDE Styles */
 
-* {
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+body,
+h1, h2, h3, h4, h5, h6,
+p, ul, ol, li,
+button, input, textarea, select {
     margin: 0;
     padding: 0;
-    box-sizing: border-box;
 }
 
 body {
@@ -189,6 +197,157 @@ body.light-theme .window-control.close:hover {
     -webkit-app-region: no-drag;
 }
 
+.ollama-status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 220px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid #3c3c3c;
+    background: #252526;
+    color: #cccccc;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.ollama-status-chip:hover {
+    border-color: #007acc;
+    background: #2a2d2e;
+}
+
+.ollama-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #6b7280;
+    flex-shrink: 0;
+}
+
+.ollama-status--online .ollama-status-dot {
+    background: #22c55e;
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.55);
+}
+
+.ollama-status--warn .ollama-status-dot {
+    background: #fbbf24;
+}
+
+.ollama-status--offline .ollama-status-dot {
+    background: #ef4444;
+}
+
+.ollama-status--checking .ollama-status-dot {
+    background: #06b6d4;
+    animation: ollama-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes ollama-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+
+.recall-status-chip {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(167, 139, 250, 0.12);
+    border: 1px solid rgba(167, 139, 250, 0.35);
+    color: #c4b5fd;
+    margin-right: 8px;
+    white-space: nowrap;
+}
+
+body.light-theme .recall-status-chip {
+    background: rgba(124, 58, 237, 0.08);
+    color: #5b21b6;
+}
+
+.agent-step-details {
+    margin: 4px 0;
+}
+
+.agent-step-details summary {
+    cursor: pointer;
+    color: #a78bfa;
+    font-weight: 600;
+}
+
+.agent-diff-preview {
+    max-height: 200px;
+    overflow: auto;
+    font-size: 0.75em;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 8px;
+    border-radius: 4px;
+    margin-top: 8px;
+    white-space: pre-wrap;
+}
+
+.agent-diff-preview .diff-add {
+    color: #4ade80;
+}
+
+.agent-diff-preview .diff-del {
+    color: #f87171;
+}
+
+.chat-message.agent-step {
+    border-left: 3px solid #a78bfa;
+    padding-left: 10px;
+    margin-left: 4px;
+    font-size: 0.92em;
+    opacity: 0.95;
+}
+
+.chat-message.agent-approval {
+    border: 1px solid #fbbf24;
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: rgba(251, 191, 36, 0.08);
+}
+
+.agent-write-preview {
+    max-height: 160px;
+    overflow: auto;
+    font-size: 0.8em;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 8px;
+    border-radius: 4px;
+    margin: 8px 0;
+    white-space: pre-wrap;
+}
+
+.agent-approve-btn,
+.agent-reject-btn {
+    margin-right: 8px;
+    margin-top: 6px;
+    padding: 6px 14px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.agent-approve-btn {
+    background: #00ff88;
+    color: #111;
+}
+
+.agent-reject-btn {
+    background: #444;
+    color: #eee;
+}
+
+body.light-theme .ollama-status-chip {
+    background: #f3f3f3;
+    border-color: #ccc;
+    color: #333;
+}
+
 .theme-toggle {
     background: transparent;
     border: none;
@@ -208,6 +367,7 @@ body.light-theme .window-control.close:hover {
 .main-layout {
     display: flex;
     flex: 1;
+    min-height: 0;
     overflow: hidden;
 }
 
@@ -1459,6 +1619,65 @@ body.light-theme .status-text {
     border-color: #00a2ff;
 }
 
+.chat-voice-btn.active {
+    background: rgba(255, 105, 180, 0.25);
+    border-color: #ff69b4;
+    box-shadow: 0 0 10px rgba(255, 105, 180, 0.45);
+}
+
+.chat-message.voice-turn {
+    border-left: 3px solid rgba(255, 105, 180, 0.55);
+    padding-left: 8px;
+}
+
+.chat-image-preview-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 6px 4px;
+    background: #1e1e1e;
+    border-radius: 4px;
+    border: 1px dashed #3e3e42;
+}
+
+.chat-image-preview-item {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid #3e3e42;
+}
+
+.chat-image-preview-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.chat-image-preview-remove {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.75);
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+}
+
+.chat-message.user .chat-attached-image {
+    max-width: 220px;
+    max-height: 160px;
+    border-radius: 6px;
+    margin: 6px 4px 0 0;
+    border: 1px solid #3e3e42;
+}
+
 /* Emoji Picker */
 .emoji-picker {
     position: absolute;
@@ -1920,6 +2139,7 @@ body.light-theme .quick-action-btn:hover {
 /* Editor Area */
 .editor-area {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     background: #1e1e1e;
@@ -1964,7 +2184,8 @@ body.light-theme .quick-action-btn:hover {
     line-height: 1.6;
     padding: 20px;
     overflow-y: auto;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
     outline: none; /* Remove outline when focused */
 }
 
@@ -2065,6 +2286,7 @@ body.light-theme .quick-action-btn:hover {
 /* Markdown Toolbar */
 .md-toolbar {
     display: none;
+    flex-shrink: 0;
     flex-direction: row;
     align-items: center;
     gap: 4px;
@@ -2182,14 +2404,23 @@ body.light-theme .quick-action-btn:hover {
     background: #1e1e1e;
     min-height: 0;
     position: relative;
+    display: flex;
+    flex-direction: column;
 }
+
+/* Editor panes: stacked in .editor-pane-viewport (editor/editor-host.css). */
 
 /* Welcome Screen */
 .welcome-screen {
+    overflow-y: auto;
     max-width: 800px;
     margin: 0 auto;
     padding: 60px 40px;
     text-align: center;
+    align-self: stretch;
+    justify-self: center;
+    box-sizing: border-box;
+    background: #1e1e1e;
 }
 
 .welcome-logo {
@@ -2419,6 +2650,31 @@ body.light-theme .recent-project-item .project-path {
 
 .preview-pane.collapsed .preview-content {
     display: none;
+}
+
+.preview-pane.popout-primary:not(.inline-expanded) .preview-content {
+    display: none;
+}
+
+.preview-pane.popout-primary:not(.inline-expanded) {
+    height: 35px !important;
+    min-height: 35px;
+}
+
+.preview-mode-hint {
+    font-size: 11px;
+    color: #7a8a9a;
+    font-weight: normal;
+}
+
+.btn-primary-soft {
+    background: #0e639c;
+    color: #fff;
+    border: 1px solid #1177bb;
+}
+
+.btn-primary-soft:hover {
+    background: #1177bb;
 }
 
 .preview-header {
@@ -2931,20 +3187,10 @@ body.light-theme .toast-close:hover {
     margin-left: 4px;
 }
 
-/* Monaco Editor Container */
-#monacoEditor {
-    width: 100%;
-    height: 100%;
-    position: absolute;
-    top: 0;
-    left: 0;
-    overflow: hidden;
-}
+/* Monaco host: editor/editor-host.css */
 
-.editor-content {
-    position: relative;
-    width: 100%;
-    height: 100%;
+#mdPreview.editor-pane-hidden {
+    padding: 0;
 }
 
 body.light-theme .tree-item:hover {

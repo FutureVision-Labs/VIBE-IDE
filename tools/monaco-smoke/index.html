@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Monaco smoke</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #1e1e1e; }
+    #bar { padding: 8px 12px; color: #9cdcfe; font: 13px sans-serif; background: #252526; }
+    #editor { height: calc(100% - 36px); }
+  </style>
+</head>
+<body>
+  <div id="bar">Monaco smoke — scroll hard. If lines vanish here too, it’s Electron/GPU/Monaco version, not VIBE CSS.</div>
+  <div id="editor"></div>
+  <script>
+    window.nodeRequire = require;
+    (function () {
+      const fs = require('fs');
+      const path = require('path');
+      const appPath = process.cwd();
+      const loaderPath = path.join(appPath, 'node_modules', 'monaco-editor', 'min', 'vs', 'loader.js');
+      const loaderCode = fs.readFileSync(loaderPath, 'utf-8');
+      const s = document.createElement('script');
+      s.textContent = loaderCode;
+      document.head.appendChild(s);
+      setTimeout(function () {
+        const monacoVsPath = path.join(appPath, 'node_modules', 'monaco-editor', 'min', 'vs').replace(/\\/g, '/');
+        require.config({ paths: { vs: monacoVsPath } });
+        require(['vs/editor/editor.main'], function () {
+          const sample = Array.from({ length: 200 }, (_, i) =>
+            `.rule-${i} { padding: ${i % 4}px; color: #${(i * 9999).toString(16).slice(0, 6)}; }`
+          ).join('\n');
+          monaco.editor.create(document.getElementById('editor'), {
+            value: '/* monaco-editor smoke test */\n' + sample,
+            language: 'css',
+            theme: 'vs-dark',
+            automaticLayout: true,
+            scrollBeyondLastLine: false,
+            wordWrap: 'off',
+            smoothScrolling: false,
+            disableLayerHinting: false,
+            stickyScroll: { enabled: false },
+          });
+        });
+      }, 100);
+    })();
+  </script>
+</body>
+</html>

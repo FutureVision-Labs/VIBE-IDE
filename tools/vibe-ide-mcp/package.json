@@ -1,0 +1,16 @@
+{
+  "name": "vibe-ide-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server — drive VIBE IDE via test bridge + optional CDP",
+  "type": "module",
+  "bin": {
+    "vibe-ide-mcp": "./index.mjs"
+  },
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0"
+  }
+}

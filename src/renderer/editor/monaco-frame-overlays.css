@@ -1,0 +1,75 @@
+/**
+ * Monaco context menus: .context-view.fixed uses all:initial (wipes CSS vars).
+ * Shadow DOM path is disabled in monaco-frame.js; these rules cover normal DOM menus.
+ */
+
+.context-view.monaco-menu-container.monaco-component {
+  --vscode-menu-background: #252526;
+  --vscode-menu-foreground: #cccccc;
+  --vscode-menu-border: #454545;
+  --vscode-menu-selectionBackground: #094771;
+  --vscode-menu-selectionForeground: #ffffff;
+  --vscode-menu-selectionBorder: #007acc;
+  --vscode-menu-separatorBackground: #454545;
+  --vscode-widget-shadow: rgba(0, 0, 0, 0.36);
+  --vscode-list-hoverBackground: #2a2d2e;
+  --vscode-list-hoverForeground: #cccccc;
+}
+
+html.vibe-monaco-light .context-view.monaco-menu-container.monaco-component {
+  --vscode-menu-background: #ffffff;
+  --vscode-menu-foreground: #333333;
+  --vscode-menu-border: #d4d4d4;
+  --vscode-menu-selectionBackground: #0060c0;
+  --vscode-menu-selectionForeground: #ffffff;
+  --vscode-menu-selectionBorder: #0060c0;
+  --vscode-menu-separatorBackground: #d4d4d4;
+  --vscode-widget-shadow: rgba(0, 0, 0, 0.16);
+  --vscode-list-hoverBackground: #f0f0f0;
+  --vscode-list-hoverForeground: #333333;
+}
+
+.context-view.monaco-menu-container.fixed {
+  font-size: 13px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.context-view.monaco-menu-container .monaco-scrollable-element,
+.context-view.monaco-menu-container .monaco-menu {
+  background-color: #252526 !important;
+  color: #cccccc !important;
+}
+
+html.vibe-monaco-light .context-view.monaco-menu-container .monaco-scrollable-element,
+html.vibe-monaco-light .context-view.monaco-menu-container .monaco-menu {
+  background-color: #ffffff !important;
+  color: #333333 !important;
+}
+
+.context-view.monaco-menu-container .monaco-scrollable-element {
+  border: 1px solid #454545;
+  border-radius: 5px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.36);
+}
+
+html.vibe-monaco-light .context-view.monaco-menu-container .monaco-scrollable-element {
+  border-color: #d4d4d4;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+}
+
+.context-view.monaco-menu-container .action-menu-item .action-label,
+.context-view.monaco-menu-container .keybinding {
+  color: inherit !important;
+}
+
+.context-view.monaco-menu-container .action-menu-item.focused .action-label,
+.context-view.monaco-menu-container .action-item.focused .action-label {
+  background-color: #094771 !important;
+  color: #ffffff !important;
+}
+
+html.vibe-monaco-light .context-view.monaco-menu-container .action-menu-item.focused .action-label,
+html.vibe-monaco-light .context-view.monaco-menu-container .action-item.focused .action-label {
+  background-color: #0060c0 !important;
+  color: #ffffff !important;
+}

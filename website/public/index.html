@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouB00B · App</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://futurevision-labs.github.io/CURSY-Framework/cursy.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="scanlines">
+  <div class="page">
+    <header class="nav-inner">
+      <div class="brand">
+        <div class="brand-mark"><span>YB</span></div>
+        <div class="brand-text">
+          <div class="brand-title">YouB00B</div>
+          <div class="brand-sub">Netflix-style YouTube</div>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <a class="btn btn-ghost" href="../website/index.html">Landing</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <h1>Algorithmic YouTube, binge-ready.</h1>
+          <p class="lede">Curated rows, live comments, and chat — powered by vanilla JS + PHP.</p>
+          <div class="cta-row">
+            <button class="btn btn-primary" id="loadBtn">Load Feed</button>
+            <button class="btn btn-ghost" id="refreshBtn">Refresh</button>
+            <button class="btn btn-ghost" id="playHeroBtn">Play Hero Demo</button>
+          </div>
+        </div>
+        <div class="hero-art">
+          <div class="card neon">
+            <div class="card-title">Live Preview</div>
+            <div class="card-body">
+              <p class="muted">This is the scaffold build. API is returning sample rows until DB + YouTube API are wired.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="rows" id="rows"></section>
+    </main>
+
+    <footer class="footer">
+      <p class="muted">YouB00B · FutureVision Studios · WIP scaffold</p>
+    </footer>
+  </div>
+
+  <div class="modal-backdrop" id="playerModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="modalTitle">Now Playing</div>
+        <button class="close-btn" id="closeModal">Close</button>
+      </div>
+      <div class="modal-body">
+        <iframe class="player-frame" id="playerFrame" src="" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
+

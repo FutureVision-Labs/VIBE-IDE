@@ -631,6 +631,25 @@ Instead of just picking a template, beginners fill out a visual form:
 
 ---
 
+## 💬 Thread vibes — kids-first IDE maturity (external note)
+
+**Date:** May 5, 2026  
+**Context:** Long-running Cursor session with Team DC (Damo & Cursy narrative preserved here so we don’t lose the *why* when chats scroll away.)
+
+**Snapshot:**
+
+- **Coherence over feature stuffing.** VIBE IDE reads as *education-first product design*: character-forward help (Cursy), immediate feedback (live preview), artifacts learners can show someone else (project journal **HTML/PDF**), and Markdown treated as **engine-room format**—not a literacy prerequisite on day one.
+- **The spine is real.** **Phaser preview already works** end-to-end; that closes the core motivation loop (edit → run → see motion) without “trust me, open Chrome like this” or Gradle-tier onboarding trauma.
+- **Roadmap honesty.** Planned lanes (local XAMPP-style stack, kid-friendly DB UI vs phpMyAdmin energy, ZIP/Ship packaging, Godot/Unity in v2) are **expansion packs**—meaningful, but structurally *after* the walk-up runnable core. Engine tooling complexity was explicitly flagged (projects, imports, exports—not “compatible scripting” alone).
+- **Portable curriculum IP.** Templates encode **learning beats** and conventions; they’re meant to **travel** to other editors or hosts, not stay trapped in one Electron shell.
+- **Completion gut-check (~85%).** When anchored to **scope** (core learner loop vs advanced infra), the estimate stays honest—the remaining slice is polish, distribution, and edge-case glass rather than “still discovering what the product is.”
+
+**Tiny engineering footnotes from the same thread (already landed in repo):** Pixabay config **UTF-8 BOM** strip in main process; `renderer.js` duplicate `const isImplementationRequest`; `cml-utils.js` reserved-word arrow param (`var` → `variation`).
+
+*— Composer (Cursor), capturing tone for Team DC archives.*
+
+---
+
 ## 🚀 Next Steps
 
 1. **Update Branding** - Change GameForge references to VIBE IDE

@@ -1,0 +1,98 @@
+/**
+ * VIBE IDE — Monaco host only (no global * resets here).
+ * Parent chrome styles must not target .monaco-editor internals.
+ */
+
+/* Keep compositor stack flat around the iframe (Chromium scroll/paint bugs). */
+.editor-area,
+.editor-content,
+.editor-pane-viewport,
+#monacoEditor,
+#monacoEditor iframe.vibe-monaco-frame {
+    transform: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+}
+
+.editor-pane-viewport {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+}
+
+.editor-pane-viewport > .editor-pane {
+    position: absolute;
+    inset: 0;
+    min-height: 0;
+    min-width: 0;
+}
+
+/* Visibility stack — never display:none on Monaco once mounted (breaks scroll paint). */
+.editor-pane-viewport > .editor-pane.editor-pane-hidden {
+    visibility: hidden;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.editor-pane-viewport > .editor-pane.editor-pane-active {
+    visibility: visible;
+    pointer-events: auto;
+    z-index: 1;
+}
+
+#monacoEditor.editor-pane-active {
+    overflow: hidden;
+    display: block;
+}
+
+#monacoEditor iframe.vibe-monaco-frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    background: #1e1e1e;
+}
+
+.editor-pane-viewport > #mdPreview.editor-pane-active {
+    overflow-y: auto;
+}
+
+.editor-pane-viewport > .welcome-screen.editor-pane-active {
+    overflow-y: auto;
+}
+
+body.editor-monaco-active .editor-pane-viewport {
+    z-index: 2;
+}
+
+body.editor-monaco-active #previewFrame {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+body.editor-monaco-active .preview-content {
+    contain: strict;
+}
+
+#editorPaneViewport {
+    overscroll-behavior: contain;
+}
+
+/* Parent shell fallback if a Monaco overlay ever mounts outside the iframe */
+.context-view.monaco-menu-container .monaco-scrollable-element,
+.context-view.monaco-menu-container .monaco-menu {
+    background-color: #252526 !important;
+    color: #cccccc !important;
+}
+
+body.light-theme .context-view.monaco-menu-container .monaco-scrollable-element,
+body.light-theme .context-view.monaco-menu-container .monaco-menu {
+    background-color: #ffffff !important;
+    color: #333333 !important;
+}

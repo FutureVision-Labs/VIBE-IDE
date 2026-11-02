@@ -1,0 +1,27 @@
+{
+  "genre": "pwa",
+  "version": "1.0.0",
+  "frameworkVersion": "Web platform (manifest + service worker)",
+  "description": "Progressive Web App patterns: offline, install, and cache strategies",
+  "author": "VIBE IDE Team",
+  "isBundled": true,
+  "commonPatterns": {
+    "manifest": {
+      "pattern": "Web app manifest for installability",
+      "codeSnippet": "{\n  \"name\": \"My App\",\n  \"short_name\": \"App\",\n  \"start_url\": \"/\",\n  \"display\": \"standalone\",\n  \"theme_color\": \"#2de2e6\",\n  \"icons\": []\n}"
+    },
+    "serviceWorker": {
+      "pattern": "Cache-first or network-first strategies",
+      "codeSnippet": "self.addEventListener('fetch', (event) => {\n  event.respondWith(caches.match(event.request).then((r) => r || fetch(event.request)));\n});"
+    },
+    "installPrompt": {
+      "pattern": "beforeinstallprompt for custom install UI",
+      "codeSnippet": "let deferred;\nwindow.addEventListener('beforeinstallprompt', (e) => {\n  e.preventDefault();\n  deferred = e;\n});"
+    }
+  },
+  "aiGuidance": {
+    "tone": "Practical web platform guidance",
+    "avoid": "Over-complicated cache rules for learners",
+    "prefer": "Local server for dev, HTTPS or localhost for SW testing"
+  }
+}

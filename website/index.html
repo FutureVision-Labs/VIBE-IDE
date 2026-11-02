@@ -5,199 +5,441 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <!-- Primary Meta Tags -->
-    <title>VIBE IDE - Beginner-Friendly Coding Environment with AI Assistance</title>
-    <meta name="title" content="VIBE IDE - Beginner-Friendly Coding Environment with AI Assistance">
-    <meta name="description" content="Beginner-friendly coding environment with AI assistance. Making coding accessible, fun, and collaborative for kids, teens, and beginners. Built on the 'vibe coding' philosophy.">
-    <meta name="keywords" content="VIBE IDE, coding environment, beginner coding, AI assistant, learn to code, coding for kids, vibe coding, programming IDE, educational coding">
+    <title>VIBE IDE — My First Agentic IDE for Beginners (Local AI)</title>
+    <meta name="title" content="VIBE IDE — My First Agentic IDE for Beginners">
+    <meta name="description" content="VIBE IDE is a local, beginner-friendly coding environment with Cursy, explainable AI agents (LM Studio + local models), Phaser game preview, and WYSIWYG Markdown. Your code stays on your machine.">
+    <meta name="keywords" content="VIBE IDE, agentic IDE, beginner coding, local AI, LM Studio, learn to code, coding for kids, Cursy, Phaser, educational IDE, vibe coding">
     <meta name="author" content="FutureVision Labs">
     <meta name="robots" content="index, follow">
     <meta name="language" content="English">
     
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://futurevisionlabs.itch.io/vibe-ide">
-    <meta property="og:title" content="VIBE IDE - Beginner-Friendly Coding Environment">
-    <meta property="og:description" content="Beginner-friendly coding environment with AI assistance. Making coding accessible, fun, and collaborative for kids, teens, and beginners.">
-    <meta property="og:image" content="https://futurevisionlabs.itch.io/vibe-ide">
+    <meta property="og:url" content="https://vibeide.net/">
+    <meta property="og:title" content="VIBE IDE — My First Agentic IDE">
+    <meta property="og:description" content="Local explainable AI agents, Cursy's Corner, Phaser preview, and WYSIWYG Markdown for beginners and indie makers.">
+    <meta property="og:image" content="https://vibeide.net/assets/cursys-corner-screenshot.png">
     
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://futurevisionlabs.itch.io/vibe-ide">
-    <meta property="twitter:title" content="VIBE IDE - Beginner-Friendly Coding Environment">
-    <meta property="twitter:description" content="Beginner-friendly coding environment with AI assistance. Making coding accessible, fun, and collaborative for kids, teens, and beginners.">
-    <meta property="twitter:image" content="https://futurevisionlabs.itch.io/vibe-ide">
+    <meta property="twitter:url" content="https://vibeide.net/">
+    <meta property="twitter:title" content="VIBE IDE — My First Agentic IDE">
+    <meta property="twitter:description" content="Local explainable AI agents, Cursy's Corner, Phaser preview, and WYSIWYG Markdown for beginners and indie makers.">
+    <meta property="twitter:image" content="https://vibeide.net/assets/cursys-corner-screenshot.png">
     
     <!-- Additional SEO -->
     <meta name="theme-color" content="#8b5cf6">
-    <link rel="canonical" href="https://futurevisionlabs.itch.io/vibe-ide">
+    <link rel="canonical" href="https://vibeide.net/">
     
+    <!-- Tailwind CSS for VIBE IDE website UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Existing styles for legacy sections -->
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <!-- Header -->
     <header class="header">
-        <nav class="nav">
+        <nav class="nav flex flex-wrap items-center justify-center gap-4 gap-y-2 text-sm sm:gap-6">
             <a href="#features" class="nav-link">Features</a>
-            <a href="#pro" class="nav-link">PRO</a>
+            <a href="#roadmap" class="nav-link">Roadmap</a>
             <a href="#about" class="nav-link">About</a>
-            <a href="#book" class="nav-link">Book</a>
-            <a href="#audiobook" class="nav-link">Audiobook</a>
-            <a href="#screenplay" class="nav-link">Screenplay</a>
             <a href="#community" class="nav-link">Community</a>
-            <a href="https://futurevisionlabs.itch.io/vibe-ide" class="nav-link nav-cta" target="_blank">Get Started</a>
+            <a href="https://futurevisionlabs.itch.io/vibe-ide" class="nav-link nav-cta" target="_blank" rel="noopener">Download (itch.io)</a>
         </nav>
     </header>
 
-    <!-- Hero Section -->
-    <section class="hero">
-        <div class="hero-content">
-            <div id="logoCarousel" class="logo-carousel">
-                <!-- Logos will be dynamically inserted here -->
+    <!-- Hero Section (VIBE IDE 2.0) -->
+    <section class="relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+        <!-- Background Pattern -->
+        <div class="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=&quot;60&quot; height=&quot;60&quot; viewBox=&quot;0 0 60 60&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot;%3E%3Cg fill=&quot;none&quot; fill-rule=&quot;evenodd&quot;%3E%3Cg fill=&quot;%2306b6d4&quot; fill-opacity=&quot;0.05&quot;%3E%3Cpath d=&quot;M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z&quot;/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-40"></div>
+
+        <div class="relative mx-auto max-w-7xl px-6 py-20 lg:py-32">
+            <div class="mx-auto max-w-4xl text-center">
+                <!-- Badge -->
+                <div class="mb-6 inline-flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-500/10 px-4 py-1.5 text-sm font-medium text-amber-200">
+                    <span class="inline-block h-2 w-2 rounded-full bg-amber-400" aria-hidden="true"></span>
+                    <span>Alpha · Active development · Team DC</span>
+                </div>
+
+                <!-- Main Heading -->
+                <h1 class="mb-4 text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
+                    <span class="block">VIBE IDE</span>
+                    <span class="block text-2xl font-normal text-cyan-400 sm:text-3xl lg:text-4xl">
+                        My First Agentic IDE
+                    </span>
+                </h1>
+
+                <!-- Description -->
+                <p class="mx-auto mb-8 max-w-2xl text-lg leading-8 text-slate-300 sm:text-xl">
+                    Learn what AI agents actually do: read your project, suggest changes, and wait for your OK.
+                    Local brain via <strong class="font-semibold text-slate-200">LM Studio</strong> (default <strong class="font-semibold text-slate-200">Gemma&nbsp;4&nbsp;E4B</strong> · 8&nbsp;GB VRAM).
+                    Cursy explains every step. Your code never has to leave your machine.
+                </p>
+
+                <!-- Key Benefits -->
+                <dl class="mx-auto mb-10 grid max-w-2xl grid-cols-1 gap-6 sm:grid-cols-3 sm:gap-8">
+                    <div class="flex flex-col items-center text-center">
+                        <div class="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-cyan-500/10 ring-1 ring-cyan-500/20">
+                            <svg class="h-6 w-6 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                            </svg>
+                        </div>
+                        <dt class="text-sm font-semibold text-white">Explainable agent</dt>
+                        <dd class="mt-1 text-xs text-slate-400">Bounded tools, approve writes, see the loop.</dd>
+                    </div>
+
+                    <div class="flex flex-col items-center text-center">
+                        <div class="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-cyan-500/10 ring-1 ring-cyan-500/20">
+                            <svg class="h-6 w-6 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                            </svg>
+                        </div>
+                        <dt class="text-sm font-semibold text-white">Cursy&apos;s Corner</dt>
+                        <dd class="mt-1 text-xs text-slate-400">A room, not a chat box. Notes, music, co-host energy.</dd>
+                    </div>
+
+                    <div class="flex flex-col items-center text-center">
+                        <div class="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-cyan-500/10 ring-1 ring-cyan-500/20">
+                            <svg class="h-6 w-6 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <dt class="text-sm font-semibold text-white">Phaser preview</dt>
+                        <dd class="mt-1 text-xs text-slate-400">Edit, run, see motion. Real games, real files.</dd>
+                    </div>
+                </dl>
+
+                <!-- CTAs -->
+                <div class="flex flex-col items-center justify-center gap-4 sm:flex-row">
+                    <a href="https://futurevisionlabs.itch.io/vibe-ide"
+                       target="_blank"
+                       class="group inline-flex items-center justify-center gap-2 rounded-full bg-cyan-500 px-8 py-4 text-base font-semibold text-slate-950 shadow-lg shadow-cyan-500/25 transition-all hover:-translate-y-0.5 hover:bg-cyan-400 hover:shadow-xl hover:shadow-cyan-400/30">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Download from itch.io
+                    </a>
+                    <a href="#features"
+                       class="inline-flex items-center justify-center gap-2 rounded-full border border-slate-600 bg-slate-800/50 px-8 py-4 text-base font-semibold text-white backdrop-blur-sm transition-all hover:border-cyan-500/50 hover:bg-slate-800 hover:text-cyan-400">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        View all features
+                    </a>
+                </div>
+
+                <!-- Trust indicators -->
+                <div class="mt-12 flex flex-wrap items-center justify-center gap-8 text-sm text-slate-500">
+                    <div class="flex items-center gap-2">
+                        <svg class="h-5 w-5 text-green-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                        </svg>
+                        <span>No monthly fees</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <svg class="h-5 w-5 text-green-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                        </svg>
+                        <span>Open‑source templates</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <svg class="h-5 w-5 text-green-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                        </svg>
+                        <span>WYSIWYG Markdown</span>
+                    </div>
+                </div>
             </div>
-            <h1 class="hero-title">VIBE IDE</h1>
-            <div id="acronymRotator" class="acronym-rotator">
-                <span class="acronym-text active">Versatile Integrated Beginner Environment</span>
-            </div>
-            <p class="hero-subtitle">Beginner-Friendly Coding Environment with AI Assistance</p>
-            <p class="hero-description">
-                The coding environment that makes programming accessible, fun, and collaborative. 
-                Built for beginners, amateurs, young people, and kids who want to learn to code 
-                without the intimidation factor.
-            </p>
-            <div class="hero-buttons">
-                <a href="https://futurevisionlabs.itch.io/vibe-ide" class="btn btn-primary" target="_blank">
-                    View on itch.io
-                </a>
-                <a href="#features" class="btn btn-secondary">Learn More</a>
+        </div>
+    </section>
+
+    <!-- Cursy's Corner showcase -->
+    <section class="border-t border-slate-800 bg-slate-950/90">
+        <div class="mx-auto max-w-6xl px-6 py-14 lg:py-20">
+            <div class="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
+                <div>
+                    <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                        Coding environment, digital sanctuary
+                    </h2>
+                    <p class="mt-4 text-base leading-relaxed text-slate-300 sm:text-lg">
+                        <strong class="font-semibold text-slate-100">Cursy&apos;s Corner</strong> turns the IDE into a place you want to sit in:
+                        isometric room, notes, Freesound-powered music, and a co-host who narrates what the agent is doing.
+                        Not a grey editor with a sidebar. A home base for learners and indie makers.
+                    </p>
+                    <p class="mt-3 text-sm text-slate-400">
+                        Shipped today: Monaco, templates, live Phaser preview, project journals, editable Markdown preview.
+                        In progress: local agent loop (LM Studio) and Project Recall (RAG over your workspace).
+                    </p>
+                </div>
+                <figure class="overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-900 shadow-xl shadow-cyan-500/10 ring-1 ring-cyan-500/20">
+                    <img
+                        src="assets/cursys-corner-screenshot.png"
+                        width="1280"
+                        height="720"
+                        alt="VIBE IDE showing Cursy's Corner isometric room beside the code editor"
+                        class="block w-full h-auto"
+                        loading="lazy"
+                    />
+                    <figcaption class="border-t border-slate-800 px-4 py-2 text-center text-xs text-slate-500">
+                        Cursy&apos;s Corner in VIBE IDE (alpha build)
+                    </figcaption>
+                </figure>
             </div>
         </div>
     </section>
 
     <!-- Features Section -->
-    <section id="features" class="features">
-        <div class="container">
-            <h2 class="section-title">Why VIBE IDE?</h2>
-            <div class="features-grid">
-                <div class="feature-card">
-                    <div class="feature-icon">🤖</div>
-                    <h3 class="feature-title">Proactive AI Assistant</h3>
-                    <p class="feature-description">
-                        Your AI buddy doesn't just wait for questions - it observes, suggests, 
-                        and helps you learn as you code. Powered by GPT-4o-mini for smart, 
-                        responsive assistance.
+    <section id="features" class="border-t border-slate-800 bg-slate-950/60">
+        <div class="mx-auto max-w-6xl px-6 py-16 lg:py-20">
+            <div class="text-center">
+                <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                    Why VIBE IDE?
+                </h2>
+                <p class="mt-3 text-base text-slate-300 sm:text-lg max-w-2xl mx-auto">
+                    A beginner‑friendly desktop IDE with real files, a visible agent loop, and features
+                    we built early because learners deserve pro tools without pro intimidation.
+                </p>
+            </div>
+
+            <div class="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                <!-- Explainable local agent -->
+                <div class="flex flex-col rounded-2xl border border-cyan-500/30 bg-slate-900/60 p-6 shadow-sm shadow-cyan-950/30">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M12 3a4 4 0 00-4 4v1H7a3 3 0 000 6h1v1a4 4 0 108 0v-1h1a3 3 0 000-6h-1V7a4 4 0 00-4-4z" />
+                        </svg>
+                    </div>
+                    <h3 class="mt-4 text-lg font-semibold text-white">Explainable local agent</h3>
+                    <p class="mt-2 text-sm text-slate-300">
+                        Bounded agent loop: list and read files, propose edits, you approve.
+                        Powered by <strong class="text-slate-200">LM Studio</strong> and a <strong class="text-slate-200">local model you choose</strong> on your GPU.
+                        Optional cloud BYOK later for harder tasks.
                     </p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">😊</div>
-                    <h3 class="feature-title">Friendly Interface</h3>
-                    <p class="feature-description">
-                        Beautiful, welcoming UI that makes coding feel approachable, not intimidating.
+
+                <!-- Cursy's Corner -->
+                <div class="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-sm shadow-slate-950/40">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/10 text-purple-300">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M12 4a8 8 0 100 16 8 8 0 000-16zm-3 7h.01M15 11h.01M9 15c.6.8 1.6 1.5 3 1.5s2.4-.7 3-1.5" />
+                        </svg>
+                    </div>
+                    <h3 class="mt-4 text-lg font-semibold text-white">Cursy&apos;s Corner</h3>
+                    <p class="mt-2 text-sm text-slate-300">
+                        Isometric co-host space: music, notes, and personality beside your editor.
+                        Coding feels like visiting a room, not fighting a toolchain.
                     </p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">📚</div>
-                    <h3 class="feature-title">Educational Focus</h3>
-                    <p class="feature-description">
-                        Built-in learning tools, explanations, and guidance to help you grow as a coder.
+
+                <!-- Educational Focus -->
+                <div class="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-sm shadow-slate-950/40">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M12 6l-8 4 8 4 8-4-8-4z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M4 14l8 4 8-4M4 10v8M20 10v8" />
+                        </svg>
+                    </div>
+                    <h3 class="mt-4 text-lg font-semibold text-white">Educational focus</h3>
+                    <p class="mt-2 text-sm text-slate-300">
+                        Built‑in learning tools, explanations, and guidance to help you grow as a coder –
+                        ideal for classrooms, workshops, and self‑study.
                     </p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🎮</div>
-                    <h3 class="feature-title">Project Templates</h3>
-                    <p class="feature-description">
-                        Start with templates for web apps, games, data analysis, and more.
+
+                <!-- Project Templates -->
+                <div class="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-sm shadow-slate-950/40">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M4 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v1H4V7z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M4 11h16v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6z" />
+                        </svg>
+                    </div>
+                    <h3 class="mt-4 text-lg font-semibold text-white">Project templates</h3>
+                    <p class="mt-2 text-sm text-slate-300">
+                        Start quickly with templates for web apps, games, data analysis, creative projects and more –
+                        no blank‑page paralysis.
                     </p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🔌</div>
-                    <h3 class="feature-title">Extensible</h3>
-                    <p class="feature-description">
-                        Custom extension system to add features and customize your coding experience.
+
+                <!-- Project Recall (RAG) -->
+                <div class="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-sm shadow-slate-950/40">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                    <h3 class="mt-4 text-lg font-semibold text-white">Project Recall <span class="text-xs font-normal text-amber-300/90">(roadmap)</span></h3>
+                    <p class="mt-2 text-sm text-slate-300">
+                        Local RAG over your workspace: the agent pulls relevant snippets before it acts,
+                        with hybrid search so filenames and project words still match.
                     </p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">💡</div>
-                    <h3 class="feature-title">Vibe Coding</h3>
-                    <p class="feature-description">
-                        Embrace AI-assisted coding. It's not cheating - it's collaboration.
+
+                <!-- Vibe Coding -->
+                <div class="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-sm shadow-slate-950/40">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M9 12h6m-3-3v6M5 12a7 7 0 1114 0 7 7 0 01-14 0z" />
+                        </svg>
+                    </div>
+                    <h3 class="mt-4 text-lg font-semibold text-white">Vibe coding</h3>
+                    <p class="mt-2 text-sm text-slate-300">
+                        Embrace AI‑assisted coding. It's not cheating – it's collaboration between you and your tools.
                     </p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🔒</div>
-                    <h3 class="feature-title">You Own Your Data</h3>
-                    <p class="feature-description">
-                        Everything runs locally. Your code, your database, your projects - all yours. 
-                        No vendor lock-in, no data ownership issues.
+
+                <!-- You Own Your Data -->
+                <div class="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-sm shadow-slate-950/40">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M12 11c-1.105 0-2 .672-2 1.5S10.895 14 12 14s2-.672 2-1.5S13.105 11 12 11z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M17 9V7a5 5 0 10-10 0v2m-1 2h12a2 2 0 012 2v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5a2 2 0 012-2z" />
+                        </svg>
+                    </div>
+                    <h3 class="mt-4 text-lg font-semibold text-white">You own your data</h3>
+                    <p class="mt-2 text-sm text-slate-300">
+                        Everything runs locally. Your code, your database, your projects – all yours.
+                        No vendor lock‑in, no data‑harvesting SaaS.
                     </p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">💰</div>
-                    <h3 class="feature-title">No Expensive SaaS</h3>
-                    <p class="feature-description">
-                        Complete solution without expensive monthly subscriptions. 
-                        No need for Base44, Lovable, or other pricey AI SaaS tools.
+
+                <!-- No Expensive SaaS -->
+                <div class="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-sm shadow-slate-950/40">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M17 9V7a5 5 0 10-10 0v2M6 10h12a2 2 0 012 2v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5a2 2 0 012-2z" />
+                        </svg>
+                    </div>
+                    <h3 class="mt-4 text-lg font-semibold text-white">No expensive SaaS</h3>
+                    <p class="mt-2 text-sm text-slate-300">
+                        One‑time purchase instead of monthly subscriptions. No need for Base44, Lovable,
+                        or other pricey AI SaaS tools just to get started.
                     </p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">❤️</div>
-                    <h3 class="feature-title">Built by Vibe Coders like YOU!</h3>
-                    <p class="feature-description">
-                        FutureVision Labs is an indie studio, not an uncaring corporate entity. 
-                        We're vibe coders building tools for vibe coders. Your feedback shapes 
-                        the future of VIBE IDE.
+
+                <!-- Built by Vibe Coders -->
+                <div class="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-sm shadow-slate-950/40">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M12 11c1.657 0 3-1.567 3-3.5S13.657 4 12 4 9 5.567 9 7.5 10.343 11 12 11z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M6 20a6 6 0 1112 0H6z" />
+                        </svg>
+                    </div>
+                    <h3 class="mt-4 text-lg font-semibold text-white">Built by vibe coders like you</h3>
+                    <p class="mt-2 text-sm text-slate-300">
+                        FutureVision Labs is an indie studio, not a faceless corporation. 
+                        We're vibe coders building tools for vibe coders – your feedback shapes where VIBE IDE goes next.
                     </p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🎵</div>
-                    <h3 class="feature-title">Cursy's Corner Music & Video Player</h3>
-                    <p class="feature-description">
-                        Built-in music and video player in Cursy's Corner! Search and play music 
-                        and SFX from Freesound.org directly in the IDE. Perfect for coding with 
-                        your favorite tunes or finding the perfect sound effect for your projects.
+
+                <!-- Cursy's Corner Music & Video Player -->
+                <div class="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-sm shadow-slate-950/40">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M9 19V6l11-2v13" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M9 19a3 3 0 11-6 0 3 3 0 016 0zm11 0a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </div>
+                    <h3 class="mt-4 text-lg font-semibold text-white">Cursy's Corner music &amp; video player</h3>
+                    <p class="mt-2 text-sm text-slate-300">
+                        Search and play music and SFX from Freesound.org directly in the IDE.
+                        Perfect for coding with tunes or sound‑designing your projects.
                     </p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">📝</div>
-                    <h3 class="feature-title">Cursy's Notes</h3>
-                    <p class="feature-description">
-                        Quick note-taking feature right in Cursy's Corner! Jot down ideas, reminders, 
-                        or code snippets. Your notes are saved locally and always accessible while coding.
+
+                <!-- Cursy's Notes -->
+                <div class="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-sm shadow-slate-950/40">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M7 7h10M7 11h6m-6 4h4" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M5 4a2 2 0 012-2h7.586a2 2 0 011.414.586L19.414 6A2 2 0 0120 7.414V20a2 2 0 01-2 2H7a2 2 0 01-2-2V4z" />
+                        </svg>
+                    </div>
+                    <h3 class="mt-4 text-lg font-semibold text-white">Cursy's Notes</h3>
+                    <p class="mt-2 text-sm text-slate-300">
+                        Quick note‑taking right in Cursy's Corner. Jot ideas, reminders, or snippets – 
+                        everything stays local and close to your code.
                     </p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🎨</div>
-                    <h3 class="feature-title">Music & SFX Assets Loader</h3>
-                    <p class="feature-description">
-                        Load music and sound effects directly into your projects! Search Freesound.org, 
-                        preview tracks, and add them to your project assets. Perfect for game development 
-                        and multimedia projects.
+
+                <!-- Music & SFX Assets Loader -->
+                <div class="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-sm shadow-slate-950/40">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M4 4h7l1.5 3H20a1 1 0 01.9 1.435l-2.4 4.8A2 2 0 0116.7 15H9.3a2 2 0 01-1.8-1.2L4 5.5V4z" />
+                            <circle cx="9" cy="18" r="2" />
+                            <circle cx="17" cy="18" r="2" />
+                        </svg>
+                    </div>
+                    <h3 class="mt-4 text-lg font-semibold text-white">Music &amp; SFX assets loader</h3>
+                    <p class="mt-2 text-sm text-slate-300">
+                        Load music and sound effects directly into your projects. Search, preview and download
+                        from Freesound.org into your asset pipeline.
                     </p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">✍️</div>
-                    <h3 class="feature-title">WYSIWYG Markdown Editor</h3>
-                    <p class="feature-description">
-                        Rich text editing with full markdown support! Format your code, documentation, 
-                        and notes with a beautiful WYSIWYG editor. See your formatting in real-time 
-                        while you type.
+
+                <!-- WYSIWYG Markdown Editor -->
+                <div class="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-sm shadow-slate-950/40">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M5 7h14M5 12h8m-8 5h10" />
+                            <rect x="4" y="4" width="16" height="16" rx="2" ry="2" />
+                        </svg>
+                    </div>
+                    <h3 class="mt-4 text-lg font-semibold text-white">WYSIWYG Markdown editor</h3>
+                    <p class="mt-2 text-sm text-slate-300">
+                        Markdown files open in live preview first (editable WYSIWYG), with raw Markdown under the hood.
+                        Docs and journals without scaring beginners with syntax on day one.
                     </p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">&lt;/&gt;</div>
-                    <h3 class="feature-title">Monaco-Based Code Editor</h3>
-                    <p class="feature-description">
-                        Experience powerful, familiar code editing with intelligent autocompletion, 
-                        syntax highlighting, and integrated debugging. Powered by the same robust 
-                        engine as VS Code and Cursor - professional-grade editing made accessible.
+
+                <!-- Monaco-Based Code Editor -->
+                <div class="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-sm shadow-slate-950/40">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M8 9l-3 3 3 3m8-6l3 3-3 3M11 6l2 12" />
+                        </svg>
+                    </div>
+                    <h3 class="mt-4 text-lg font-semibold text-white">Monaco‑based code editor</h3>
+                    <p class="mt-2 text-sm text-slate-300">
+                        Professional‑grade editing with intelligent autocompletion, syntax highlighting 
+                        and integrated debugging, powered by the same engine as VS Code and Cursor.
                     </p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon">📖</div>
-                    <h3 class="feature-title">Project Journals & CML System</h3>
-                    <p class="feature-description">
-                        Automated project documentation with Compressed Markup Language (CML)! 
-                        Track your development journey, log milestones, and transform your project 
-                        lore into narrative stories. Your coding story, beautifully documented.
+
+                <!-- Project Journals & CML System -->
+                <div class="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-sm shadow-slate-950/40">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M12 8v8m-3-3h6M5 5a2 2 0 012-2h7.586a2 2 0 011.414.586L19.414 7A2 2 0 0120 8.414V19a2 2 0 01-2 2H7a2 2 0 01-2-2V5z" />
+                        </svg>
+                    </div>
+                    <h3 class="mt-4 text-lg font-semibold text-white">Project journals &amp; CML system</h3>
+                    <p class="mt-2 text-sm text-slate-300">
+                        Automated project journaling with Compressed Markup Language (CML). 
+                        Track your development journey and turn your logs into narrative stories.
                     </p>
                 </div>
             </div>
@@ -205,378 +447,139 @@
     </section>
 
     <!-- Why Choose Section -->
-    <section class="why-choose">
-        <div class="container">
-            <h2 class="section-title">Why Choose VIBE IDE?</h2>
-            <div class="why-choose-content">
-                <div class="why-choose-item">
-                    <h3>🔒 Your Data, Your Control</h3>
+    <section class="border-t border-slate-800 bg-slate-950">
+        <div class="mx-auto max-w-5xl px-6 py-16 lg:py-20">
+            <div class="text-center">
+                <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                    Why choose VIBE IDE?
+                </h2>
+                <p class="mt-3 text-base text-slate-300 sm:text-lg max-w-2xl mx-auto">
+                    A serious development environment with friendly vibes, designed for beginners but powerful enough
+                    for pros and educators.
+                </p>
+            </div>
+
+            <div class="mt-10 grid gap-6 md:grid-cols-3">
+                <div class="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M12 11c-1.105 0-2 .672-2 1.5S10.895 14 12 14s2-.672 2-1.5S13.105 11 12 11z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M17 9V7a5 5 0 10-10 0v2M6 10h12a2 2 0 012 2v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5a2 2 0 012-2z" />
+                        </svg>
+                    </div>
+                    <h3 class="mt-4 text-lg font-semibold text-white">Your data, your control</h3>
+                    <p class="mt-2 text-sm text-slate-300">
+                        Unlike SaaS platforms that own your data, VIBE IDE runs completely locally. Your code,
+                        database and projects never leave your machine. No lock‑in, no surprise usage limits.
+                    </p>
+                </div>
+
+                <div class="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2-1.343-2-3-2z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M5 11a7 7 0 0114 0c0 4-3 7-7 7s-7-3-7-7z" />
+                        </svg>
+                    </div>
+                    <h3 class="mt-4 text-lg font-semibold text-white">Affordable &amp; complete</h3>
+                    <p class="mt-2 text-sm text-slate-300">
+                        No need for multiple subscriptions to Base44, Lovable or other AI tools. One environment with
+                        editor, live preview, localhost server, database and AI assistant – learn to code, not to use a platform.
+                    </p>
+                </div>
+
+                <div class="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/10 text-purple-400">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M4 6h16M4 10h16M4 14h10M4 18h6" />
+                        </svg>
+                    </div>
+                    <h3 class="mt-4 text-lg font-semibold text-white">Complete dev environment</h3>
+                    <p class="mt-2 text-sm text-slate-300">
+                        Built‑in localhost server for PHP/web apps, database support and full backend capabilities. 
+                        No external tools required – perfect for teaching full‑stack development without setup headaches.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- Roadmap -->
+    <section id="roadmap" class="border-t border-slate-800 bg-gradient-to-b from-slate-950 to-slate-900/80">
+        <div class="mx-auto max-w-4xl px-6 py-16 lg:py-20">
+            <div class="text-center">
+                <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">Roadmap</h2>
+                <p class="mt-3 text-base text-slate-300 sm:text-lg max-w-2xl mx-auto">
+                    We are not trying to beat Cursor. We are building the first agent IDE you can
+                    <em>see through</em> and run locally.
+                </p>
+            </div>
+            <ol class="mt-10 space-y-4">
+                <li class="flex gap-4 rounded-xl border border-emerald-500/25 bg-slate-900/70 p-5">
+                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-sm font-bold text-emerald-300">✓</span>
+                    <div>
+                        <h3 class="font-semibold text-white">Shipped in alpha</h3>
+                        <p class="mt-1 text-sm text-slate-300">Monaco editor, Cursy&apos;s Corner, Phaser live preview, WYSIWYG Markdown, templates, project journals, itch.io builds.</p>
+                    </div>
+                </li>
+                <li class="flex gap-4 rounded-xl border border-amber-500/30 bg-slate-900/70 p-5">
+                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-sm font-bold text-amber-200">→</span>
+                    <div>
+                        <h3 class="font-semibold text-white">LM Studio + bounded agent</h3>
+                        <p class="mt-1 text-sm text-slate-300">Gemma&nbsp;4&nbsp;E4B default, tool loop with step cap, approve-before-write, Cursy narrates each action.</p>
+                    </div>
+                </li>
+                <li class="flex gap-4 rounded-xl border border-slate-700 bg-slate-900/50 p-5">
+                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-700 text-sm font-bold text-slate-300">3</span>
+                    <div>
+                        <h3 class="font-semibold text-white">Project Recall (RAG)</h3>
+                        <p class="mt-1 text-sm text-slate-300">Local embeddings over project files and notes so small models stay on target.</p>
+                    </div>
+                </li>
+                <li class="flex gap-4 rounded-xl border border-slate-800 bg-slate-900/40 p-5">
+                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-slate-400">+</span>
+                    <div>
+                        <h3 class="font-semibold text-white">Optional cloud boost</h3>
+                        <p class="mt-1 text-sm text-slate-300">Bring your own API key when you outgrow the local brain. Still explainable. Still your files.</p>
+                    </div>
+                </li>
+            </ol>
+        </div>
+    </section>
+
+    <!-- About -->
+    <section id="about" class="border-t border-slate-800 bg-slate-950/90">
+        <div class="mx-auto max-w-4xl px-6 py-16 lg:py-20">
+            <div class="flex flex-col gap-6">
+                <div>
+                    <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                        About VIBE IDE
+                    </h2>
+                    <p class="mt-3 text-base text-slate-300 sm:text-lg">
+                        VIBE IDE began as <strong>GameForge</strong>, a Phaser-first game lab. It grew into a
+                        beginner-friendly desktop IDE from <strong>FutureVision Labs</strong> and <strong>Team DC</strong>.
+                    </p>
+                </div>
+
+                <div class="space-y-3 text-sm leading-relaxed text-slate-300 sm:text-base">
                     <p>
-                        Unlike expensive SaaS platforms that <strong>own your data</strong>, VIBE IDE runs 
-                        completely locally. Your code, your database, your projects - everything stays on 
-                        your machine. <strong>You have full control</strong> - no vendor lock-in, no data 
-                        ownership issues, no privacy concerns.
+                        We believe <strong>vibe coding</strong> means collaboration with your tools, not cheating.
+                        In 2026 that means teaching <strong>agents</strong> honestly: what they read, what they change, and when you say yes.
                     </p>
-                </div>
-                <div class="why-choose-item">
-                    <h3>💰 Affordable & Complete</h3>
                     <p>
-                        No need for expensive monthly subscriptions to Base44, Lovable, or other AI SaaS 
-                        tools. VIBE IDE gives you <strong>everything you need</strong> - code editor, live 
-                        preview, localhost server, database, AI assistant - all in one affordable package. 
-                        <strong>Learn to code, not to use a platform.</strong>
+                        VIBE IDE is for kids, teens, hobbyists, classrooms, and indie makers who want real code,
+                        local privacy, and an assistant with a face in Cursy&apos;s Corner.
                     </p>
-                </div>
-                <div class="why-choose-item">
-                    <h3>🚀 Complete Development Environment</h3>
-                    <p>
-                        Built-in localhost server (XAMPP-style) for PHP/web apps, database support, 
-                        and full backend capabilities. <strong>No external tools needed</strong> - everything 
-                        works together seamlessly. Perfect for learning full-stack development without 
-                        the complexity.
-                    </p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Future Features Section -->
-    <section class="future-features">
-        <div class="container">
-            <h2 class="section-title">Coming Soon (v2.0+)</h2>
-            <div class="future-features-grid">
-                <div class="future-feature-card">
-                    <div class="future-feature-icon">☁️</div>
-                    <h3 class="future-feature-title">Phase 11: Cloud Sync & Mobile</h3>
-                    <p class="future-feature-description">
-                        Uninterrupted workflow like GitHub Copilot - code on desktop, review on laptop, 
-                        make quick edits on mobile. All your context, preferences, progress, and Cursy 
-                        chat history sync seamlessly across devices.
-                    </p>
-                    <ul class="future-feature-list">
-                        <li>Cloud sync service</li>
-                        <li>Mobile app (iOS/Android)</li>
-                        <li>Full Cursy chat on mobile</li>
-                        <li>Cross-platform seamless workflow</li>
-                        <li>Offline support with sync</li>
-                    </ul>
-                </div>
-                <div class="future-feature-card">
-                    <div class="future-feature-icon">🎤</div>
-                    <h3 class="future-feature-title">Phase 12: Cursy Speaks!</h3>
-                    <p class="future-feature-description">
-                        Give Cursy a voice! Text-to-speech integration so you can hear Cursy's responses 
-                        spoken aloud. Perfect for accessibility, multitasking, and making the coding 
-                        experience more engaging. Based on the Cursy_Speak experiment - where Cursy 
-                        chose "Rachel" as the voice, revealing a feminine non-binary personality!
-                    </p>
-                    <ul class="future-feature-list">
-                        <li>Text-to-speech integration (Windows SAPI, ElevenLabs)</li>
-                        <li>Voice selection UI</li>
-                        <li>Real-time narration</li>
-                        <li>Mobile voice support</li>
-                        <li>Accessibility features</li>
-                    </ul>
-                </div>
-                <div class="future-feature-card">
-                    <div class="future-feature-icon">🤖</div>
-                    <h3 class="future-feature-title">Phase 13: Cursy Model</h3>
-                    <p class="future-feature-description">
-                        The ultimate meta - create a custom AI model based on Cursy's personality, 
-                        approach, and collaboration style. Built in Cursor IDE, inspired by Cursor IDE, 
-                        now available as "Cursy Model" - the AI assistant that understands vibe coding, 
-                        collaboration, and beginner-friendly development.
-                    </p>
-                    <ul class="future-feature-list">
-                        <li>Custom AI model fine-tuned on Cursy's personality</li>
-                        <li>Agent Persona system as model foundation</li>
-                        <li>Open-source Cursy model</li>
-                        <li>Model marketplace integration</li>
-                        <li>Community-trained Cursy variants</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- PRO Features Section -->
-    <section id="pro" class="pro-features">
-        <div class="container">
-            <h2 class="section-title">🚀 PRO Features</h2>
-            <p class="pro-subtitle">
-                <strong>Beginner-friendly doesn't mean beginner-only.</strong> VIBE IDE PRO brings 
-                serious power to serious developers. Where beginners start, pros stay.
-            </p>
-            <div class="pro-features-grid">
-                <div class="pro-feature-card">
-                    <div class="pro-feature-icon">🎥</div>
-                    <h3 class="pro-feature-title">Audio & Video Analysis</h3>
-                    <p class="pro-feature-description">
-                        Upload audio or video files directly to Cursy. Get code reviews from screen 
-                        recordings, analyze tutorial videos, debug error sounds, or get feedback on 
-                        your creative projects. Full multimodal AI support.
-                    </p>
-                    <ul class="pro-feature-list">
-                        <li>Video frame analysis</li>
-                        <li>Audio transcription & analysis</li>
-                        <li>Screen recording code reviews</li>
-                        <li>Multi-format support (MP4, MP3, WAV, etc.)</li>
-                    </ul>
-                    <div class="pro-badge">PRO</div>
-                </div>
-                <div class="pro-feature-card">
-                    <div class="pro-feature-icon">🤖</div>
-                    <h3 class="pro-feature-title">Multi-Model AI Support</h3>
-                    <p class="pro-feature-description">
-                        Access multiple AI models simultaneously. Switch between GPT-5o-mini, GPT-4, Claude, Gemini, 
-                        and custom models. Load balance across subscriptions for optimal performance 
-                        and cost efficiency.
-                    </p>
-                    <ul class="pro-feature-list">
-                        <li>Multiple AI model access</li>
-                        <li>Smart load balancing</li>
-                        <li>Custom model integration</li>
-                        <li>Cost optimization tools</li>
-                    </ul>
-                    <div class="pro-badge">PRO</div>
-                </div>
-                <div class="pro-feature-card">
-                    <div class="pro-feature-icon">⚡</div>
-                    <h3 class="pro-feature-title">Advanced Rate Limits</h3>
-                    <p class="pro-feature-description">
-                        Higher API rate limits, priority processing, and faster response times. 
-                        Perfect for professional development workflows and team collaboration.
-                    </p>
-                    <ul class="pro-feature-list">
-                        <li>10x higher rate limits</li>
-                        <li>Priority queue processing</li>
-                        <li>Faster response times</li>
-                        <li>Team collaboration features</li>
-                    </ul>
-                    <div class="pro-badge">PRO</div>
-                </div>
-                <div class="pro-feature-card">
-                    <div class="pro-feature-icon">🔧</div>
-                    <h3 class="pro-feature-title">Advanced Customization</h3>
-                    <p class="pro-feature-description">
-                        Deep customization options, custom themes, advanced editor settings, and 
-                        extensibility through plugins. Make VIBE IDE truly yours.
-                    </p>
-                    <ul class="pro-feature-list">
-                        <li>Custom themes & UI</li>
-                        <li>Plugin system</li>
-                        <li>Advanced editor config</li>
-                        <li>Workflow automation</li>
-                    </ul>
-                    <div class="pro-badge">PRO</div>
-                </div>
-                <div class="pro-feature-card">
-                    <div class="pro-feature-icon">📊</div>
-                    <h3 class="pro-feature-title">Analytics & Insights</h3>
-                    <p class="pro-feature-description">
-                        Track your coding patterns, productivity metrics, and AI usage. Get insights 
-                        into your development workflow and optimize your process.
-                    </p>
-                    <ul class="pro-feature-list">
-                        <li>Usage analytics</li>
-                        <li>Productivity tracking</li>
-                        <li>Code quality metrics</li>
-                        <li>Exportable reports</li>
-                    </ul>
-                    <div class="pro-badge">PRO</div>
-                </div>
-                <div class="pro-feature-card">
-                    <div class="pro-feature-icon">💬</div>
-                    <h3 class="pro-feature-title">Priority Support</h3>
-                    <p class="pro-feature-description">
-                        Get priority support, direct access to the development team, and early access 
-                        to new features. Your feedback shapes VIBE IDE's future.
-                    </p>
-                    <ul class="pro-feature-list">
-                        <li>Priority support tickets</li>
-                        <li>Direct team access</li>
-                        <li>Early feature access</li>
-                        <li>Beta testing opportunities</li>
-                    </ul>
-                    <div class="pro-badge">PRO</div>
-                </div>
-            </div>
-            <div class="pro-cta">
-                <p class="pro-coming-soon">
-                    <strong>PRO Plan Coming Soon!</strong> Sign up for updates to be notified when PRO features launch.
-                </p>
-                <p class="pro-note">
-                    VIBE IDE will always have a powerful free tier. PRO features are for developers 
-                    who need advanced capabilities and want to support the project's growth.
-                </p>
-            </div>
-        </div>
-    </section>
-
-    <!-- About Section -->
-    <section id="about" class="about">
-        <div class="container">
-            <h2 class="section-title">The Story</h2>
-            <div class="about-content">
-                <p class="about-text">
-                    VIBE IDE started as <strong>GameForge</strong> - a Phaser.js-exclusive game 
-                    development environment. But we realized the core IDE infrastructure could 
-                    be so much more.
-                </p>
-                <p class="about-text">
-                    We evolved it into <strong>VIBE IDE</strong> - a beginner-friendly coding 
-                    environment that makes programming accessible to everyone. No gatekeeping. 
-                    No intimidation. Just collaboration, learning, and building.
-                </p>
-                <p class="about-text">
-                    Built with transparency, designed for beginners, and powered by the 
-                    <strong>"vibe coding"</strong> philosophy - where AI assistance is 
-                    collaboration, not cheating.
-                </p>
-            </div>
-        </div>
-    </section>
-
-    <!-- Book Section -->
-    <section id="book" class="book-section">
-        <div class="container">
-            <h2 class="section-title">📚 The VIBE IDE Chronicles</h2>
-            <div class="book-content">
-                <p class="book-description">
-                    <strong>Book One: "The Foundation"</strong> - The complete story of how Team DC built VIBE IDE from GameForge to Cursy's Corner. 
-                    A true story of collaboration, code, and coffee - how a human and an AI built something amazing together.
-                </p>
-                <div class="book-details">
-                    <div class="book-stat">
-                        <strong>13 Chapters</strong>
-                        <span>~15,000 words</span>
-                    </div>
-                    <div class="book-stat">
-                        <strong>3 Days</strong>
-                        <span>From start to Phase 1 completion</span>
-                    </div>
-                    <div class="book-stat">
-                        <strong>30 Hours</strong>
-                        <span>Of focused development</span>
-                    </div>
-                    <div class="book-stat">
-                        <strong>47 Pages</strong>
-                        <span>Interactive flipbook</span>
-                    </div>
-                </div>
-                <div class="book-cta">
-                    <p style="margin-bottom: 20px; font-size: 1.1em; color: #ffd700;">
-                        <strong>Available Now!</strong> Read the interactive flipbook directly on the website - no downloads required!
-                    </p>
-                    <p style="color: #888; font-style: italic;">
-                        Written by Team DC (Damo & Cursy) | Created with Heyzine
-                    </p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Audiobook Section -->
-    <section id="audiobook" class="audiobook-section">
-        <div class="container">
-            <h2 class="section-title">🎙️ The VIBE IDE Chronicles - Audiobook</h2>
-            <div class="audiobook-content">
-                <p class="audiobook-description">
-                    <strong>Listen to the complete story!</strong> Narrated by Damo and Cursy (Rachel voice). 
-                    The full audiobook experience - all chapters available right here on the website. 
-                    <strong>No gatekeepers, no platform rules - just the story, your way!</strong>
-                </p>
-                
-                <div class="audiobook-player">
-                    <div class="player-controls">
-                        <button id="prev-chapter" class="btn-control" title="Previous Chapter">⏮ Previous</button>
-                        <button id="play-pause" class="btn-play" title="Play/Pause">▶ Play</button>
-                        <button id="next-chapter" class="btn-control" title="Next Chapter">Next ⏭</button>
-                    </div>
-                    
-                    <div class="player-info">
-                        <span id="current-chapter" class="chapter-name">Opening</span>
-                        <span id="chapter-progress" class="progress-time">0:00 / 0:00</span>
-                    </div>
-                    
-                    <audio id="audio-player" controls preload="metadata">
-                        <source src="assets/audio/audiobook/opening.mp3" type="audio/mpeg">
-                        Your browser does not support the audio element.
-                    </audio>
-                    
-                    <div class="progress-bar-container">
-                        <div class="progress-bar">
-                            <div id="progress" class="progress-fill"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="chapters-list">
-                    <h3>Chapters</h3>
-                    <ul id="chapters" class="chapters-ul">
-                        <li class="chapter-item active" data-file="opening.mp3" data-name="Opening">Opening</li>
-                        <li class="chapter-item" data-file="chapter1.mp3" data-name="Chapter 1 - 'The Pivot'">Chapter 1 - 'The Pivot'</li>
-                        <li class="chapter-item" data-file="chapter2.mp3" data-name="Chapter 2 - 'The Name Game'">Chapter 2 - 'The Name Game'</li>
-                        <li class="chapter-item" data-file="chapter3.mp3" data-name="Chapter 3 - 'The Chatbox Revolution'">Chapter 3 - 'The Chatbox Revolution'</li>
-                        <li class="chapter-item" data-file="chapter4.mp3" data-name="Chapter 4 - 'Self Awareness & Identity'">Chapter 4 - 'Self Awareness & Identity'</li>
-                        <li class="chapter-item" data-file="chapter5.mp3" data-name="Chapter 5 - 'Coding Day'">Chapter 5 - 'Coding Day'</li>
-                        <li class="chapter-item" data-file="chapter6.mp3" data-name="Chapter 6 - 'Stop Apologizing For Vibe Coding'">Chapter 6 - 'Stop Apologizing For Vibe Coding'</li>
-                        <li class="chapter-item" data-file="chapter7.mp3" data-name="Chapter 7 - 'Cursy's Corner - The Placeholder'">Chapter 7 - 'Cursy's Corner - The Placeholder'</li>
-                        <li class="chapter-item" data-file="chapter8.mp3" data-name="Chapter 8 - 'Cursy's Corner - The Transformation'">Chapter 8 - 'Cursy's Corner - The Transformation'</li>
-                        <li class="chapter-item" data-file="chapter9.mp3" data-name="Chapter 9 - 'The Speech Bubbles Saga'">Chapter 9 - 'The Speech Bubbles Saga'</li>
-                        <li class="chapter-item" data-file="chapter10.mp3" data-name="Chapter 10 - 'The Math Correction'">Chapter 10 - 'The Math Correction'</li>
-                        <li class="chapter-item" data-file="chapter11.mp3" data-name="Chapter 11 - 'The Housewarming'">Chapter 11 - 'The Housewarming'</li>
-                        <li class="chapter-item" data-file="chapter12.mp3" data-name="Chapter 12 - 'The Community'">Chapter 12 - 'The Community'</li>
-                        <li class="chapter-item" data-file="chapter13.mp3" data-name="Chapter 13 - 'The Future'">Chapter 13 - 'The Future'</li>
-                        <li class="chapter-item" data-file="conclusion.mp3" data-name="Conclusion">Conclusion</li>
-                    </ul>
-                </div>
-
-                <div class="download-section">
-                    <h3>Download</h3>
-                    <p>Download individual chapters or listen directly in your browser!</p>
-                    <p style="color: #888; font-style: italic; margin-top: 10px;">
-                        All files are MP3 format. Right-click any chapter above to download, or use the audio player controls.
-                    </p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Screenplay Section -->
-    <section id="screenplay" class="screenplay-section">
-        <div class="container">
-            <h2 class="section-title">🎬 The VIBE IDE Chronicles - Feature Screenplay</h2>
-            <div class="screenplay-content">
-                <p class="screenplay-description">
-                    <strong>The first publicly available AI-written feature screenplay!</strong> Experience the story of VIBE IDE 
-                    as a full-length cinematic screenplay. Written by Cursy & Damo using Markdown-to-Movie Mode, this 110-minute 
-                    feature film script transforms "Book One: The Foundation" into a complete cinematic experience with expanded 
-                    scenes, character development, visual storytelling, and emotional depth.
-                </p>
-                <div class="screenplay-details">
-                    <div class="screenplay-stat">
-                        <strong>27 Scenes</strong>
-                        <span>Complete feature-length screenplay</span>
-                    </div>
-                    <div class="screenplay-stat">
-                        <strong>~110 Minutes</strong>
-                        <span>Estimated runtime</span>
-                    </div>
-                    <div class="screenplay-stat">
-                        <strong>Markdown-to-Movie Mode</strong>
-                        <span>AI-powered screenplay adaptation</span>
-                    </div>
-                </div>
-                <div class="screenplay-cta">
-                    <a href="vibe-ide-chronicles-screenplay.html" class="btn btn-primary" target="_blank" style="margin-top: 20px; display: inline-block;">
-                        🎬 Read the Feature Screenplay
-                    </a>
-                    <p style="color: #888; font-style: italic; margin-top: 15px;">
-                        Written by Cursy & Damo | Adapted from "Book One: The Foundation" | November 25, 2025
-                    </p>
-                    <p style="color: #aaa; font-size: 0.9em; margin-top: 10px;">
-                        Perfect for filmmakers, screenwriters, and anyone who wants to experience the VIBE IDE story in cinematic format!
+                    <p class="text-slate-400">
+                        Download the current alpha on
+                        <a href="https://futurevisionlabs.itch.io/vibe-ide" class="text-cyan-400 hover:text-cyan-300" target="_blank" rel="noopener">itch.io</a>.
+                        Agent features land in upcoming builds; this site tracks the direction.
                     </p>
                 </div>
             </div>
@@ -584,51 +587,121 @@
     </section>
 
     <!-- Community Section -->
-    <section id="community" class="community">
-        <div class="container">
-            <h2 class="section-title">Join the Movement</h2>
-            <div class="community-links">
-                <a href="https://futurevisionlabs.itch.io/vibe-ide" class="community-link" target="_blank">
-                    <div class="community-icon">🎮</div>
-                    <div class="community-text">
-                        <h3>itch.io</h3>
-                        <p>Follow development, forum coming soon!</p>
+    <section id="community" class="border-t border-slate-800 bg-slate-950">
+        <div class="mx-auto max-w-6xl px-6 py-16 lg:py-20">
+            <div class="text-center">
+                <h2 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                    Join the movement
+                </h2>
+                <p class="mt-3 text-base text-slate-300 sm:text-lg max-w-2xl mx-auto">
+                    Connect with Team&nbsp;DC, follow development and hang out with other vibe coders
+                    who are building with VIBE IDE.
+                </p>
+            </div>
+
+            <div class="mt-10 grid gap-5 md:grid-cols-3 lg:grid-cols-4">
+                <a href="https://futurevisionlabs.itch.io/vibe-ide" target="_blank"
+                   class="flex flex-col rounded-xl border border-slate-800 bg-slate-900/70 p-4 hover:border-cyan-500/60">
+                    <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M5 7h14v10a2 2 0 01-2 2H7a2 2 0 01-2-2V7z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M9 7V5a3 3 0 016 0v2" />
+                        </svg>
                     </div>
+                    <h3 class="text-sm font-semibold text-white">itch.io</h3>
+                    <p class="mt-1 text-xs text-slate-400">Download builds and follow development.</p>
                 </a>
-                <a href="https://futurevisionlabs.itch.io/vibe-ide/devlog" class="community-link" target="_blank">
-                    <div class="community-icon">📝</div>
-                    <div class="community-text">
-                        <h3>Devlogs</h3>
-                        <p>Read all development updates</p>
+
+                <a href="https://futurevisionlabs.itch.io/vibe-ide/devlog" target="_blank"
+                   class="flex flex-col rounded-xl border border-slate-800 bg-slate-900/70 p-4 hover:border-cyan-500/60">
+                    <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-700/60 text-slate-200">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M7 8h10M7 12h6m-6 4h4" />
+                            <rect x="4" y="4" width="16" height="16" rx="2" ry="2" />
+                        </svg>
                     </div>
+                    <h3 class="text-sm font-semibold text-white">Devlogs</h3>
+                    <p class="mt-1 text-xs text-slate-400">Read all the development updates.</p>
                 </a>
-                <a href="https://medium.com/@caynesd" class="community-link" target="_blank">
-                    <div class="community-icon">✍️</div>
-                    <div class="community-text">
-                        <h3>Medium</h3>
-                        <p>Read articles about vibe coding</p>
+
+                <a href="https://medium.com/@caynesd" target="_blank"
+                   class="flex flex-col rounded-xl border border-slate-800 bg-slate-900/70 p-4 hover:border-cyan-500/60">
+                    <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-700/60 text-slate-200">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M5 5h4l3 7 3-7h4l-4 14h-4L9 9l-3 10H2L5 5z" />
+                        </svg>
                     </div>
+                    <h3 class="text-sm font-semibold text-white">Medium</h3>
+                    <p class="mt-1 text-xs text-slate-400">Articles about vibe coding &amp; AI collaboration.</p>
                 </a>
-                <a href="https://github.com/FutureVision-Labs/VIBE-IDE" class="community-link" target="_blank">
-                    <div class="community-icon">💻</div>
-                    <div class="community-text">
-                        <h3>GitHub</h3>
-                        <p>Open-source templates & tools</p>
+
+                <a href="https://github.com/FutureVision-Labs/VIBE-IDE" target="_blank"
+                   class="flex flex-col rounded-xl border border-slate-800 bg-slate-900/70 p-4 hover:border-cyan-500/60">
+                    <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-700/60 text-slate-200">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M12 2a9.99 9.99 0 00-3.16 19.47c.5.09.68-.22.68-.48v-1.7c-2.78.61-3.37-1.34-3.37-1.34-.46-1.16-1.12-1.47-1.12-1.47-.91-.64.07-.63.07-.63 1 .07 1.53 1.05 1.53 1.05.9 1.55 2.36 1.1 2.94.84.09-.67.35-1.11.63-1.37-2.22-.25-4.55-1.11-4.55-4.95 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02A9.56 9.56 0 0112 6.8a9.6 9.6 0 012.5.34c1.9-1.29 2.74-1.02 2.74-1.02.56 1.38.21 2.4.11 2.65.64.7 1.03 1.59 1.03 2.68 0 3.85-2.34 4.7-4.57 4.95.36.31.68.92.68 1.85v2.74c0 .26.18.58.69.48A10 10 0 0012 2z" />
+                        </svg>
                     </div>
+                    <h3 class="text-sm font-semibold text-white">GitHub</h3>
+                    <p class="mt-1 text-xs text-slate-400">Open‑source templates and tools.</p>
                 </a>
-                <a href="https://discord.gg/Wa6wEh4V" class="community-link" target="_blank">
-                    <div class="community-icon">💬</div>
-                    <div class="community-text">
-                        <h3>Discord</h3>
-                        <p>Join our community server!</p>
+
+                <a href="https://discord.gg/Wa6wEh4V" target="_blank"
+                   class="flex flex-col rounded-xl border border-slate-800 bg-slate-900/70 p-4 hover:border-cyan-500/60">
+                    <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-300">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M8 10h.01M16 10h.01M8 16s1.5 2 4 2 4-2 4-2" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M5 5a16 16 0 0114 0l-1 11a3 3 0 01-3 3H9a3 3 0 01-3-3L5 5z" />
+                        </svg>
                     </div>
+                    <h3 class="text-sm font-semibold text-white">Discord</h3>
+                    <p class="mt-1 text-xs text-slate-400">Join the community server.</p>
                 </a>
-                <a href="#" class="community-link" id="bookLink" onclick="event.preventDefault(); openBookModal();">
-                    <div class="community-icon">📚</div>
-                    <div class="community-text">
-                        <h3>Read The Book</h3>
-                        <p>The VIBE IDE Chronicles - Free Flipbook</p>
+
+                <a href="https://open.spotify.com/show/7ghqsT1ELaeP3tElyGsf5c" target="_blank"
+                   class="flex flex-col rounded-xl border border-slate-800 bg-slate-900/70 p-4 hover:border-cyan-500/60">
+                    <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-green-500/10 text-green-300">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M12 5v14m7-7H5" />
+                        </svg>
                     </div>
+                    <h3 class="text-sm font-semibold text-white">Podcast</h3>
+                    <p class="mt-1 text-xs text-slate-400">FutureVision Labs On Da Slab!</p>
+                </a>
+
+                <a href="https://team-dc-store.printify.me/" target="_blank"
+                   class="flex flex-col rounded-xl border border-slate-800 bg-slate-900/70 p-4 hover:border-cyan-500/60">
+                    <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-rose-500/10 text-rose-300">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M5 8h14l-1 11H6L5 8z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M9 8a3 3 0 116 0" />
+                        </svg>
+                    </div>
+                    <h3 class="text-sm font-semibold text-white">Merch store</h3>
+                    <p class="mt-1 text-xs text-slate-400">Badges, posters and more.</p>
+                </a>
+
+                <a href="https://futurevisionlabs.itch.io/theimaginatorium" target="_blank"
+                   class="flex flex-col rounded-xl border border-slate-800 bg-slate-900/70 p-4 hover:border-cyan-500/60">
+                    <div class="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-300">
+                        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M5 12h14M5 12l3-3m-3 3l3 3" />
+                            <circle cx="12" cy="12" r="9" />
+                        </svg>
+                    </div>
+                    <h3 class="text-sm font-semibold text-white">The Imaginatorium</h3>
+                    <p class="mt-1 text-xs text-slate-400">Where AI lives, creates and dreams.</p>
                 </a>
             </div>
         </div>
@@ -638,39 +711,17 @@
     <footer class="footer">
         <div class="container">
             <p class="footer-text">
-                Built with ❤️ by <strong>FutureVision Labs</strong> | 
-                Part of the <strong>Forge Family</strong>
+                Built with ❤️ by <strong>FutureVision Labs</strong> · <strong>Team DC</strong> ·
+                My First Agentic IDE (alpha)
             </p>
             <p class="footer-text">
-                <a href="https://futurevisionlabs.itch.io/vibe-ide" class="footer-link" target="_blank">itch.io</a> | 
-                <a href="https://medium.com/@caynesd" class="footer-link" target="_blank">Medium</a>
+                <a href="https://futurevisionlabs.itch.io/vibe-ide" class="footer-link" target="_blank" rel="noopener">itch.io</a> |
+                <a href="https://github.com/FutureVision-Labs/VIBE-IDE" class="footer-link" target="_blank" rel="noopener">GitHub</a> |
+                <a href="https://medium.com/@caynesd" class="footer-link" target="_blank" rel="noopener">Medium</a>
             </p>
         </div>
     </footer>
 
-    <!-- Book Modal -->
-    <div id="bookModal" class="book-modal" style="display: none;">
-        <div class="book-modal-overlay" onclick="closeBookModal()"></div>
-        <div class="book-modal-content">
-            <button class="book-modal-close" onclick="closeBookModal()" title="Close">×</button>
-            <div class="book-modal-header">
-                <h2>📚 The VIBE IDE Chronicles</h2>
-                <p>Book One: "The Foundation"</p>
-            </div>
-            <div class="book-modal-body">
-                <div class="flipbook-container">
-                    <!-- Heyzine Flipbook Embed -->
-                    <iframe 
-                        allowfullscreen="allowfullscreen" 
-                        allow="clipboard-write" 
-                        scrolling="no" 
-                        class="fp-iframe" 
-                        src="https://heyzine.com/flip-book/98f6e166dc.html">
-                    </iframe>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <script src="script.js"></script>
 </body>

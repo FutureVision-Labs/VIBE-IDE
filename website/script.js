@@ -158,29 +158,6 @@ function initSmoothScroll() {
     });
 }
 
-// Book Modal Functions
-function openBookModal() {
-    const modal = document.getElementById('bookModal');
-    if (modal) {
-        modal.style.display = 'flex';
-        document.body.style.overflow = 'hidden'; // Prevent background scrolling
-    }
-}
-
-function closeBookModal() {
-    const modal = document.getElementById('bookModal');
-    if (modal) {
-        modal.style.display = 'none';
-        document.body.style.overflow = ''; // Restore scrolling
-    }
-}
-
-// Close modal on Escape key
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-        closeBookModal();
-    }
-});
 
 // Audiobook Player
 const chapters = [

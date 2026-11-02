@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VIBE IDE</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="editor/editor-host.css">
 </head>
 <body>
     <div class="app-container">
@@ -26,6 +27,7 @@
                         <div class="menu-dropdown-item" onclick="handleAgentPersonaSettings()">Agent Persona Settings...</div>
                         <div class="menu-dropdown-separator"></div>
                         <div class="menu-dropdown-item" onclick="handleCMLViewer()">CML Viewer...</div>
+                        <div class="menu-dropdown-item" onclick="exportChatThreadToCML()">Export Chat to CML...</div>
                         <div class="menu-dropdown-item" onclick="handleUserSettings()">User Settings...</div>
                         <div class="menu-dropdown-separator"></div>
                         <div class="menu-dropdown-item" onclick="window.electronAPI.closeWindow()">Exit</div>
@@ -66,6 +68,11 @@
                 </div>
             </div>
             <div class="menu-right">
+                <button type="button" class="ollama-status-chip ollama-status--checking" id="ollamaStatusChip" title="Checking Cursy cloud (Gemini BYOK)…">
+                    <span class="ollama-status-dot" aria-hidden="true"></span>
+                    <span id="ollamaStatusLabel">Cursy brain</span>
+                </button>
+                <span class="recall-status-chip" id="recallStatusChip" title="Project Recall v1">🧠 Recall —</span>
                 <button class="theme-toggle" id="themeToggle" title="Toggle Theme">
                     🌙
                 </button>
@@ -144,6 +151,8 @@
                     <div class="context-menu-item" id="ctxRename">✏️ Rename</div>
                     <div class="context-menu-item" id="ctxDelete">🗑️ Delete</div>
                     <div class="context-menu-separator"></div>
+                    <div class="context-menu-item" id="ctxPinRecall" style="display:none;">📌 Pin to Project Recall</div>
+                    <div class="context-menu-item" id="ctxUnpinRecall" style="display:none;">📌 Unpin from Recall</div>
                     <div class="context-menu-item" id="ctxCopyPath">📋 Copy Path</div>
                 </div>
             </div>
@@ -180,13 +189,13 @@
                         <div class="md-toolbar-separator"></div>
                         <button class="md-toolbar-btn" id="mdPreviewToggle" title="Toggle Preview/Editor">👁️ Preview</button>
                     </div>
+                    <div class="editor-pane-viewport" id="editorPaneViewport">
                     <!-- Monaco Editor Container -->
-                    <div id="monacoEditor" style="display: none; width: 100%; height: 100%;"></div>
+                    <div id="monacoEditor" class="editor-pane editor-pane-hidden" aria-hidden="true"></div>
                     <!-- Markdown Preview Container -->
-                    <div id="mdPreview" class="md-preview" style="display: none; width: 100%; height: 100%; overflow-y: auto; padding: 20px; background: var(--bg-primary); color: var(--text-primary);"></div>
-                    
+                    <div id="mdPreview" class="editor-pane md-preview editor-pane-hidden" aria-hidden="true"></div>
                     <!-- Welcome Screen -->
-                    <div class="welcome-screen" id="welcomeScreen">
+                    <div class="welcome-screen editor-pane editor-pane-active" id="welcomeScreen">
                         <img src="assets/vibe-ide-logo.jpg" alt="VIBE IDE Logo" class="welcome-logo">
                         <h1>🚀 Welcome to VIBE IDE!</h1>
                         <p class="subtitle">Beginner-friendly coding environment with AI assistance</p>
@@ -224,6 +233,7 @@
                             <p>✅ Project templates system</p>
                         </div>
                     </div>
+                    </div><!-- /editorPaneViewport -->
                 </div>
             </div>
 
@@ -298,7 +308,11 @@
                             </label>
                             <button class="emoji-btn" id="emojiPickerBtn" title="Insert Emoji">😀</button>
                             <button class="emoji-btn" id="gifPickerBtn" title="Insert GIF">🎬</button>
+                            <button class="emoji-btn chat-voice-btn" id="chatVoiceBtn" title="Talk to Cursy (Gemini Live — same chat thread)">🎙️</button>
+                            <button class="emoji-btn" id="chatImageAttachBtn" title="Attach image (mockup, screenshot)">🖼️</button>
+                            <input type="file" id="chatImageFileInput" accept="image/png,image/jpeg,image/webp,image/gif" multiple style="display:none;">
                         </div>
+                        <div id="chatImagePreviewStrip" class="chat-image-preview-strip" style="display:none;"></div>
                         
                         <!-- GIF Picker Modal -->
                         <div class="gif-picker-modal" id="gifPickerModal" style="display: none;">
@@ -376,12 +390,13 @@
         <div class="resizer horizontal-resizer" id="previewResizer"></div>
         <div class="preview-pane" id="previewPane">
             <div class="preview-header">
-                <span>🎮 Live Preview</span>
+                <span>🎮 Preview <span class="preview-mode-hint" id="previewModeHint">(pop-out)</span></span>
                 <div class="preview-controls">
                     <label style="margin-right:8px; color:#9fb0c6; font-size:12px; display:inline-flex; align-items:center; gap:6px;">
                         <input type="checkbox" id="autoBundleToggle" checked /> Auto-bundle
                     </label>
-                    <button class="btn-small" id="previewOpenExternal" title="Open in external browser">🌐 Open</button>
+                    <button class="btn-small btn-primary-soft" id="previewPopOut" title="Open dedicated preview window">🪟 Pop out</button>
+                    <button class="btn-small" id="previewOpenExternal" title="Static export in system browser (no live reload)">🌐 Export</button>
                     <button class="btn-small" id="bundleLogToggle" title="Toggle bundle log">🧾 Log</button>
                     <button class="btn-small" id="togglePreview" title="Toggle Preview">▼</button>
                     <button class="btn-small" id="previewPlay" title="Play Preview">▶️ Play</button>
@@ -583,97 +598,10 @@
         </div>
     </div>
 
-    <!-- Monaco Editor Loader -->
     <script>
-        // IMPORTANT: Store Node.js require BEFORE Monaco loads and replaces it
         window.nodeRequire = require;
-        
-        // Load Monaco Editor using Node.js fs (since nodeIntegration: true)
-        (function() {
-            try {
-                const fs = window.nodeRequire('fs');
-                const path = window.nodeRequire('path');
-                
-                // Get the actual path to Monaco - use process.cwd() which should be the project root
-                const appPath = process.cwd();
-                const monacoLoaderPath = path.join(appPath, 'node_modules', 'monaco-editor', 'min', 'vs', 'loader.js');
-                
-                console.log('Attempting to load Monaco from:', monacoLoaderPath);
-                console.log('Current working directory:', appPath);
-                
-                if (fs.existsSync(monacoLoaderPath)) {
-                    console.log('Monaco loader.js found, reading...');
-                    
-                    // Read and execute Monaco loader
-                    const loaderCode = fs.readFileSync(monacoLoaderPath, 'utf-8');
-                    
-                    // Create script element
-                    const loaderScript = document.createElement('script');
-                    loaderScript.textContent = loaderCode;
-                    document.head.appendChild(loaderScript);
-                    
-                    console.log('Monaco loader.js executed');
-                    
-                    // Wait for loader to initialize
-                    setTimeout(function() {
-                        try {
-                            if (typeof require === 'undefined' || !require.config) {
-                                console.error('require.config not available');
-                                document.getElementById('monacoEditor').innerHTML = '<div style="padding: 20px; color: #f48771;">require.config not available</div>';
-                                return;
-                            }
-                            
-                            // Configure Monaco paths - use absolute path
-                            const monacoVsPath = path.join(appPath, 'node_modules', 'monaco-editor', 'min', 'vs').replace(/\\/g, '/');
-                            require.config({ 
-                                paths: { vs: monacoVsPath }
-                            });
-                            
-                            console.log('Require config set, loading Monaco from:', monacoVsPath);
-                            
-                            // Load Monaco Editor main module
-                            require(['vs/editor/editor.main'], function () {
-                                console.log('✅ Monaco Editor library loaded successfully');
-                                
-                                // Initialize Monaco Editor
-                                setTimeout(function() {
-                                    if (window.initMonacoEditor) {
-                                        window.initMonacoEditor();
-                                    } else {
-                                        let attempts = 0;
-                                        const checkInit = setInterval(function() {
-                                            attempts++;
-                                            if (window.initMonacoEditor) {
-                                                clearInterval(checkInit);
-                                                window.initMonacoEditor();
-                                            } else if (attempts > 20) {
-                                                clearInterval(checkInit);
-                                                console.warn('initMonacoEditor not found after 2 seconds');
-                                            }
-                                        }, 100);
-                                    }
-                                }, 200);
-                            }, function(err) {
-                                console.error('Failed to load Monaco Editor module:', err);
-                                const errorMsg = err && err.message ? err.message : String(err);
-                                document.getElementById('monacoEditor').innerHTML = '<div style="padding: 20px; color: #f48771;">Failed to load Monaco Editor. Error: ' + errorMsg + '</div>';
-                            });
-                        } catch (error) {
-                            console.error('Error in Monaco loading:', error);
-                            document.getElementById('monacoEditor').innerHTML = '<div style="padding: 20px; color: #f48771;">Error: ' + error.message + '</div>';
-                        }
-                    }, 300);
-                    
-                } else {
-                    console.error('Monaco loader.js not found at:', monacoLoaderPath);
-                    document.getElementById('monacoEditor').innerHTML = '<div style="padding: 20px; color: #f48771;">Monaco Editor not found at: ' + monacoLoaderPath + '<br>Current dir: ' + appPath + '</div>';
-                }
-            } catch (error) {
-                console.error('Error setting up Monaco loader:', error);
-                document.getElementById('monacoEditor').innerHTML = '<div style="padding: 20px; color: #f48771;">Setup error: ' + error.message + '</div>';
-            }
-        })();
     </script>
+    <script src="editor/monaco-parent-loader.js"></script>
     <!-- Toast Notifications -->
     <div id="toastContainer" class="toast-container"></div>
     
@@ -858,6 +786,7 @@
                     <button class="btn btn-secondary" id="cmlOpenFileBtn" style="padding: 8px 16px;">📂 Open CML File</button>
                     <button class="btn btn-secondary" id="cmlOpenFolderBtn" style="padding: 8px 16px;">📁 Open CML Folder</button>
                     <button class="btn btn-secondary" id="cmlNewFileBtn" style="padding: 8px 16px;">✨ New CML File</button>
+                    <button class="btn btn-secondary" id="cmlRestoreChatBtn" style="padding: 8px 16px;" title="Rebuild Cursy&apos;s Corner from chat-conversation CML logs">💬 Restore chat from CML</button>
                     <button class="btn btn-primary" id="cmlRenderBtn" style="padding: 8px 16px;">📖 Render to Story</button>
                     <button class="btn btn-primary" id="cmlSaveBtn" style="padding: 8px 16px;">💾 Save CML</button>
                 </div>
@@ -905,6 +834,31 @@
                     Set your name for CML recording and personalization. 
                     <em>(Full login system coming in beta release!)</em>
                 </p>
+                <hr style="border: none; border-top: 1px solid #3e3e42; margin: 16px 0 20px;">
+                <h4 style="color: #fff; margin-bottom: 12px;">☁️ Cursy brain (Gemini Flash BYOK)</h4>
+                <div class="form-field" style="margin-bottom: 20px;">
+                    <label for="geminiApiKeyInput" style="display: block; margin-bottom: 6px; color: #ccc;">Google AI Studio API key</label>
+                    <input type="password" id="geminiApiKeyInput" placeholder="Paste your Gemini API key" autocomplete="off" style="width: 100%; padding: 10px; background: #1e1e1e; border: 1px solid #3e3e42; color: #d4d4d4; border-radius: 4px; font-size: 13px;">
+                    <div style="font-size: 12px; color: #999; margin-top: 4px;">Saved locally as google-config.json. Chat and @agent use Gemini Flash on your key. Leave blank to keep an existing key.</div>
+                </div>
+                <div class="form-field" style="margin-bottom: 20px;">
+                    <label for="cursyInteractionMode" style="display: block; margin-bottom: 6px; color: #ccc;">Cursy interaction mode</label>
+                    <select id="cursyInteractionMode" style="width: 100%; padding: 10px; background: #1e1e1e; border: 1px solid #3e3e42; color: #d4d4d4; border-radius: 4px;">
+                        <option value="auto" selected>Auto — build/fix → agent (approve writes)</option>
+                        <option value="chat">Chat only — never auto-agent</option>
+                        <option value="agent">Always agent — every message</option>
+                    </select>
+                    <div style="font-size: 12px; color: #999; margin-top: 4px;">Tip: prefix <code>@chat</code> or <code>@agent</code> to override once.</div>
+                </div>
+                <div class="form-field" style="margin-bottom: 20px;">
+                    <label for="gifReactionLevel" style="display: block; margin-bottom: 6px; color: #ccc;">Cursy GIF reactions</label>
+                    <select id="gifReactionLevel" style="width: 100%; padding: 10px; background: #1e1e1e; border: 1px solid #3e3e42; color: #d4d4d4; border-radius: 4px;">
+                        <option value="off">Off</option>
+                        <option value="normal" selected>Normal</option>
+                        <option value="party">Party mode 🎉</option>
+                    </select>
+                </div>
+                <hr style="border: none; border-top: 1px solid #3e3e42; margin: 0 0 20px;">
                 <div class="form-field" style="margin-bottom: 20px;">
                     <label for="userNameInput" style="display: block; margin-bottom: 8px; color: #fff; font-weight: 500;">
                         Your Name
@@ -941,6 +895,9 @@
     </div>
     
     <script src="cml-utils.js"></script>
+    <script src="recall-neural.js"></script>
+    <script src="cursy-live-voice.js"></script>
+    <script src="editor/monaco-host.js"></script>
     <script src="renderer.js"></script>
 </body>
 </html>

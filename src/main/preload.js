@@ -24,6 +24,7 @@ window.electronAPI = {
   openProject: () => ipcRenderer.invoke('dialog:openProject'),
   selectProjectFolder: () => ipcRenderer.invoke('dialog:selectProjectFolder'),
   createProject: (template, projectPath, genre) => ipcRenderer.invoke('project:create', template, projectPath, genre),
+  listProjectTemplates: () => ipcRenderer.invoke('project:listTemplates'),
   loadProjectConfig: (projectPath) => ipcRenderer.invoke('project:loadConfig', projectPath),
   saveProjectConfig: (projectPath, config) => ipcRenderer.invoke('project:saveConfig', projectPath, config),
   
@@ -36,6 +37,15 @@ window.electronAPI = {
   // Bundling
   bundleEsbuild: (entryPath, projectRoot) => ipcRenderer.invoke('bundle:esbuild', { entryPath, projectRoot }),
   previewOpenExternal: (htmlContent) => ipcRenderer.invoke('preview:openExternal', { htmlContent }),
+  previewOpenPopout: () => ipcRenderer.invoke('preview:openPopout'),
+  previewPopoutMessage: (payload) => ipcRenderer.invoke('preview:popoutMessage', payload),
+  previewIsPopoutOpen: () => ipcRenderer.invoke('preview:isPopoutOpen'),
+  previewClosePopout: () => ipcRenderer.invoke('preview:closePopout'),
+  onPreviewPopoutClosed: (callback) => {
+    const handler = (_event, ...args) => callback(...args);
+    ipcRenderer.on('preview:popout-closed', handler);
+    return () => ipcRenderer.removeListener('preview:popout-closed', handler);
+  },
   runNpmScript: (script, outDir) => ipcRenderer.invoke('run:npmScript', { script, outDir }),
   
   // Platform info
@@ -50,9 +60,65 @@ window.electronAPI = {
   closeWindow: () => ipcRenderer.invoke('window:close'),
   isWindowMaximized: () => ipcRenderer.invoke('window:isMaximized'),
   
-  // OpenAI (Phase 2)
-  openaiChat: (messages, systemPrompt, maxTokens) => ipcRenderer.invoke('openai:chat', { messages, systemPrompt, maxTokens }),
-  openaiCheckStatus: () => ipcRenderer.invoke('openai:checkStatus'),
+  // AI backend (Gemini) — neutral IPC names
+  aiChat: (messages, systemPrompt, maxTokens, chatOptions = {}) =>
+    ipcRenderer.invoke('ai:chat', { messages, systemPrompt, maxTokens, ...chatOptions }),
+  aiChatStream: (messages, systemPrompt, maxTokens, onChunk) =>
+    new Promise((resolve, reject) => {
+      const handler = (_event, payload) => {
+        if (!payload) return;
+        if (payload.type === 'chunk' && typeof onChunk === 'function') {
+          onChunk(payload.delta);
+        } else if (payload.type === 'done') {
+          ipcRenderer.removeListener('ai:chat-stream', handler);
+          resolve(payload.result || { success: true });
+        } else if (payload.type === 'error') {
+          ipcRenderer.removeListener('ai:chat-stream', handler);
+          reject(new Error(payload.error || 'Stream failed'));
+        }
+      };
+      ipcRenderer.on('ai:chat-stream', handler);
+      ipcRenderer
+        .invoke('ai:chatStream', { messages, systemPrompt, maxTokens })
+        .then((result) => {
+          if (result && result.success === false && !result.streamed) {
+            ipcRenderer.removeListener('ai:chat-stream', handler);
+            resolve(result);
+          }
+        })
+        .catch((err) => {
+          ipcRenderer.removeListener('ai:chat-stream', handler);
+          reject(err);
+        });
+    }),
+  recallStats: (projectPath) => ipcRenderer.invoke('recall:stats', { projectPath }),
+  aiCheckStatus: () => ipcRenderer.invoke('ai:checkStatus'),
+  googleSaveConfig: (apiKey) => ipcRenderer.invoke('google:saveConfig', { apiKey }),
+  liveGetWsUrl: () => ipcRenderer.invoke('live:getWsUrl'),
+  getVoiceBridgeUrl: () => ipcRenderer.invoke('vibe:getVoiceBridgeUrl'),
+  liveTranscribeBlob: (payload) => ipcRenderer.invoke('live:transcribeBlob', payload),
+  recallSearch: (projectPath, query, queryEmbedding) =>
+    ipcRenderer.invoke('recall:search', { projectPath, query, queryEmbedding }),
+  recallChunks: (projectPath) => ipcRenderer.invoke('recall:chunks', { projectPath }),
+  recallSaveIndex: (projectPath, fingerprint, entries) =>
+    ipcRenderer.invoke('recall:saveIndex', { projectPath, fingerprint, entries }),
+  recallRecentCml: (projectPath, limit) =>
+    ipcRenderer.invoke('recall:recentCml', { projectPath, limit }),
+  agentStep: (payload) => ipcRenderer.invoke('agent:step', payload),
+  agentProposeWrite: (payload) => ipcRenderer.invoke('agent:proposeWrite', payload),
+  agentCommitWrite: (projectPath, relPath, content) =>
+    ipcRenderer.invoke('agent:commitWrite', { projectPath, path: relPath, content }),
+  agentValidateWrite: (projectPath, relPath, content) =>
+    ipcRenderer.invoke('agent:validateWrite', { projectPath, path: relPath, content }),
+  agentMaxSteps: () => ipcRenderer.invoke('agent:maxSteps'),
+  projectPlanShipFiles: (projectPath, goal, sessionBrief, plan) =>
+    ipcRenderer.invoke('project:planShipFiles', { projectPath, goal, sessionBrief, plan }),
+  projectGrep: (projectPath, pattern) => ipcRenderer.invoke('project:grep', { projectPath, pattern }),
+  projectFindFiles: (projectPath, query) => ipcRenderer.invoke('project:findFiles', { projectPath, query }),
+  chatLoadHistory: () => ipcRenderer.invoke('chat:loadHistory'),
+  chatSaveHistory: (messages) => ipcRenderer.invoke('chat:saveHistory', { messages }),
+  chatImportFromCml: (projectPath, limit) =>
+    ipcRenderer.invoke('chat:importFromCml', { projectPath, limit }),
   
   // Pixabay API (Cursy's Corner - for images/videos)
   pixabaySearchImages: (query, options) => ipcRenderer.invoke('pixabay:searchImages', { query, options }),
