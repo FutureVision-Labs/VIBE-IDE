@@ -180,7 +180,14 @@ function buildMissingFilesToolResult(
 
 function incrementalPatchNudge(goal, parentGoal = '') {
   if (!goalSignalsIncrementalEdit(goal, parentGoal)) return '';
-  return ' Next: **apply_patch** with exact strings copied from the file on disk (or read_file first). No full-file regen.';
+  return ' Next: **apply_patch** with exact strings from disk, or **done** with a chat summary if edits are already approved — never put farewell prose in styles.css comments.';
+}
+
+function allowlistedPathsWrittenThisRun(writtenPaths, allowedShipPaths) {
+  if (!Array.isArray(allowedShipPaths) || !allowedShipPaths.length) return false;
+  if (!Array.isArray(writtenPaths) || !writtenPaths.length) return false;
+  const written = new Set(writtenPaths.map((p) => normalizeWrittenPath(p).toLowerCase()));
+  return allowedShipPaths.every((p) => written.has(normalizeWrittenPath(p).toLowerCase()));
 }
 
 const INCREMENTAL_PATCH_TEXT_EXT =
@@ -540,6 +547,51 @@ function isTokenLimitFinish(finishReason) {
   return r === 'LENGTH' || r === 'MAX_TOKENS' || r === 'MAX_OUTPUT_TOKENS' || r.includes('MAX_TOKEN');
 }
 
+/** CSS outside block comments (rough strip for chat-in-comment detection). */
+function cssOutsideBlockComments(text) {
+  return String(text || '').replace(/\/\*[\s\S]*?\*\//g, '').trim();
+}
+
+/** Model sometimes patches a comment to Cursy farewell prose instead of using action done. */
+function isChattyCssCommentFragment(fragment) {
+  const t = String(fragment || '').trim();
+  if (!t.includes('/*')) return false;
+  const outside = cssOutsideBlockComments(t);
+  if (outside && /[{;]/.test(outside)) return false;
+  const blocks = t.match(/\/\*[\s\S]*?\*\//g) || [];
+  for (const block of blocks) {
+    const inner = block.replace(/^\/\*+|\*+\/$/g, '').trim();
+    if (inner.length < 45) continue;
+    if (
+      /\b(you must be|how about|take a peek|preview to see|preview and see|thrilled|delightful|goodness in action|shimmering with|come to life|in action\?|bubblegum pop pastel|bubbly goodness)\b/i.test(
+        inner
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function rejectChattyCssPatchFragment(relPath, fragment) {
+  if (!/\.css$/i.test(String(relPath || ''))) return null;
+  if (isChattyCssCommentFragment(fragment)) {
+    return 'That change is chat prose in a CSS comment, not styling. Use {"action":"done","message":"…"} — never put farewells in styles.css.';
+  }
+  return null;
+}
+
+function rejectChattyCssFileBody(relPath, body) {
+  if (!/\.css$/i.test(String(relPath || ''))) return null;
+  const blocks = String(body || '').match(/\/\*[\s\S]*?\*\//g) || [];
+  for (const block of blocks) {
+    if (isChattyCssCommentFragment(block)) {
+      return 'Stylesheet has chat prose in a comment block. Reject and use **done** for summaries only — not styles.css.';
+    }
+  }
+  return null;
+}
+
 /** Existing styles.css much larger than draft → likely mid-file token cut (even if braces balance). */
 function cssDraftLooksPartialVsDisk(projectRoot, relPath, body, fsModule) {
   if (!/styles?\.css$/i.test(String(relPath || ''))) return false;
@@ -624,6 +676,11 @@ function evaluateWriteForApproval(projectRoot, relPath, content, fsModule, optio
       error:
         'styles.css draft is much smaller than the file on disk — likely a partial rewrite. Use apply_patch with exact old_string/new_string from read_file — not a full-file tool write.',
     };
+  }
+
+  const chattyCss = rejectChattyCssFileBody(relPath, body);
+  if (chattyCss) {
+    return { allowed: false, error: chattyCss };
   }
 
   const shrinkBlock = rejectDestructiveFullRewrite(
@@ -1178,7 +1235,16 @@ function parsePatchReplacementsJson(blob) {
 async function tryPatchFirstWrite(
   userDataPath,
   fsModule,
-  { projectRoot, targetFile, goal, parentGoal = '', sessionBrief, maxTokens, simple = false }
+  {
+    projectRoot,
+    targetFile,
+    goal,
+    parentGoal = '',
+    sessionBrief,
+    maxTokens,
+    simple = false,
+    continuation = false,
+  }
 ) {
   const file = resolveInProject(projectRoot, targetFile);
   let existing = fsModule.readFileSync(file, 'utf-8');
@@ -1199,6 +1265,9 @@ Rules: at most 6 replacements; each old_string must appear exactly once in the f
   const user = [
     `File: ${targetFile}`,
     `Goal: ${goalLine}`,
+    continuation
+      ? 'Some edits from this goal may already be on disk from an earlier approve in the same run. Apply **all remaining** changes from the goal in one JSON (up to 6 replacements).'
+      : '',
     sessionBrief ? `Session brief (binding):\n${String(sessionBrief).slice(0, 900)}` : '',
     `Current file:\n\`\`\`\n${snippet}\n\`\`\``,
   ]
@@ -1222,11 +1291,14 @@ Rules: at most 6 replacements; each old_string must appear exactly once in the f
   for (const r of reps.slice(0, 6)) {
     const oldS = r.old_string ?? r.oldString ?? r.search;
     const newS = r.new_string ?? r.newString ?? r.replace ?? '';
+    const chatty = rejectChattyCssPatchFragment(targetFile, newS);
+    if (chatty) continue;
     const applied = applySearchReplace(content, oldS, newS);
     if (!applied.ok) continue;
     content = applied.content;
     appliedCount += 1;
   }
+  if (rejectChattyCssFileBody(targetFile, content)) return null;
   if (!appliedCount || content === existing) return null;
   return { content, patchCount: appliedCount, provider: llm.provider, model: llm.model };
 }
@@ -1296,9 +1368,77 @@ function countHarnessServerPatchAttempts(history) {
   let n = 0;
   for (const h of history || []) {
     const c = String(h.content || '');
-    if (/\[harness (patch-first|single-patch)/.test(c)) n += 1;
+    if (/\[harness patch-first miss\]/i.test(c)) continue;
+    if (/\[harness (patch-first|single-patch) [^\]]+\]/i.test(c)) n += 1;
   }
   return n;
+}
+
+const MAX_HARNESS_PATCH_PROPOSALS_PER_RUN = 5;
+
+/** After partial approve on allowlisted paths, server may propose more patches (same run). */
+function writtenPathsAllowHarnessContinuation(writtenPaths, allowedShipPaths) {
+  if (!writtenPaths?.length) return true;
+  if (!Array.isArray(allowedShipPaths) || !allowedShipPaths.length) return false;
+  const allow = new Set(allowedShipPaths.map((p) => normalizeWrittenPath(p).toLowerCase()));
+  return writtenPaths.every((p) => allow.has(normalizeWrittenPath(p).toLowerCase()));
+}
+
+function lastHistoryWasProseOrJsonStall(history) {
+  const last = history?.[history.length - 1];
+  if (!last?.content) return false;
+  const c = String(last.content);
+  return (
+    /Need apply_patch|not prose|One JSON action only/i.test(c) ||
+    /"action"\s*:\s*"reply"/i.test(c) ||
+    /\[agent.*stall/i.test(c)
+  );
+}
+
+function shouldRunHarnessPatchProposal(ctx) {
+  const {
+    goal,
+    parentGoal = '',
+    allowedShipPaths,
+    projectRoot,
+    fsModule,
+    writtenPaths,
+    history,
+    stepIndex,
+    lastToolResult,
+  } = ctx;
+  if (!shouldUseHarnessServerPatch(goal, parentGoal, allowedShipPaths, projectRoot, fsModule)) {
+    return false;
+  }
+  if (!goalSignalsIncrementalEdit(goal, parentGoal)) return false;
+  if (!writtenPathsAllowHarnessContinuation(writtenPaths, allowedShipPaths)) return false;
+  if (countHarnessServerPatchAttempts(history) >= MAX_HARNESS_PATCH_PROPOSALS_PER_RUN) {
+    return false;
+  }
+  if (stepIndex === 0 && (!history || !history.length)) return true;
+  if (countHarnessServerPatchAttempts(history) === 0 && stepIndex <= 1) return true;
+  if (lastToolResult?.ok && lastToolResult.path) return true;
+  if (lastHistoryWasProseOrJsonStall(history)) {
+    if (
+      allowlistedPathsWrittenThisRun(writtenPaths, allowedShipPaths) &&
+      countHarnessServerPatchAttempts(history) >= 1
+    ) {
+      return false;
+    }
+    return true;
+  }
+  if (
+    lastToolResult?.ok === false &&
+    /JSON|prose|apply_patch|One action only/i.test(String(lastToolResult.error || ''))
+  ) {
+    return true;
+  }
+  return false;
+}
+
+async function maybeHarnessPatchProposal(userDataPath, fsModule, options) {
+  if (!shouldRunHarnessPatchProposal(options)) return null;
+  return attemptHarnessPatchFirstProposal(userDataPath, fsModule, options);
 }
 
 /** After prefetch (or early incremental run): server-side search-replace, same as proposeSingleFileWrite patch path. */
@@ -1316,13 +1456,15 @@ async function attemptHarnessPatchFirstProposal(userDataPath, fsModule, options)
   } = options;
 
   if (!goalSignalsIncrementalEdit(goal, parentGoal)) return null;
-  if (writtenPaths?.length) return null;
+  if (!writtenPathsAllowHarnessContinuation(writtenPaths, allowedShipPaths)) return null;
   if (!Array.isArray(allowedShipPaths) || !allowedShipPaths.length || allowedShipPaths.length > 2) {
     return null;
   }
 
   const targetFile = allowedShipPaths[0];
   if (!shouldTryPatchFirst(goal, targetFile, projectRoot, fsModule, parentGoal)) return null;
+
+  const continuation = Array.isArray(writtenPaths) && writtenPaths.length > 0;
 
   let patch = await tryPatchFirstWrite(userDataPath, fsModule, {
     projectRoot,
@@ -1331,6 +1473,7 @@ async function attemptHarnessPatchFirstProposal(userDataPath, fsModule, options)
     parentGoal,
     sessionBrief,
     maxTokens,
+    continuation,
   });
   if (!patch?.content?.trim()) {
     patch = await tryPatchFirstWrite(userDataPath, fsModule, {
@@ -1341,6 +1484,7 @@ async function attemptHarnessPatchFirstProposal(userDataPath, fsModule, options)
       sessionBrief,
       maxTokens,
       simple: true,
+      continuation,
     });
   }
 
@@ -1495,7 +1639,31 @@ async function runAgentStep(userDataPath, fs, options) {
     };
   }
 
+  const harnessPatch = await maybeHarnessPatchProposal(userDataPath, fs, {
+    projectRoot,
+    goal,
+    parentGoal,
+    sessionBrief,
+    allowedShipPaths,
+    writtenPaths,
+    stepIndex,
+    maxSteps,
+    maxTokens,
+    history,
+    lastToolResult,
+    fsModule: fs,
+  });
+  if (harnessPatch?.needsApproval) return harnessPatch;
+
+  const patchFirstActive = shouldUseHarnessServerPatch(
+    goal,
+    parentGoal,
+    allowedShipPaths,
+    projectRoot,
+    fs
+  );
   if (
+    !patchFirstActive &&
     shouldBootstrapIncrementalRead(
       goal,
       parentGoal,
@@ -1516,28 +1684,8 @@ async function runAgentStep(userDataPath, fs, options) {
     );
     const boot = executeBootstrapReads(projectRoot, paths, fs, allowedShipPaths);
     if (boot.ok) {
-      const patchMode = shouldUseHarnessServerPatch(goal, parentGoal, allowedShipPaths, projectRoot, fs);
-      if (patchMode) {
-        const harnessPatch = await attemptHarnessPatchFirstProposal(userDataPath, fs, {
-          projectRoot,
-          goal,
-          parentGoal,
-          sessionBrief,
-          allowedShipPaths,
-          writtenPaths,
-          stepIndex,
-          maxSteps,
-          maxTokens,
-        });
-        if (harnessPatch?.needsApproval) {
-          return harnessPatch;
-        }
-      }
       const names = boot.files.map((f) => f.path).join(', ');
-      const patchTargets = allowedShipPaths.map((p) => `\`${p}\``).join(', ');
-      const narration = shouldUseHarnessServerPatch(goal, parentGoal, allowedShipPaths, projectRoot, fs)
-        ? `Harness prefetched ${names} (${boot.chars} chars) — apply_patch on ${patchTargets} with exact old_string next.`
-        : `Harness prefetched ${names} (${boot.chars} chars) — use full write or patch per goal.`;
+      const narration = `Harness prefetched ${names} (${boot.chars} chars) — use full write or patch per goal.`;
       return {
         success: true,
         stepIndex,
@@ -1549,82 +1697,6 @@ async function runAgentStep(userDataPath, fs, options) {
         toolResult: boot,
         needsContinue: true,
       };
-    }
-  }
-
-  const mayHarnessPatchFirst =
-    shouldUseHarnessServerPatch(goal, parentGoal, allowedShipPaths, projectRoot, fs) &&
-    stepIndex === 1 &&
-    !writtenPaths?.length &&
-    !lastToolResult?.harnessPatchFirstFailed;
-
-  if (mayHarnessPatchFirst) {
-    const harnessPatch = await attemptHarnessPatchFirstProposal(userDataPath, fs, {
-      projectRoot,
-      goal,
-      parentGoal,
-      sessionBrief,
-      allowedShipPaths,
-      writtenPaths,
-      stepIndex,
-      maxSteps,
-      maxTokens,
-    });
-    if (harnessPatch) return harnessPatch;
-  }
-
-  const serverPatchAttempts = countHarnessServerPatchAttempts(history);
-  if (
-    shouldUseHarnessServerPatch(goal, parentGoal, allowedShipPaths, projectRoot, fs) &&
-    !writtenPaths?.length &&
-    serverPatchAttempts < 2 &&
-    stepIndex >= 2 &&
-    stepIndex <= 3
-  ) {
-    const targetFile = allowedShipPaths[0];
-    const single = await harnessGenerateSingleApplyPatch(userDataPath, fs, {
-      projectRoot,
-      targetFile,
-      goal,
-      parentGoal,
-      sessionBrief,
-      maxTokens,
-    });
-    if (single?.content?.trim()) {
-      const stepBase = { success: true, stepIndex, maxSteps, provider: single.provider, model: single.model };
-      const blocked = rejectWritePathOrNull(
-        single.path || targetFile,
-        goal,
-        sessionBrief,
-        writtenPaths,
-        projectRoot,
-        fs,
-        stepBase,
-        '',
-        allowedShipPaths
-      );
-      if (!blocked) {
-        const writeGate = blockWriteApprovalStep(
-          stepBase,
-          single.path || targetFile,
-          single.content,
-          projectRoot,
-          fs,
-          { goal, parentGoal, patchApply: true }
-        );
-        if (!writeGate) {
-          return {
-            ...stepBase,
-            action: 'apply_patch',
-            reason: `Harness retry patch on **${single.path || targetFile}** — approve below.`,
-            narration: `Harness retry patch on **${single.path || targetFile}** — approve below.`,
-            pendingWrite: { path: single.path || targetFile, content: single.content },
-            needsApproval: true,
-            toolMeta: { patch: true, harness: true, patchCount: 1 },
-            raw: `[harness single-patch ${single.path || targetFile}]`,
-          };
-        }
-      }
     }
   }
 
@@ -1697,13 +1769,16 @@ async function runAgentStep(userDataPath, fs, options) {
 
   const tokenBudget = orchestratedFile || forceProvideCodeBlock ? Math.max(maxTokens, 32768) : maxTokens;
   const mustUseTool = !!(forceProvideCodeBlock || orchestratedFile);
+  const incrementalJsonTurn =
+    goalSignalsIncrementalEdit(goal, parentGoal) && !mustUseTool && !orchestratedFile;
+  const agentTemperature = mustUseTool ? 0.35 : incrementalJsonTurn ? 0.12 : 0.7;
   let llm = await chatGemini(userDataPath, fs, {
     messages,
     systemPrompt,
     maxTokens: tokenBudget,
     useTools: true,
     forceProvideCodeBlock: mustUseTool,
-    temperature: mustUseTool ? 0.35 : 0.7,
+    temperature: agentTemperature,
   });
 
   if (!llm.success && mustUseTool) {
@@ -1712,7 +1787,7 @@ async function runAgentStep(userDataPath, fs, options) {
       systemPrompt,
       maxTokens: tokenBudget,
       useTools: false,
-      temperature: mustUseTool ? 0.35 : 0.7,
+      temperature: agentTemperature,
     });
   }
 
@@ -1930,6 +2005,31 @@ async function runAgentStep(userDataPath, fs, options) {
   };
 
   if (action === '_prose' || action === '_no_action') {
+    const inc = goalSignalsIncrementalEdit(goal, parentGoal);
+    const missingOnProse = missingExpectedFiles(
+      goal,
+      sessionBrief,
+      writtenPaths,
+      projectRoot,
+      fs,
+      orchestratedFile
+    );
+    if (
+      inc &&
+      !orchestratedFile &&
+      !missingOnProse.length &&
+      allowlistedPathsWrittenThisRun(writtenPaths, allowedShipPaths)
+    ) {
+      const wrapMsg =
+        stripAgentPayloadFromMessage(llm.content) ||
+        stripAgentPayloadFromMessage(reason) ||
+        'Edits are on disk — wrapping this pass.';
+      return {
+        ...base,
+        done: true,
+        message: wrapMsg,
+      };
+    }
     const toolResult = agentStallToolResult(
       goal,
       sessionBrief,
@@ -1939,7 +2039,6 @@ async function runAgentStep(userDataPath, fs, options) {
       orchestratedFile,
       parentGoal
     );
-    const inc = goalSignalsIncrementalEdit(goal, parentGoal);
     return {
       ...base,
       action: 'reply',
@@ -1955,6 +2054,30 @@ async function runAgentStep(userDataPath, fs, options) {
   }
 
   if (action === 'done') {
+    const incrementalScopedDone =
+      goalSignalsIncrementalEdit(goal, parentGoal) &&
+      Array.isArray(writtenPaths) &&
+      writtenPaths.length > 0 &&
+      !orchestratedFile;
+    const missingBeforeDone = missingExpectedFiles(
+      goal,
+      sessionBrief,
+      writtenPaths,
+      projectRoot,
+      fs,
+      orchestratedFile
+    );
+    if (incrementalScopedDone && !missingBeforeDone.length) {
+      const summaryEarly =
+        stripAgentPayloadFromMessage(parsed.message || reason || llm.content) ||
+        'All set for this pass.';
+      return {
+        ...base,
+        done: true,
+        message: summaryEarly,
+      };
+    }
+
     const mislabeled = tryParseAgentObject(parsed.message || llm.content);
     if (mislabeled && String(mislabeled.action).toLowerCase() !== 'done') {
       const retry = { ...mislabeled };
@@ -1978,7 +2101,10 @@ async function runAgentStep(userDataPath, fs, options) {
         }
       }
       const writeRetry = pendingWriteFromParsed(retry);
-      if (writeRetry?.content?.trim()) {
+      if (
+        writeRetry?.content?.trim() &&
+        !(incrementalScopedDone && pathOnShipAllowlist(writeRetry.path, allowedShipPaths))
+      ) {
         try {
           resolveInProject(projectRoot, writeRetry.path);
           const retryGate = blockWriteApprovalStep(
@@ -2005,7 +2131,10 @@ async function runAgentStep(userDataPath, fs, options) {
     }
 
     const embedded = salvageWriteFromContent(llm.content);
-    if (embedded?.content?.trim()) {
+    if (
+      embedded?.content?.trim() &&
+      !(incrementalScopedDone && pathOnShipAllowlist(embedded.path, allowedShipPaths))
+    ) {
       const writeReason =
         parsed.reason ||
         `One more file — **${embedded.path}** — then we can wrap up.`;
@@ -2150,6 +2279,14 @@ async function runAgentStep(userDataPath, fs, options) {
       const relPath = parsed.path || parsed.filePath || parsed.file;
       const oldS = parsed.old_string ?? parsed.oldString ?? parsed.search;
       const newS = parsed.new_string ?? parsed.newString ?? parsed.replace ?? '';
+      const chattyPatch = rejectChattyCssPatchFragment(relPath, newS);
+      if (chattyPatch) {
+        return {
+          ...base,
+          toolResult: { ok: false, error: chattyPatch },
+          needsContinue: true,
+        };
+      }
       const patched = applyPatchToFile(projectRoot, relPath, oldS, newS, fs);
       if (!patched.ok) {
         return { ...base, toolResult: patched, needsContinue: true };

@@ -12672,9 +12672,42 @@ async function recoverPhantomImplementWithAgent(userMessage, responseDivRef) {
 
 function isShortAgentContinuation(messageLower) {
     const t = String(messageLower || '').trim();
-    return /^(build|go|ship it|do it|make it|yes[!.]?|yep|okay|ok|let'?s go|please do|run it|execute|do that)\.?$/i.test(
+    return /^(build|go|ship it|do it|make it|yes[!.]?|yep|okay|ok|let'?s go|please do|run it|execute|do that|apply( it)?|implement( it)?)\.?$/i.test(
         t
     );
+}
+
+function isApplyPlanContinuation(raw) {
+    const t = String(raw || '').trim().toLowerCase();
+    if (isShortAgentContinuation(t)) return true;
+    return (
+        /\b(apply|implement|do|ship)\s+(what you|your plan|the plan|that plan|that|it)\b/.test(t) ||
+        /\b(the rest|remaining|rest of)\s+(of\s+)?(the\s+)?(plan|css|styling|changes)\b/.test(t) ||
+        /\bapply\s+(your|the)\s+(bubblegum|css|styling)\b/.test(t)
+    );
+}
+
+/** Last Cursy plan / CSS brief — bound into harness parentGoal (no user re-dictation). */
+function extractAssistantPlanFromRecentChat(maxChars = 3600) {
+    const ctx = state.conversationContext || [];
+    for (let i = ctx.length - 1; i >= 0; i--) {
+        const m = ctx[i];
+        if (m.role !== 'assistant') continue;
+        const t = String(m.content || '').trim();
+        if (t.length < 60) continue;
+        const looksLikePlan =
+            /\d+\.\s+\S/.test(t) ||
+            /\b(styles\.css|\.feature-card|#hero|#waitlist|apply_patch|text-shadow|box-shadow)\b/i.test(
+                t
+            ) ||
+            /\b(header|hero|footer|feature card|CTA|bubblegum)\b/i.test(t);
+        if (looksLikePlan) return t.slice(0, maxChars);
+    }
+    return '';
+}
+
+function buildAgentParentGoalFromChat() {
+    return extractAssistantPlanFromRecentChat(2800) || extractCssFixGoalFromRecentChat() || '';
 }
 
 /** "Yes let's fix CSS" style follow-ups after Cursy already proposed a styles pass. */
@@ -12754,6 +12787,17 @@ function extractBuildGoalFromRecentChat() {
 function expandVagueAgentGoal(messageMarkdown) {
     const raw = String(messageMarkdown || '').trim();
     if (!raw) return raw;
+    if (isApplyPlanContinuation(raw)) {
+        const plan =
+            extractAssistantPlanFromRecentChat() ||
+            extractCssFixGoalFromRecentChat() ||
+            extractBuildGoalFromRecentChat();
+        if (plan) {
+            return enrichAgentGoalFromChat(
+                `Apply the plan from recent chat (patch-first on existing files; do not re-brief):\n\n${plan}\n\n(User: "${raw.slice(0, 160)}")`
+            );
+        }
+    }
     if (goalTargetsCssOnly(raw)) {
         const cssGoal = extractCssFixGoalFromRecentChat();
         const head = cssGoal || `Apply CSS fixes from recent chat to **styles.css** only — do not edit index.html.`;
@@ -13659,6 +13703,7 @@ async function runBoundedAgent(rawGoal) {
         const result = await window.electronAPI.agentStep({
             projectRoot: projectPath,
             goal,
+            parentGoal: buildAgentParentGoalFromChat(),
             history,
             stepIndex: step,
             maxSteps,
